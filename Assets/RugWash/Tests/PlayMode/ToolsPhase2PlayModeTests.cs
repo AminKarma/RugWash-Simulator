@@ -19,6 +19,7 @@ namespace RugWash.Tests
         [UnitySetUp]
         public IEnumerator LoadWorkshop()
         {
+            TestSaveSandbox.Reset();
             SceneManager.LoadScene("Workshop", LoadSceneMode.Single);
             yield return null;
             yield return null;

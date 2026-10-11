@@ -3,7 +3,7 @@
 Statuts : **À faire** · **En cours** · **Implémenté** (code présent, non vérifié par un test exécuté) ·
 **Testé** (vérifié par un test automatisé réellement exécuté, ou par une capture examinée) · **Bloqué**.
 
-Dernière mise à jour : fin de la phase 3 — Unity 6000.5.7f1. Tests exécutés : 67/67 EditMode, 22/22 PlayMode.
+Dernière mise à jour : fin de la phase 4 — Unity 6000.5.7f1. Tests exécutés : 78/78 EditMode, 32/32 PlayMode.
 
 ## Phase 0 — Audit et outillage
 
@@ -76,11 +76,28 @@ Dernière mise à jour : fin de la phase 3 — Unity 6000.5.7f1. Tests exécuté
 | Écran de résultats (note, critères, paiement, avant/après, retour / autre commande) | Testé | Boutons invoqués dans les tests, capture `11` |
 | HUD : solde, réputation, commande active et chronomètre | Testé (visuel) | Captures `09`–`11` |
 
+## Phase 4 — Interface et sauvegarde
+
+| Fonctionnalité | Statut | Preuve |
+|---|---|---|
+| Menu principal (atelier en arrière-plan, Nouvelle partie, Continuer, Paramètres, Quitter) | Testé | `MainMenu_FullCycle…`, capture `12` |
+| « Continuer » seulement si une progression existe ; confirmation avant d'écraser une partie | Testé | `MainMenu_FullCycle…`, `MainMenu_NewGame_AfterConfirmation…` |
+| Paramètres : volumes, sensibilité, inversion Y, qualité — appliqués immédiatement | Testé | `Settings_ChangedInUI_AreAppliedSavedAndRestored` |
+| Paramètres : résolution et mode d'affichage | Implémenté | `Screen.SetResolution` ; sans effet dans l'éditeur, **à vérifier dans un build** |
+| Reconfiguration des touches (7 actions, annulation par Échap, réinitialisation) | Testé (logique) | `KeyBinding_Override…`, `BindingOverrides_SurviveRecreatedActionAssets` ; saisie interactive = vérification manuelle |
+| Sauvegarde JSON versionnée (argent, réputation, achats, commandes terminées, statistiques, paramètres, profil) | Testé | `SaveSystemTests`, `DeliveredOrder_IsSaved…`, `Purchase_PersistsAcrossReload` |
+| Nouvelle installation sans sauvegarde | Testé | `NewInstall_*` |
+| Fichier corrompu : copie de secours, ou nouvelle partie sans blocage ; fichiers endommagés conservés | Testé | `CorruptedMain_*`, `CorruptedSave_DoesNotBlockStartup` |
+| Écriture atomique, copie de secours, données invalides jamais écrites | Testé | `SecondSave_KeepsPreviousAsBackup`, `InvalidData_IsNeverWritten…` |
+| Migration v0 → v1 ; sauvegarde plus récente ni chargée ni écrasée | Testé | `VersionZero_IsMigrated`, `NewerVersion_IsNotLoaded_NorOverwritten` |
+| Pas de récompense dupliquée après rechargement | Testé | `DeliveredOrder_IsSaved_RestoredAfterReload_WithoutDuplicateReward` |
+| Pause : Paramètres, Menu principal (commande en cours abandonnée), sauvegarde avant de quitter | Testé | `ReturnToMenu_DuringOrder…`, `MainMenu_FullCycle…` |
+| Tests isolés de la vraie sauvegarde (dossier temporaire) | Testé | `TestSaveSandbox` utilisé par toutes les classes PlayMode |
+
 ## Phases suivantes
 
 | Fonctionnalité | Statut |
 |---|---|
-| Menu principal, paramètres (volume, sensibilité, résolution, qualité, touches), résultats, sauvegarde JSON (phase 4) | À faire |
 | Qualité visuelle : modèles d'outils et décor, SSAO, animations (phase 5) | À faire |
 | Build Windows vérifié, mesure de performance 1080p (phase 6) | À faire |
 
@@ -88,13 +105,15 @@ Dernière mise à jour : fin de la phase 3 — Unity 6000.5.7f1. Tests exécuté
 
 - **Sons temporaires** : tous les sons sont synthétisés (`Audio/Generated/tmp_*.wav`). Ils sont fonctionnels
   mais ne sont pas des sons définitifs. Aucun enregistrement réel n'est présent.
-- **Pas de sauvegarde** : argent, réputation, achats et commandes terminées sont perdus en quittant (phase 4).
-- **Résultats affichés dans l'atelier** (fenêtre), pas dans `Results.unity`, qui reste une scène provisoire :
-  cela évite de transférer l'état entre scènes avant l'existence de la sauvegarde.
+- **Commande en cours non sauvegardée** : quitter ou revenir au menu pendant une commande l'abandonne.
+- **Résultats affichés dans l'atelier** (fenêtre) : la scène provisoire `Results.unity` a été supprimée
+  et retirée du build (choix documenté : pas de transfert d'état entre scènes, retour immédiat au travail).
+- **Pas de sauvegarde cloud** ni de protection contre la modification manuelle du fichier.
+- **Tous les outils sont disponibles dès le départ** : aucun système de déblocage d'outils n'existe, donc rien
+  n'est sauvegardé à ce sujet.
 - Le catalogue contient 6 commandes non renouvelables : une fois toutes terminées, il ne reste que l'entraînement
   (génération de nouvelles commandes à prévoir).
-- **Pas d'écran de paramètres** : la sensibilité souris est réglable dans l'Inspector uniquement.
-- **MainMenu.unity et Results.unity sont des scènes provisoires** (texte « Écran prévu en phase 4 »).
+- **Résolution et mode d'affichage** ne sont pas observables dans l'éditeur : à vérifier dans un build (phase 6).
 - **Modèles provisoires** : outils tenus en main, mobilier et panneaux sont assemblés à partir de formes
   simples texturées. À remplacer en phase 5.
 - **Séchage naturel du tapis non simulé** : seule l'extraction réduit l'humidité (le sol de l'aire de lavage, lui, sèche).
@@ -118,6 +137,10 @@ Dernière mise à jour : fin de la phase 3 — Unity 6000.5.7f1. Tests exécuté
 7. Échap : menu pause, curseur libre, le jeu est figé ; « Tapis suivant » charge un autre tapis.
 8. F3 : overlay de diagnostic (FPS, propreté, envois de texture).
 9. Changer la résolution de la vue Game (1280×720, 1920×1080, 2560×1440) : HUD lisible, rien ne se superpose.
+10. Menu principal → Nouvelle partie → livrer une commande → Échap → Menu principal → « Continuer » affiche le solde
+    → Continuer : solde, réputation et commande terminée retrouvés.
+11. Paramètres → « Modifier » sur Interagir → appuyer sur G → fermer ; en jeu, G ouvre le comptoir ; relancer le jeu :
+    G est conservé ; « Touches par défaut » rétablit E.
 
 7 bis. Comptoir de réception (E) → « Accepter » sur « Le tapis du salon » ; nettoyer ; revenir au comptoir →
    « Livrer la commande » → écran de résultats, solde et réputation mis à jour → « Retour à l'atelier ».
