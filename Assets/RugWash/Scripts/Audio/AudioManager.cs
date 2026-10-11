@@ -21,6 +21,7 @@ namespace RugWash.Audio
         [Header("Sons d'interface")]
         [SerializeField] AudioClip uiClick;
         [SerializeField] AudioClip uiConfirm;
+        [SerializeField] AudioClip objectiveClip;
 
         [Header("Volumes")]
         [SerializeField, Range(0f, 1f)] float masterVolume = 0.9f;
@@ -52,6 +53,7 @@ namespace RugWash.Audio
         }
 
         public AudioClip ConfirmClip => uiConfirm;
+        public AudioClip ObjectiveClip => objectiveClip;
 
         public float VolumeFor(AudioCategory category) => category == AudioCategory.Interface ? interfaceVolume : effectsVolume;
 

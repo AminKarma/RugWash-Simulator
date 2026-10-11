@@ -34,6 +34,11 @@ namespace RugWash.Orders
 
         public event Action<OrderDefinition> OrderStarted;
         public event Action<OrderResult> OrderFinished;
+        /// <summary>Déclenché une seule fois par commande quand la propreté atteint l'objectif.</summary>
+        public event Action<OrderDefinition> ObjectiveReached;
+
+        bool objectiveNotified;
+        public bool ObjectiveNotified => objectiveNotified;
         public event Action Changed;
 
         public bool IsConfigured(out string missing)
@@ -52,8 +57,13 @@ namespace RugWash.Orders
 
         void Update()
         {
-            if (ActiveOrder != null && gameState.State == GameState.ActiveOrder)
-                ElapsedSeconds += Time.deltaTime;
+            if (ActiveOrder == null || gameState.State != GameState.ActiveOrder) return;
+            ElapsedSeconds += Time.deltaTime;
+            if (!objectiveNotified && rug.Grid != null && rug.Cleanliness01 >= ActiveOrder.objectives.targetCleanliness)
+            {
+                objectiveNotified = true;
+                ObjectiveReached?.Invoke(ActiveOrder);
+            }
         }
 
         public OrderStartResult TryStart(OrderDefinition order)
@@ -63,6 +73,7 @@ namespace RugWash.Orders
 
             ElapsedSeconds = 0f;
             LastResult = null;
+            objectiveNotified = false;
             rug.LoadRug(order.rug, order.dirt, order.dirtSeed);
             gameState.SetState(GameState.ActiveOrder);
             OrderStarted?.Invoke(order);
@@ -76,6 +87,7 @@ namespace RugWash.Orders
             var order = ActiveOrder;
             if (order == null) return false;
             ElapsedSeconds = 0f;
+            objectiveNotified = false;
             rug.LoadRug(order.rug, order.dirt, order.dirtSeed);
             Changed?.Invoke();
             return true;

@@ -309,6 +309,7 @@ namespace RugWash.Editor
             var fringe = EnsureLit("M_RugFringe", new Color(0.9f, 0.86f, 0.75f), 0.15f);
             fringe.SetFloat("_Cull", 0f);
             fringe.doubleSidedGI = true;
+            EditorUtility.SetDirty(fringe);
             content.Materials["RugFringe"] = fringe;
 
             content.Materials["TargetRing"] = EnsureMaterial("M_TargetRing", "RugWash/Target Ring", out _);
@@ -340,6 +341,29 @@ namespace RugWash.Editor
             content.Materials["BluePlastic"] = EnsureLit("M_BluePlastic", new Color(0.12f, 0.36f, 0.68f), 0.55f);
             content.Materials["WhitePlastic"] = EnsureLit("M_WhitePlastic", new Color(0.88f, 0.89f, 0.9f), 0.5f);
             content.Materials["Chrome"] = EnsureLit("M_Chrome", new Color(0.8f, 0.82f, 0.85f), 0.85f, metallic: 1f);
+            content.Materials["Glass"] = EnsureLit("M_Glass", new Color(0.55f, 0.7f, 0.78f), 0.92f, metallic: 0.2f);
+            content.Materials["GreyHose"] = EnsureLit("M_GreyHose", new Color(0.32f, 0.34f, 0.36f), 0.35f);
+            content.Materials["Hazard"] = EnsureLit("M_Hazard", Color.white, 0.3f, Tex(RugWashTextureGenerator.Hazard), null, tiling: 2f);
+            content.Materials["Paper"] = EnsureLit("M_Paper", Color.white, 0.05f, Tex(RugWashTextureGenerator.Paper), null, tiling: 1f);
+            content.Materials["ClockFace"] = EnsureLit("M_ClockFace", Color.white, 0.3f, Tex(RugWashTextureGenerator.ClockFace), null, tiling: 1f);
+            content.Materials["FloorMarking"] = EnsureLit("M_FloorMarking", new Color(0.92f, 0.72f, 0.15f), 0.25f);
+            content.Materials["StepBlue"] = EnsureLit("M_StepBlue", new Color(0.2f, 0.45f, 0.75f), 0.3f);
+            content.Materials["StepGreen"] = EnsureLit("M_StepGreen", new Color(0.25f, 0.6f, 0.35f), 0.3f);
+            content.Materials["StepOrange"] = EnsureLit("M_StepOrange", new Color(0.9f, 0.55f, 0.15f), 0.3f);
+            content.Materials["StepCyan"] = EnsureLit("M_StepCyan", new Color(0.2f, 0.7f, 0.8f), 0.3f);
+            content.Materials["StepPurple"] = EnsureLit("M_StepPurple", new Color(0.55f, 0.35f, 0.75f), 0.3f);
+            content.Materials["RugClassic"] = EnsureLit("M_RugClassic_Display", Color.white, 0.08f,
+                Tex(RugWashTextureGenerator.ClassicAlbedo), Tex(RugWashTextureGenerator.FiberShortNormal), tiling: 1f);
+            content.Materials["RugShag"] = EnsureLit("M_RugShag_Display", Color.white, 0.05f,
+                Tex(RugWashTextureGenerator.ShagAlbedo), Tex(RugWashTextureGenerator.FiberLongNormal), tiling: 1f);
+            content.Materials["RugOriental"] = EnsureLit("M_RugOriental_Display", Color.white, 0.08f,
+                Tex(RugWashTextureGenerator.OrientalAlbedo), Tex(RugWashTextureGenerator.FiberShortNormal), tiling: 1f);
+            foreach (var key in new[] { "RugClassic", "RugShag", "RugOriental" })
+            {
+                content.Materials[key].SetFloat("_Cull", 0f);
+                content.Materials[key].doubleSidedGI = true;
+                EditorUtility.SetDirty(content.Materials[key]);
+            }
             content.Materials["RedPlastic"] = EnsureLit("M_RedPlastic", new Color(0.72f, 0.16f, 0.12f), 0.5f);
             content.Materials["GreenPlastic"] = EnsureLit("M_GreenPlastic", new Color(0.2f, 0.55f, 0.32f), 0.5f);
             content.Materials["Rubber"] = EnsureLit("M_Rubber", new Color(0.07f, 0.07f, 0.08f), 0.25f);
@@ -348,7 +372,7 @@ namespace RugWash.Editor
             content.Materials["Cardboard"] = EnsureLit("M_Cardboard", new Color(0.6f, 0.45f, 0.3f), 0.1f);
             content.Materials["DoorPaint"] = EnsureLit("M_DoorPaint", new Color(0.2f, 0.3f, 0.42f), 0.4f);
             content.Materials["Signage"] = EnsureLit("M_Signage", new Color(0.1f, 0.13f, 0.16f), 0.3f);
-            content.Materials["LampPanel"] = EnsureEmissive("M_LampPanel", new Color(1f, 0.95f, 0.85f), 3.2f);
+            content.Materials["LampPanel"] = EnsureEmissive("M_LampPanel", new Color(1f, 0.95f, 0.85f), 4f);
             content.Materials["Window"] = EnsureEmissive("M_Window", new Color(0.55f, 0.7f, 0.88f), 0.75f);
             content.Materials["ScreenGlow"] = EnsureEmissive("M_ScreenGlow", new Color(0.35f, 0.75f, 0.85f), 1.2f);
         }

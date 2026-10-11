@@ -161,6 +161,7 @@ namespace RugWash.Core
             pauseMenu.Bind(gameState, rug, orders, availableRugs, settingsUI, saveManager);
             settingsUI.Bind(settingsManager, saveManager, gameState);
             saveManager.Saved += OnSaved;
+            orders.ObjectiveReached += OnObjectiveReached;
             inspection.Bind(gameState, rug, snapshots);
             orderBoard.Bind(gameState, orders, wallet);
             shopUI.Bind(gameState, shop);
@@ -180,9 +181,16 @@ namespace RugWash.Core
 
         void OnSaved(bool success, string message) => hud.ShowToast(message);
 
+        void OnObjectiveReached(OrderDefinition order)
+        {
+            hud.ShowToast("Objectif de propreté atteint — livrez la commande au comptoir");
+            audioManager.PlayInterface(audioManager.ObjectiveClip);
+        }
+
         void OnDestroy()
         {
             if (saveManager != null) saveManager.Saved -= OnSaved;
+            if (orders != null) orders.ObjectiveReached -= OnObjectiveReached;
             if (gameState == null) return;
             gameState.StateChanged -= OnGameStateChanged;
             gameState.ModalsChanged -= SyncGameplayInput;

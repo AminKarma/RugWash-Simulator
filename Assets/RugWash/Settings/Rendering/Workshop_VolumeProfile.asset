@@ -57,6 +57,7 @@ MonoBehaviour:
   - {fileID: 4099565509429893247}
   - {fileID: 8435705228085984184}
   - {fileID: 5409323076331221791}
+  - {fileID: 6199498993654603059}
 --- !u!114 &4099565509429893247
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -75,13 +76,13 @@ MonoBehaviour:
     m_Value: 1
   threshold:
     m_OverrideState: 1
-    m_Value: 1.1
+    m_Value: 1
   intensity:
     m_OverrideState: 1
-    m_Value: 0.25
+    m_Value: 0.4
   scatter:
     m_OverrideState: 1
-    m_Value: 0.7
+    m_Value: 0.65
   clamp:
     m_OverrideState: 1
     m_Value: 65472
@@ -128,11 +129,30 @@ MonoBehaviour:
     m_Value: {x: 0.5, y: 0.5}
   intensity:
     m_OverrideState: 1
-    m_Value: 0.18
+    m_Value: 0.22
   smoothness:
     m_OverrideState: 1
-    m_Value: 0.2
+    m_Value: 0.45
   rounded:
+    m_OverrideState: 1
+    m_Value: 0
+--- !u!114 &6199498993654603059
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 221518ef91623a7438a71fef23660601, type: 3}
+  m_Name: WhiteBalance
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.WhiteBalance
+  active: 1
+  temperature:
+    m_OverrideState: 1
+    m_Value: 6
+  tint:
     m_OverrideState: 1
     m_Value: 0
 --- !u!114 &8435705228085984184
@@ -150,10 +170,10 @@ MonoBehaviour:
   active: 1
   postExposure:
     m_OverrideState: 1
-    m_Value: 0.2
+    m_Value: 0.3
   contrast:
     m_OverrideState: 1
-    m_Value: 8
+    m_Value: 12
   colorFilter:
     m_OverrideState: 1
     m_Value: {r: 1, g: 1, b: 1, a: 1}
@@ -162,4 +182,4 @@ MonoBehaviour:
     m_Value: 0
   saturation:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 8

@@ -25,6 +25,12 @@ namespace RugWash.Editor
         public const string Refill = Folder + "/tmp_refill.wav";
         public const string Drain = Folder + "/tmp_drain.wav";
         public const string CleanSparkle = Folder + "/tmp_clean_sparkle.wav";
+        public const string Ambient = Folder + "/tmp_workshop_ambient_loop.wav";
+        public const string Objective = Folder + "/tmp_objective_reached.wav";
+        public static readonly string[] Footsteps =
+        {
+            Folder + "/tmp_footstep_1.wav", Folder + "/tmp_footstep_2.wav", Folder + "/tmp_footstep_3.wav",
+        };
 
         [MenuItem("RugWash/Setup/Regénérer les Sons Temporaires", priority = 41)]
         static void RegenerateMenu() => GenerateAll(force: true);
@@ -42,6 +48,13 @@ namespace RugWash.Editor
             Write(Refill, force, false, 1.1f, Pour);
             Write(Drain, force, false, 1.2f, Gurgle);
             Write(CleanSparkle, force, false, 0.35f, Sparkle);
+            Write(Ambient, force, true, 8f, AmbientRoom);
+            Write(Objective, force, false, 0.9f, ObjectiveChime);
+            for (int i = 0; i < Footsteps.Length; i++)
+            {
+                float pitch = 0.85f + i * 0.12f;
+                Write(Footsteps[i], force, false, 0.22f, (float t, float d, ref State s) => Footstep(t, d, ref s, pitch));
+            }
         }
 
         // ------------------------------------------------------------------ Synthèses
@@ -135,6 +148,37 @@ namespace RugWash.Editor
             float water = LowPass(ref s.Lp1, s.Noise(), 900f) * 0.6f;
             float bubble = Sine(t, 220f - 100f * t / d + 40f * Sine(t, 11f)) * 0.25f * (0.5f + 0.5f * Sine(t, 9f));
             return (water + bubble) * envelope;
+        }
+
+        static float AmbientRoom(float t, float d, ref State s)
+        {
+            // Ronflement électrique discret + souffle d'air + rumeur lointaine (périodes entières pour boucler).
+            float hum = 0.05f * Sine(t, 50f) + 0.025f * Sine(t, 100f) + 0.012f * Sine(t, 150f);
+            float air = LowPass(ref s.Lp1, s.Noise(), 400f) * 0.5f;
+            float rumble = LowPass(ref s.Lp2, s.Noise(), 120f) * (0.6f + 0.4f * Sine(t, 0.25f));
+            return (hum + air + rumble * 0.8f) * 0.6f;
+        }
+
+        static float ObjectiveChime(float t, float d, ref State s)
+        {
+            float[] notes = { 784f, 988f, 1175f, 1568f };
+            float sum = 0f;
+            for (int i = 0; i < notes.Length; i++)
+            {
+                float start = i * 0.09f;
+                if (t < start) continue;
+                float local = t - start;
+                sum += Sine(local, notes[i]) * Mathf.Exp(-local * 5f) * (i == notes.Length - 1 ? 1.2f : 0.8f);
+            }
+            return sum * 0.2f;
+        }
+
+        static float Footstep(float t, float d, ref State s, float pitch)
+        {
+            float envelope = Mathf.Exp(-t * 38f) * Mathf.Clamp01(t * 400f);
+            float thump = Sine(t, 85f * pitch) * Mathf.Exp(-t * 30f);
+            float scuff = LowPass(ref s.Lp1, s.Noise(), 1800f * pitch);
+            return (thump * 0.8f + scuff * 0.6f) * envelope;
         }
 
         static float Sparkle(float t, float d, ref State s)

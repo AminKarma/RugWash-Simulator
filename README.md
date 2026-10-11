@@ -4,8 +4,8 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : fin de la PHASE 4 (menu principal, paramètres, sauvegarde locale).**
-> Restent : qualité visuelle (phase 5) puis validation et build Windows (phase 6).
+> **État actuel : fin de la PHASE 5 (qualité visuelle, animations, ambiance sonore).**
+> Reste : validation finale, mesure de performance et build Windows (phase 6).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
 > Voir [Assets/RugWash/Documentation/PRODUCTION.md](Assets/RugWash/Documentation/PRODUCTION.md) pour le suivi détaillé.
 
@@ -22,8 +22,10 @@ et voit le motif d'origine réapparaître progressivement.
 | Tests | Unity Test Framework 1.7.0 |
 | Plateforme cible | Windows 64 bits (DX11, DX12, Vulkan) |
 
-Aucun asset tiers : toutes les textures (motifs de tapis, fibres, béton, bois…) sont **générées
-procéduralement** par `RugWashTextureGenerator` et sont des créations originales.
+Aucun asset tiers : toutes les textures (motifs de tapis, fibres, béton, bois, bandes de sécurité…) sont
+**générées procéduralement** par `RugWashTextureGenerator`, et tous les modèles (outils, mobilier, tapis suspendus
+et roulés, flexibles, fûts…) par `RugWashProceduralMeshes` / `RugWashToolModels` / `RugWashDecor`.
+Ce sont des créations originales.
 
 ## 2. Ouvrir et lancer le projet
 
@@ -102,11 +104,22 @@ difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste
 
 ## 4 bis. Audio
 
-Les sons (outils en boucle, interface, remplissage, vidange, éclat de zone propre) sont **générés par
+Les sons (outils en boucle, interface, remplissage, vidange, éclat de zone propre, ambiance d'atelier,
+pas, annonce « objectif atteint ») sont **générés par
 synthèse** (`RugWashAudioGenerator`) dans `Assets/RugWash/Audio/Generated/tmp_*.wav`. Ce sont des
 **substituts temporaires** clairement préfixés `tmp_`, à remplacer par des enregistrements : il suffit de
 changer le clip assigné (`CleaningAudioController`, `AudioManager`, postes). `AudioManager` gère les volumes
 général / effets / interface (exposés pour l'écran de paramètres de la phase 4) et coupe tout en pause.
+
+## 4 quater. Rendu et présentation
+
+- URP Forward+, **SSAO** (occlusion ambiante), ombres douces du projecteur principal, sonde de réflexion,
+  étalonnage (ACES, balance des blancs chaude, saturation, bloom, vignette).
+- Outils tenus en main animés : balancement à la souris, balancier de marche, montée de l'outil à chaque changement
+  (`ViewModelRig`), plus l'animation propre à chaque outil (brossage, vibration, recul).
+- Atelier habillé : tapis à sécher, tapis roulés en attente, poste d'eau avec flexible enroulé, fût de détergent,
+  étagères, établi à tiroirs, panneau d'outils, comptoir avec écran, poutres, conduits, horloge à l'heure réelle,
+  affiche « Les 5 étapes » (aide en jeu), marquage au sol.
 
 ## 5. Architecture
 

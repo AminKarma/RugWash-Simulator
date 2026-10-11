@@ -3,7 +3,7 @@
 Statuts : **À faire** · **En cours** · **Implémenté** (code présent, non vérifié par un test exécuté) ·
 **Testé** (vérifié par un test automatisé réellement exécuté, ou par une capture examinée) · **Bloqué**.
 
-Dernière mise à jour : fin de la phase 4 — Unity 6000.5.7f1. Tests exécutés : 78/78 EditMode, 32/32 PlayMode.
+Dernière mise à jour : fin de la phase 5 — Unity 6000.5.7f1. Tests exécutés : 84/84 EditMode, 36/36 PlayMode.
 
 ## Phase 0 — Audit et outillage
 
@@ -94,11 +94,24 @@ Dernière mise à jour : fin de la phase 4 — Unity 6000.5.7f1. Tests exécuté
 | Pause : Paramètres, Menu principal (commande en cours abandonnée), sauvegarde avant de quitter | Testé | `ReturnToMenu_DuringOrder…`, `MainMenu_FullCycle…` |
 | Tests isolés de la vraie sauvegarde (dossier temporaire) | Testé | `TestSaveSandbox` utilisé par toutes les classes PlayMode |
 
+## Phase 5 — Qualité visuelle
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| Bibliothèque de maillages procéduraux (boîtes arrondies, révolutions, tubes, tissu, poils) | Testé | `VisualContentTests` (bornes, normales sortantes, orientation des triangles) |
+| Modèles détaillés des 5 outils (remplacent les cubes) | Testé (visuel) | Planche `14_tools_sheet` examinée |
+| Habillage : postes d'eau et produits, étagères garnies, établi à tiroirs, panneau d'outils, comptoir, tapis à sécher et roulés, poutres, conduits, porte, marquage au sol | Testé (visuel) | Captures `15` à `18` |
+| Affiche « Les 5 étapes » (aide en jeu) et horloge à l'heure réelle | Testé | `WallClock_ShowsGivenTime` + captures |
+| Bordures de l'aire de lavage en bandes de sécurité (texture générée) | Testé (visuel) | Captures `01`, `12` |
+| SSAO, lumière du jour, plafonniers détaillés, étalonnage (ACES, balance des blancs, saturation, bloom, vignette) | Testé | `Renderer_HasScreenSpaceAmbientOcclusion` + captures |
+| Animations des outils tenus : balancement souris, balancier de marche, montée à chaque changement | Testé (logique) | `ToolSwitch_PlaysEquipAnimation_ThenSettles` ; ressenti = vérification manuelle |
+| Ambiance sonore d'atelier, bruits de pas (selon la distance parcourue), annonce « objectif atteint » unique | Testé | `Ambience_Plays…`, `Footsteps_FollowDistance_NotTime`, `ObjectiveReached_IsAnnouncedOnce` |
+| Chevauchements corrigés (panneaux sur les fenêtres, tuyau sur le panneau du poste d'eau) | Testé (visuel) | Captures `16`, `18` |
+
 ## Phases suivantes
 
 | Fonctionnalité | Statut |
 |---|---|
-| Qualité visuelle : modèles d'outils et décor, SSAO, animations (phase 5) | À faire |
 | Build Windows vérifié, mesure de performance 1080p (phase 6) | À faire |
 
 ## Limites connues (phase 1)
@@ -114,11 +127,12 @@ Dernière mise à jour : fin de la phase 4 — Unity 6000.5.7f1. Tests exécuté
 - Le catalogue contient 6 commandes non renouvelables : une fois toutes terminées, il ne reste que l'entraînement
   (génération de nouvelles commandes à prévoir).
 - **Résolution et mode d'affichage** ne sont pas observables dans l'éditeur : à vérifier dans un build (phase 6).
-- **Modèles provisoires** : outils tenus en main, mobilier et panneaux sont assemblés à partir de formes
-  simples texturées. À remplacer en phase 5.
+- **Modèles procéduraux** : outils et mobilier sont générés par code (formes arrondies, révolutions, tubes).
+  Ils remplacent les cubes du prototype mais restent stylisés ; des modèles 3D réalisés par un artiste
+  amélioreraient encore le rendu.
+- **Police de l'interface** : police intégrée de Unity (`LegacyRuntime.ttf`), sans identité graphique propre.
 - **Séchage naturel du tapis non simulé** : seule l'extraction réduit l'humidité (le sol de l'aire de lavage, lui, sèche).
 - **Extracteur = abstraction** : l'eau aspirée est calculée depuis l'humidité retirée (3 L/m² saturé).
-- Modèles des 5 outils tenus en main : assemblages de formes simples (provisoires, phase 5).
 - Les tapis à poils longs utilisent une normale plus marquée, pas de rendu de poils en volume.
 - **Performance non mesurée** : la cible 60 FPS en 1080p n'est pas vérifiée. L'overlay F3 permet la mesure.
 - Verrouillage réel du curseur, contrôle souris/clavier et lisibilité du HUD à plusieurs résolutions :

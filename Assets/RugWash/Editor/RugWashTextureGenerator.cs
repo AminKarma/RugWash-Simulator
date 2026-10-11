@@ -22,6 +22,9 @@ namespace RugWash.Editor
         public const string PlasterAlbedo = RugWashPaths.GeneratedTextures + "/Plaster_Albedo.png";
         public const string WoodAlbedo = RugWashPaths.GeneratedTextures + "/Wood_Albedo.png";
         public const string GrateAlbedo = RugWashPaths.GeneratedTextures + "/Grate_Albedo.png";
+        public const string Hazard = RugWashPaths.GeneratedTextures + "/Hazard_Stripes.png";
+        public const string ClockFace = RugWashPaths.GeneratedTextures + "/Clock_Face.png";
+        public const string Paper = RugWashPaths.GeneratedTextures + "/Paper.png";
         public const string UIWhite = RugWashPaths.GeneratedTextures + "/UI_White.png";
         public const string UIRounded = RugWashPaths.GeneratedTextures + "/UI_Rounded.png";
 
@@ -44,6 +47,9 @@ namespace RugWash.Editor
             Generate(PlasterAlbedo, 512, 512, force, Kind.Color, true, PlasterPixel);
             Generate(WoodAlbedo, 512, 512, force, Kind.Color, true, WoodPixel);
             Generate(GrateAlbedo, 256, 256, force, Kind.Color, true, GratePixel);
+            Generate(Hazard, 256, 256, force, Kind.Color, true, HazardPixel);
+            Generate(ClockFace, 256, 256, force, Kind.Color, false, ClockFacePixel);
+            Generate(Paper, 256, 256, force, Kind.Color, true, PaperPixel);
             Generate(UIWhite, 8, 8, force, Kind.Sprite, false, (u, v) => Color.white);
             Generate(UIRounded, 64, 64, force, Kind.Sprite, false, RoundedPixel);
         }
@@ -412,6 +418,35 @@ namespace RugWash.Editor
             bool hole = slot > 0.2f && slot < 0.8f && v > 0.08f && v < 0.92f;
             float g = hole ? 0.04f : 0.32f + 0.08f * ValueNoise(u, v, 16, 501);
             return new Color(g, g, g * 1.05f, 1f);
+        }
+
+        static Color HazardPixel(float u, float v)
+        {
+            // Bandes diagonales jaune / noir, usées par endroits (texture tuilable de 0,5 m).
+            bool yellow = Repeat(u + v, 0.5f) < 0.25f;
+            float wear = Smooth(0.62f, 0.8f, Fbm(u, v, 6, 4, 601));
+            Color c = yellow ? Hex(0.93f, 0.7f, 0.1f) : Hex(0.08f, 0.08f, 0.08f);
+            return Color.Lerp(c, Hex(0.45f, 0.45f, 0.43f), wear * 0.6f) * (0.92f + 0.1f * ValueNoise(u, v, 64, 607));
+        }
+
+        static Color ClockFacePixel(float u, float v)
+        {
+            float x = u - 0.5f, y = v - 0.5f;
+            float r = Mathf.Sqrt(x * x + y * y) * 2f;
+            if (r > 1f) return Hex(0.1f, 0.1f, 0.11f);
+            if (r > 0.92f) return Hex(0.15f, 0.15f, 0.17f);
+            float angle = Mathf.Atan2(y, x) / (Mathf.PI * 2f) * 60f;
+            float minute = Mathf.Abs(angle - Mathf.Round(angle));
+            bool hourMark = Mathf.Abs(angle / 5f - Mathf.Round(angle / 5f)) * 5f < 0.18f;
+            if (r > 0.72f && r < 0.86f && hourMark) return Hex(0.12f, 0.12f, 0.13f);
+            if (r > 0.8f && r < 0.86f && minute < 0.08f) return Hex(0.3f, 0.3f, 0.32f);
+            return Hex(0.95f, 0.94f, 0.9f);
+        }
+
+        static Color PaperPixel(float u, float v)
+        {
+            float g = 0.93f + 0.04f * Fbm(u, v, 8, 3, 701) - 0.03f * ValueNoise(u, v, 128, 703);
+            return new Color(g, g * 0.985f, g * 0.95f, 1f);
         }
 
         static Color RoundedPixel(float u, float v)

@@ -35,7 +35,7 @@ namespace RugWash.Editor
         const string MeshStorePath = RugWashPaths.Root + "/Prefabs/Workshop_GeneratedMeshes.asset";
 
         // Dimensions intérieures de l'atelier (m).
-        const float RoomHalfX = 6f, RoomHalfZ = 5f, RoomHeight = 3.6f, WallThickness = 0.2f;
+        internal const float RoomHalfX = 6f, RoomHalfZ = 5f, RoomHeight = 3.6f, WallThickness = 0.2f;
         static readonly Vector3 WashPadCenter = new Vector3(0f, 0f, 0.8f);
         static readonly Vector3 WashPadSize = new Vector3(4.6f, 0.05f, 3.6f);
 
@@ -77,23 +77,31 @@ namespace RugWash.Editor
             var gameState = game.AddComponent<GameStateManager>();
             var performance = game.AddComponent<PerformanceMonitor>();
             var audio = game.AddComponent<AudioManager>();
-            Wire(audio, ("uiClick", Clip(RugWashAudioGenerator.UIClick)), ("uiConfirm", Clip(RugWashAudioGenerator.UIConfirm)));
+            Wire(audio, ("uiClick", Clip(RugWashAudioGenerator.UIClick)), ("uiConfirm", Clip(RugWashAudioGenerator.UIConfirm)),
+                ("objectiveClip", Clip(RugWashAudioGenerator.Objective)));
             var bootstrap = game.AddComponent<GameBootstrap>();
 
             BuildRoom(environment, content, meshes);
             var washPad = BuildWashBay(environment, content, meshes, audio);
-            BuildWaterStation(environment, content, meshes, audio);
-            var shopCounter = BuildToolStorage(environment, content, meshes);
-            var orderCounter = BuildOrderDesk(environment, content, meshes);
-            BuildDryingArea(environment, content, meshes);
-            BuildShelves(environment, content, meshes, audio);
+            RugWashDecor.WaterStation(environment, content, meshes, audio);
+            var shopCounter = RugWashDecor.ToolStorage(environment, content, meshes);
+            var orderCounter = RugWashDecor.OrderDesk(environment, content, meshes);
+            RugWashDecor.DryingArea(environment, content, meshes);
+            RugWashDecor.Shelves(environment, content, meshes);
+            RugWashDecor.SoapStation(environment, content, meshes, audio);
+            RugWashDecor.Ceiling(environment, content, meshes);
+            RugWashDecor.WallDetails(environment, content, meshes);
             BuildLights(lighting, content, meshes);
+            var ambient = new GameObject("Ambience");
+            ambient.transform.SetParent(environment, false);
+            ambient.AddComponent<AudioSource>();
+            Wire(ambient.AddComponent<AmbientAudio>(), ("audioManager", audio), ("loop", Clip(RugWashAudioGenerator.Ambient)));
 
             var rug = BuildRug(gameplay, content);
             var snapshots = BuildSnapshotCamera(gameplay, rug);
 
             var cleanPool = BuildCleanFeedbackPool(effects, content, audio);
-            var player = BuildPlayer(gameplay, content, effects, gameState, audio, cleanPool,
+            var player = BuildPlayer(gameplay, content, meshes, effects, gameState, audio, cleanPool,
                 out var input, out var fps, out var toolController, out var interactor);
 
             var waterEffect = effects.gameObject.AddComponent<WaterEffectController>();
@@ -190,7 +198,8 @@ namespace RugWash.Editor
 
             var menu = new GameObject("[Menu]");
             var audio = menu.AddComponent<AudioManager>();
-            Wire(audio, ("uiClick", Clip(RugWashAudioGenerator.UIClick)), ("uiConfirm", Clip(RugWashAudioGenerator.UIConfirm)));
+            Wire(audio, ("uiClick", Clip(RugWashAudioGenerator.UIClick)), ("uiConfirm", Clip(RugWashAudioGenerator.UIConfirm)),
+                ("objectiveClip", Clip(RugWashAudioGenerator.Objective)));
             var settings = menu.AddComponent<SettingsManager>();
             Wire(settings, ("audioManager", audio));
             var save = menu.AddComponent<SaveManager>();
@@ -201,10 +210,14 @@ namespace RugWash.Editor
             var lighting = new GameObject("--- Lighting").transform;
             BuildRoom(environment, content, meshes);
             BuildWashBay(environment, content, meshes, audio);
-            BuildToolStorage(environment, content, meshes);
-            BuildOrderDesk(environment, content, meshes);
-            BuildDryingArea(environment, content, meshes);
-            BuildShelves(environment, content, meshes, audio);
+            RugWashDecor.WaterStation(environment, content, meshes, audio);
+            RugWashDecor.ToolStorage(environment, content, meshes);
+            RugWashDecor.OrderDesk(environment, content, meshes);
+            RugWashDecor.DryingArea(environment, content, meshes);
+            RugWashDecor.Shelves(environment, content, meshes);
+            RugWashDecor.SoapStation(environment, content, meshes, audio);
+            RugWashDecor.Ceiling(environment, content, meshes);
+            RugWashDecor.WallDetails(environment, content, meshes);
             BuildLights(lighting, content, meshes);
             var rug = new GameObject("Rug_Display");
             rug.transform.SetParent(environment, false);
@@ -228,7 +241,7 @@ namespace RugWash.Editor
             var canvas = CreateCanvas("Menu Canvas", null);
             CreateEventSystem(null);
             var shade = CreateRect("LeftShade", canvas.transform, Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(760f, 0f));
-            AddImage(shade, sprites.White, new Color(0.03f, 0.04f, 0.05f, 0.72f), sliced: false);
+            AddImage(shade, sprites.White, new Color(0.03f, 0.04f, 0.05f, 0.86f), sliced: false);
             AddText(CreateRect("Title", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(90f, -110f), new Vector2(640f, 90f)),
                 "RugWash Simulator", 64, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
             AddText(CreateRect("Subtitle", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(94f, -200f), new Vector2(640f, 40f)),
@@ -299,8 +312,8 @@ namespace RugWash.Editor
         {
             RenderSettings.skybox = null;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.46f, 0.48f, 0.52f);
-            RenderSettings.ambientEquatorColor = new Color(0.34f, 0.33f, 0.31f);
+            RenderSettings.ambientSkyColor = new Color(0.56f, 0.58f, 0.62f);
+            RenderSettings.ambientEquatorColor = new Color(0.4f, 0.39f, 0.37f);
             RenderSettings.ambientGroundColor = new Color(0.2f, 0.19f, 0.18f);
             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
             RenderSettings.fog = false;
@@ -327,13 +340,17 @@ namespace RugWash.Editor
             CreateBox(meshes, "Wainscot_Right", room, new Vector3(RoomHalfX - inset, band / 2f, 0f), new Vector3(0.02f, band, RoomHalfZ * 2f), c["Wainscot"], collider: false);
 
             // Fenêtres hautes (lumière du jour) et porte d'entrée.
-            for (int i = -1; i <= 1; i++)
+            foreach (float x in new[] { -3.6f, 0f })
             {
-                var frame = CreateBox(meshes, $"Window_{i + 1}_Frame", room, new Vector3(i * 3.4f, 2.55f, RoomHalfZ - 0.03f), new Vector3(1.9f, 0.95f, 0.04f), c["DarkMetal"], collider: false);
+                var frame = CreateBox(meshes, $"Window_{x:0}_Frame", room, new Vector3(x, 2.65f, RoomHalfZ - 0.03f), new Vector3(1.9f, 0.95f, 0.04f), c["DarkMetal"], collider: false);
+                CreateBox(meshes, "Sill", frame.transform, new Vector3(0f, -0.5f, -0.04f), new Vector3(2f, 0.04f, 0.1f), c["DarkMetal"], collider: false);
                 CreateBox(meshes, "Glass", frame.transform, new Vector3(0f, 0f, -0.012f), new Vector3(1.78f, 0.83f, 0.02f), c["Window"], collider: false);
                 CreateBox(meshes, "Mullion", frame.transform, new Vector3(0f, 0f, -0.025f), new Vector3(0.04f, 0.83f, 0.02f), c["DarkMetal"], collider: false);
             }
-            CreateBox(meshes, "Door", room, new Vector3(-3.2f, 1.05f, -RoomHalfZ + 0.03f), new Vector3(1.1f, 2.1f, 0.06f), c["DoorPaint"], collider: false);
+            CreateBox(meshes, "Door_Frame", room, new Vector3(-3.2f, 1.1f, -RoomHalfZ + 0.02f), new Vector3(1.26f, 2.22f, 0.04f), c["DarkMetal"], collider: false);
+            CreateBox(meshes, "Door", room, new Vector3(-3.2f, 1.05f, -RoomHalfZ + 0.045f), new Vector3(1.1f, 2.1f, 0.05f), c["DoorPaint"], collider: false);
+            CreateBox(meshes, "Door_Panel_Top", room, new Vector3(-3.2f, 1.55f, -RoomHalfZ + 0.072f), new Vector3(0.8f, 0.7f, 0.01f), c["Window"], collider: false);
+            CreateBox(meshes, "Door_Kick", room, new Vector3(-3.2f, 0.12f, -RoomHalfZ + 0.072f), new Vector3(1.06f, 0.2f, 0.01f), c["Steel"], collider: false);
             CreateBox(meshes, "Door_Handle", room, new Vector3(-2.8f, 1.0f, -RoomHalfZ + 0.08f), new Vector3(0.14f, 0.03f, 0.04f), c["Steel"], collider: false);
             CreateSign(room, "Sign_Exit", "SORTIE", new Vector3(-3.2f, 2.35f, -RoomHalfZ + 0.04f), Quaternion.Euler(0f, 180f, 0f), meshes, c);
         }
@@ -346,15 +363,15 @@ namespace RugWash.Editor
 
             var pad = CreateBox(meshes, "WashPad", bay, new Vector3(0f, WashPadSize.y / 2f, 0f), WashPadSize, c["WashPad"]);
             float hx = WashPadSize.x / 2f, hz = WashPadSize.z / 2f;
-            CreateBox(meshes, "Curb_Back", bay, new Vector3(0f, 0.07f, hz + 0.04f), new Vector3(WashPadSize.x + 0.16f, 0.14f, 0.08f), c["SafetyYellow"]);
-            CreateBox(meshes, "Curb_Front", bay, new Vector3(0f, 0.07f, -hz - 0.04f), new Vector3(WashPadSize.x + 0.16f, 0.14f, 0.08f), c["SafetyYellow"]);
-            CreateBox(meshes, "Curb_Left", bay, new Vector3(-hx - 0.04f, 0.07f, 0f), new Vector3(0.08f, 0.14f, WashPadSize.z), c["SafetyYellow"]);
-            CreateBox(meshes, "Curb_Right", bay, new Vector3(hx + 0.04f, 0.07f, 0f), new Vector3(0.08f, 0.14f, WashPadSize.z), c["SafetyYellow"]);
+            CreateBox(meshes, "Curb_Back", bay, new Vector3(0f, 0.07f, hz + 0.04f), new Vector3(WashPadSize.x + 0.16f, 0.14f, 0.08f), c["Hazard"]);
+            CreateBox(meshes, "Curb_Front", bay, new Vector3(0f, 0.07f, -hz - 0.04f), new Vector3(WashPadSize.x + 0.16f, 0.14f, 0.08f), c["Hazard"]);
+            CreateBox(meshes, "Curb_Left", bay, new Vector3(-hx - 0.04f, 0.07f, 0f), new Vector3(0.08f, 0.14f, WashPadSize.z), c["Hazard"]);
+            CreateBox(meshes, "Curb_Right", bay, new Vector3(hx + 0.04f, 0.07f, 0f), new Vector3(0.08f, 0.14f, WashPadSize.z), c["Hazard"]);
 
             // Caniveau d'évacuation.
             var drain = CreateBox(meshes, "Drain_Channel", bay, new Vector3(hx - 0.22f, WashPadSize.y + 0.002f, 0f), new Vector3(0.2f, 0.006f, WashPadSize.z - 0.3f), c["Grate"]);
             CreateBox(meshes, "Drain_Frame", bay, new Vector3(hx - 0.22f, WashPadSize.y + 0.001f, 0f), new Vector3(0.24f, 0.004f, WashPadSize.z - 0.26f), c["DarkMetal"], collider: false);
-            CreateSign(parent, "Sign_WashBay", "AIRE DE LAVAGE", new Vector3(0f, 2.9f, RoomHalfZ - 0.04f), Quaternion.identity, meshes, c);
+            CreateSign(parent, "Sign_WashBay", "AIRE DE LAVAGE", new Vector3(0f, 1.95f, RoomHalfZ - 0.04f), Quaternion.identity, meshes, c);
 
             // Le caniveau sert de point de vidange de la cuve de l'extracteur.
             var gush = CreateParticles("DrainGush", drain.transform, c["Droplet"], new ParticleConfig
@@ -369,141 +386,7 @@ namespace RugWash.Editor
             return pad.GetComponent<Renderer>();
         }
 
-        static ResourceStation BuildWaterStation(Transform parent, RugWashContentBuilder.Content c, MeshStore meshes, AudioManager audio)
-        {
-            var station = new GameObject("WaterStation").transform;
-            station.SetParent(parent, false);
-            station.localPosition = new Vector3(-RoomHalfX + 0.55f, 0f, 2.2f);
-
-            CreateBox(meshes, "Base", station, new Vector3(0f, 0.2f, 0f), new Vector3(0.9f, 0.4f, 1.6f), c["DarkMetal"]);
-            CreatePrimitive(PrimitiveType.Cylinder, "Tank", station, new Vector3(0f, 0.95f, 0.35f), new Vector3(0.7f, 0.55f, 0.7f), c["BluePlastic"]);
-            CreatePrimitive(PrimitiveType.Cylinder, "Tank_Cap", station, new Vector3(0f, 1.52f, 0.35f), new Vector3(0.22f, 0.03f, 0.22f), c["Rubber"]);
-            CreateBox(meshes, "Sink", station, new Vector3(0.05f, 0.78f, -0.45f), new Vector3(0.7f, 0.12f, 0.6f), c["Steel"], collider: false);
-            CreatePrimitive(PrimitiveType.Cylinder, "Pipe", station, new Vector3(-0.32f, 1.2f, -0.45f), new Vector3(0.05f, 0.42f, 0.05f), c["Steel"]);
-            CreatePrimitive(PrimitiveType.Cylinder, "Faucet", station, new Vector3(-0.17f, 1.58f, -0.45f), new Vector3(0.05f, 0.16f, 0.05f), c["Steel"],
-                rotation: Quaternion.Euler(0f, 0f, 90f));
-            CreatePrimitive(PrimitiveType.Cylinder, "Hose", station, new Vector3(0.38f, 0.75f, 0.35f), new Vector3(0.04f, 0.4f, 0.04f), c["Rubber"]);
-
-            var collider = station.gameObject.AddComponent<BoxCollider>();
-            collider.center = new Vector3(0f, 0.85f, 0f);
-            collider.size = new Vector3(0.9f, 1.7f, 1.6f);
-
-            var pour = CreateParticles("PourEffect", station, c["WaterJet"], new ParticleConfig
-            {
-                Lifetime = new Vector2(0.35f, 0.5f), Speed = new Vector2(0.4f, 0.8f), Size = new Vector2(0.02f, 0.04f),
-                Color = Color.white, Gravity = 1f, MaxParticles = 200, Shape = ParticleSystemShapeType.Cone, Angle = 6f,
-                Radius = 0.01f, Rate = 140f, Loop = false, PlayOnAwake = false,
-            });
-            pour.transform.localPosition = new Vector3(-0.05f, 1.55f, -0.45f);
-            pour.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-
-            var refill = station.gameObject.AddComponent<ResourceStation>();
-            Wire(refill, ("effect", pour), ("audioManager", audio), ("sound", Clip(RugWashAudioGenerator.Refill)));
-            SetInt(refill, "resource", (int)ToolResource.Water);
-            CreateSign(parent, "Sign_Water", "POSTE D'EAU", new Vector3(-RoomHalfX + 0.04f, 2.2f, 2.2f), Quaternion.Euler(0f, -90f, 0f), meshes, c);
-            return refill;
-        }
-
-        static GameObject BuildToolStorage(Transform parent, RugWashContentBuilder.Content c, MeshStore meshes)
-        {
-            var storage = new GameObject("ToolStorage").transform;
-            storage.SetParent(parent, false);
-            storage.localPosition = new Vector3(3.6f, 0f, RoomHalfZ - 0.3f);
-
-            CreateBox(meshes, "Cabinet", storage, new Vector3(0f, 0.45f, 0f), new Vector3(2.2f, 0.9f, 0.55f), c["DarkMetal"]);
-            CreateBox(meshes, "Cabinet_Top", storage, new Vector3(0f, 0.915f, 0f), new Vector3(2.26f, 0.03f, 0.6f), c["Wood"], collider: false);
-            CreateBox(meshes, "Pegboard", storage, new Vector3(0f, 1.65f, 0.24f), new Vector3(2.2f, 1.1f, 0.03f), c["Pegboard"], collider: false);
-            for (int i = 0; i < 4; i++)
-            {
-                float x = -0.75f + i * 0.5f;
-                CreatePrimitive(PrimitiveType.Cylinder, $"Hung_Handle_{i}", storage, new Vector3(x, 1.75f, 0.18f), new Vector3(0.03f, 0.28f, 0.03f), c["Wood"]);
-                CreateBox(meshes, $"Hung_Head_{i}", storage, new Vector3(x, 1.42f, 0.18f), new Vector3(0.24f, 0.07f, 0.06f), i % 2 == 0 ? c["Bristle"] : c["GreenPlastic"], collider: false);
-            }
-            CreatePrimitive(PrimitiveType.Cylinder, "Bucket_A", storage, new Vector3(-0.7f, 1.08f, -0.05f), new Vector3(0.28f, 0.14f, 0.28f), c["RedPlastic"]);
-            CreatePrimitive(PrimitiveType.Cylinder, "Bucket_B", storage, new Vector3(0.75f, 1.08f, -0.05f), new Vector3(0.28f, 0.14f, 0.28f), c["BluePlastic"]);
-            CreateSign(parent, "Sign_Tools", "MATÉRIEL & BOUTIQUE", new Vector3(3.6f, 2.45f, RoomHalfZ - 0.04f), Quaternion.identity, meshes, c);
-            return storage.gameObject;
-        }
-
-        static GameObject BuildOrderDesk(Transform parent, RugWashContentBuilder.Content c, MeshStore meshes)
-        {
-            var desk = new GameObject("OrderDesk").transform;
-            desk.SetParent(parent, false);
-            desk.localPosition = new Vector3(4.3f, 0f, -3.7f);
-
-            CreateBox(meshes, "Counter", desk, new Vector3(0f, 0.5f, 0f), new Vector3(2.4f, 1f, 0.7f), c["DoorPaint"]);
-            CreateBox(meshes, "Counter_Top", desk, new Vector3(0f, 1.02f, 0f), new Vector3(2.5f, 0.04f, 0.8f), c["Wood"], collider: false);
-            CreateBox(meshes, "Monitor", desk, new Vector3(0.6f, 1.3f, 0.15f), new Vector3(0.55f, 0.36f, 0.04f), c["Rubber"], collider: false);
-            CreateBox(meshes, "Monitor_Screen", desk, new Vector3(0.6f, 1.3f, 0.128f), new Vector3(0.5f, 0.31f, 0.005f), c["ScreenGlow"], collider: false);
-            CreateBox(meshes, "Clipboard", desk, new Vector3(-0.5f, 1.05f, -0.1f), new Vector3(0.24f, 0.01f, 0.32f), c["Cardboard"], collider: false);
-            for (int i = 0; i < 3; i++)
-                CreateBox(meshes, $"RolledRug_{i}", desk, new Vector3(-1.5f - i * 0.02f, 0.18f + i * 0.33f, 0.6f), new Vector3(1.5f, 0.3f, 0.3f),
-                    i == 1 ? c["RedPlastic"] : c["Cardboard"]);
-            CreateSign(parent, "Sign_Orders", "RÉCEPTION DES COMMANDES", new Vector3(4.3f, 2.45f, -RoomHalfZ + 0.04f), Quaternion.Euler(0f, 180f, 0f), meshes, c);
-            return desk.gameObject;
-        }
-
-        static void BuildDryingArea(Transform parent, RugWashContentBuilder.Content c, MeshStore meshes)
-        {
-            var area = new GameObject("DryingArea").transform;
-            area.SetParent(parent, false);
-            area.localPosition = new Vector3(RoomHalfX - 0.7f, 0f, 0.8f);
-
-            for (int i = -1; i <= 1; i += 2)
-                CreateBox(meshes, $"Post_{i}", area, new Vector3(0f, 1.1f, i * 1.3f), new Vector3(0.08f, 2.2f, 0.08f), c["Steel"]);
-            CreateBox(meshes, "Bar_High", area, new Vector3(0f, 2.15f, 0f), new Vector3(0.06f, 0.06f, 2.7f), c["Steel"], collider: false);
-            CreateBox(meshes, "Bar_Low", area, new Vector3(0.25f, 1.6f, 0f), new Vector3(0.05f, 0.05f, 2.7f), c["Steel"], collider: false);
-            CreateBox(meshes, "Drip_Tray", area, new Vector3(0f, 0.03f, 0f), new Vector3(0.8f, 0.06f, 2.8f), c["DarkMetal"]);
-            CreateSign(parent, "Sign_Drying", "SÉCHAGE", new Vector3(RoomHalfX - 0.04f, 2.6f, 0.8f), Quaternion.Euler(0f, 90f, 0f), meshes, c);
-        }
-
-        static void BuildShelves(Transform parent, RugWashContentBuilder.Content c, MeshStore meshes, AudioManager audio)
-        {
-            var shelf = new GameObject("Shelves").transform;
-            shelf.SetParent(parent, false);
-            shelf.localPosition = new Vector3(-RoomHalfX + 0.35f, 0f, -2.6f);
-
-            for (int i = -1; i <= 1; i += 2)
-                CreateBox(meshes, $"Upright_{i}", shelf, new Vector3(0f, 1f, i * 0.9f), new Vector3(0.5f, 2f, 0.05f), c["DarkMetal"]);
-            Material[] bottles = { c["BluePlastic"], c["GreenPlastic"], c["RedPlastic"], c["SafetyYellow"] };
-            for (int level = 0; level < 4; level++)
-            {
-                float y = 0.15f + level * 0.55f;
-                CreateBox(meshes, $"Board_{level}", shelf, new Vector3(0f, y, 0f), new Vector3(0.5f, 0.03f, 1.8f), c["Wood"]);
-                for (int b = 0; b < 5; b++)
-                {
-                    if ((level + b) % 3 == 0) continue;
-                    float z = -0.7f + b * 0.35f;
-                    CreatePrimitive(PrimitiveType.Cylinder, $"Bottle_{level}_{b}", shelf, new Vector3(0f, y + 0.14f, z),
-                        new Vector3(0.1f, 0.12f, 0.1f), bottles[(level + b) % bottles.Length]);
-                }
-            }
-
-            // Poste produits : bidon doseur de détergent.
-            var soap = new GameObject("SoapStation").transform;
-            soap.SetParent(parent, false);
-            soap.localPosition = new Vector3(-RoomHalfX + 0.45f, 0f, -0.9f);
-            CreateBox(meshes, "Stand", soap, new Vector3(0f, 0.35f, 0f), new Vector3(0.6f, 0.7f, 0.6f), c["DarkMetal"]);
-            CreatePrimitive(PrimitiveType.Cylinder, "Drum", soap, new Vector3(0f, 1.05f, 0f), new Vector3(0.42f, 0.35f, 0.42f), c["GreenPlastic"]);
-            CreatePrimitive(PrimitiveType.Cylinder, "Pump", soap, new Vector3(0f, 1.48f, 0f), new Vector3(0.06f, 0.1f, 0.06f), c["WhitePlastic"]);
-            CreateBox(meshes, "Spout", soap, new Vector3(0.12f, 1.55f, 0f), new Vector3(0.18f, 0.03f, 0.03f), c["WhitePlastic"], collider: false);
-            var soapCollider = soap.gameObject.AddComponent<BoxCollider>();
-            soapCollider.center = new Vector3(0f, 0.8f, 0f);
-            soapCollider.size = new Vector3(0.6f, 1.6f, 0.6f);
-            var foamDrip = CreateParticles("FoamDrip", soap, c["Foam"], new ParticleConfig
-            {
-                Lifetime = new Vector2(0.4f, 0.7f), Speed = new Vector2(0.1f, 0.3f), Size = new Vector2(0.02f, 0.05f), Color = Color.white,
-                Gravity = 0.6f, MaxParticles = 60, Shape = ParticleSystemShapeType.Cone, Angle = 10f, Radius = 0.01f, Rate = 50f, Loop = false,
-            });
-            foamDrip.transform.localPosition = new Vector3(0.2f, 1.53f, 0f);
-            foamDrip.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            var soapStation = soap.gameObject.AddComponent<ResourceStation>();
-            Wire(soapStation, ("effect", foamDrip), ("audioManager", audio), ("sound", Clip(RugWashAudioGenerator.Refill)));
-            SetInt(soapStation, "resource", (int)ToolResource.Soap);
-            CreateSign(parent, "Sign_Soap", "PRODUITS", new Vector3(-RoomHalfX + 0.04f, 2.2f, -0.9f), Quaternion.Euler(0f, -90f, 0f), meshes, c);
-        }
-
-        static void CreateSign(Transform parent, string name, string text, Vector3 position, Quaternion rotation, MeshStore meshes,
+        internal static void CreateSign(Transform parent, string name, string text, Vector3 position, Quaternion rotation, MeshStore meshes,
             RugWashContentBuilder.Content c)
         {
             var sign = new GameObject(name).transform;
@@ -542,7 +425,16 @@ namespace RugWash.Editor
             spot.shadows = LightShadows.Soft;
             spot.shadowStrength = 0.75f;
             spotGo.AddComponent<UniversalAdditionalLightData>();
-            CreateBox(meshes, "Spot_Housing", spotGo.transform, new Vector3(0f, 0f, -0.08f), new Vector3(0.6f, 0.6f, 0.1f), c["DarkMetal"], collider: false);
+            var housing = new GameObject("Spot_Housing");
+            housing.transform.SetParent(spotGo.transform, false);
+            housing.transform.localPosition = new Vector3(0f, 0f, -0.1f);
+            housing.AddComponent<MeshFilter>().sharedMesh = meshes.Add("SpotHousing", () => RugWashProceduralMeshes.Lathe(new[]
+            {
+                new Vector2(0f, -0.12f), new Vector2(0.12f, -0.12f), new Vector2(0.2f, 0.05f), new Vector2(0.26f, 0.12f), new Vector2(0.24f, 0.12f),
+            }, 24, capTop: false));
+            housing.AddComponent<MeshRenderer>().sharedMaterial = c["DarkMetal"];
+            housing.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+            housing.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             // Plafonniers d'ambiance.
             int index = 0;
@@ -551,13 +443,12 @@ namespace RugWash.Editor
             {
                 var fixture = new GameObject($"CeilingLamp_{index++}");
                 fixture.transform.SetParent(parent, false);
-                fixture.transform.localPosition = new Vector3(x, RoomHeight - 0.05f, z);
-                CreateBox(meshes, "Housing", fixture.transform, Vector3.zero, new Vector3(1.4f, 0.08f, 0.36f), c["DarkMetal"], collider: false);
-                CreateBox(meshes, "Diffuser", fixture.transform, new Vector3(0f, -0.045f, 0f), new Vector3(1.3f, 0.01f, 0.28f), c["LampPanel"], collider: false);
+                fixture.transform.localPosition = new Vector3(x, RoomHeight - 0.4f, z);
+                RugWashDecor.LampFixture(fixture.transform, c, meshes);
 
                 var lightGo = new GameObject("Light");
                 lightGo.transform.SetParent(fixture.transform, false);
-                lightGo.transform.localPosition = new Vector3(0f, -0.3f, 0f);
+                lightGo.transform.localPosition = new Vector3(0f, -0.2f, 0f);
                 var light = lightGo.AddComponent<Light>();
                 light.type = LightType.Point;
                 light.range = 8f;
@@ -565,6 +456,23 @@ namespace RugWash.Editor
                 light.color = new Color(1f, 0.95f, 0.88f);
                 light.shadows = LightShadows.None;
                 lightGo.AddComponent<UniversalAdditionalLightData>();
+            }
+
+            // Lumière du jour entrant par les fenêtres hautes (froide, sans ombres).
+            foreach (float x in new[] { -3.6f, 0f })
+            {
+                var day = new GameObject("Daylight_Window");
+                day.transform.SetParent(parent, false);
+                day.transform.SetPositionAndRotation(new Vector3(x, RoomHeight - 0.4f, RoomHalfZ - 0.3f), Quaternion.Euler(58f, 180f, 0f));
+                var dayLight = day.AddComponent<Light>();
+                dayLight.type = LightType.Spot;
+                dayLight.spotAngle = 80f;
+                dayLight.innerSpotAngle = 30f;
+                dayLight.range = 8f;
+                dayLight.intensity = 2.4f;
+                dayLight.color = new Color(0.72f, 0.82f, 1f);
+                dayLight.shadows = LightShadows.None;
+                day.AddComponent<UniversalAdditionalLightData>();
             }
 
             var probeGo = new GameObject("Reflection Probe");
@@ -576,7 +484,7 @@ namespace RugWash.Editor
             probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;
             probe.size = new Vector3(RoomHalfX * 2f, RoomHeight, RoomHalfZ * 2f);
             probe.boxProjection = true;
-            probe.resolution = 128;
+            probe.resolution = 256;
             probe.hdr = true;
 
             var volumeGo = new GameObject("Global Volume");
@@ -589,27 +497,37 @@ namespace RugWash.Editor
         static VolumeProfile GetOrCreateWorkshopVolumeProfile()
         {
             var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(RugWashPaths.WorkshopVolumeProfile);
-            if (profile != null)
-                return profile;
-
-            profile = ScriptableObject.CreateInstance<VolumeProfile>();
-            AssetDatabase.CreateAsset(profile, RugWashPaths.WorkshopVolumeProfile);
-            profile.Add<Tonemapping>(true).mode.Override(TonemappingMode.ACES);
-            var bloom = profile.Add<Bloom>(true);
-            bloom.threshold.Override(1.1f);
-            bloom.intensity.Override(0.25f);
-            var colorAdjustments = profile.Add<ColorAdjustments>(true);
-            colorAdjustments.postExposure.Override(0.2f);
-            colorAdjustments.contrast.Override(8f);
-            profile.Add<Vignette>(true).intensity.Override(0.18f);
-            foreach (var component in profile.components)
+            if (profile == null)
             {
-                component.hideFlags = HideFlags.HideInInspector | HideFlags.HideInHierarchy;
-                AssetDatabase.AddObjectToAsset(component, profile);
+                profile = ScriptableObject.CreateInstance<VolumeProfile>();
+                AssetDatabase.CreateAsset(profile, RugWashPaths.WorkshopVolumeProfile);
             }
+
+            Ensure<Tonemapping>(profile).mode.Override(TonemappingMode.ACES);
+            var bloom = Ensure<Bloom>(profile);
+            bloom.threshold.Override(1f);
+            bloom.intensity.Override(0.4f);
+            bloom.scatter.Override(0.65f);
+            var color = Ensure<ColorAdjustments>(profile);
+            color.postExposure.Override(0.3f);
+            color.contrast.Override(12f);
+            color.saturation.Override(8f);
+            Ensure<WhiteBalance>(profile).temperature.Override(6f);
+            var vignette = Ensure<Vignette>(profile);
+            vignette.intensity.Override(0.22f);
+            vignette.smoothness.Override(0.45f);
             EditorUtility.SetDirty(profile);
             AssetDatabase.SaveAssets();
             return profile;
+        }
+
+        static T Ensure<T>(VolumeProfile profile) where T : VolumeComponent
+        {
+            if (profile.TryGet(out T existing)) return existing;
+            var component = profile.Add<T>(true);
+            component.hideFlags = HideFlags.HideInInspector | HideFlags.HideInHierarchy;
+            AssetDatabase.AddObjectToAsset(component, profile);
+            return component;
         }
 
         // ------------------------------------------------------------------ Tapis
@@ -672,7 +590,7 @@ namespace RugWash.Editor
 
         // ------------------------------------------------------------------ Joueur et outils
 
-        static GameObject BuildPlayer(Transform parent, RugWashContentBuilder.Content c, Transform effects, GameStateManager gameState,
+        static GameObject BuildPlayer(Transform parent, RugWashContentBuilder.Content c, MeshStore meshes, Transform effects, GameStateManager gameState,
             AudioManager audio, CleaningVFXPool cleanPool,
             out PlayerInputReader input, out FirstPersonController fps, out PlayerToolController toolController, out PlayerInteractor interactor)
         {
@@ -719,7 +637,9 @@ namespace RugWash.Editor
             // Outils : logique et son sous le joueur, modèles tenus sous la caméra.
             var toolsRoot = new GameObject("Tools").transform;
             toolsRoot.SetParent(player.transform, false);
-            var ctx = new ToolBuildContext { Root = toolsRoot, Camera = cameraGo.transform, Content = c, Effects = effects, Audio = audio, CleanPool = cleanPool };
+            var rig = new GameObject("ViewModelRig").transform;
+            rig.SetParent(cameraGo.transform, false);
+            var ctx = new ToolBuildContext { Root = toolsRoot, Camera = rig, Content = c, Effects = effects, Audio = audio, CleanPool = cleanPool, Meshes = meshes };
             var tools = new CleaningToolBase[]
             {
                 BuildVacuum(ctx), BuildSoap(ctx), BuildBrush(ctx), BuildRinse(ctx), BuildExtractor(ctx),
@@ -731,6 +651,13 @@ namespace RugWash.Editor
             WireList(toolController, "tools", tools);
             int aimMask = ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5));
             SetInt(toolController, "aimMask", aimMask);
+
+            Wire(rig.gameObject.AddComponent<ViewModelRig>(), ("input", input), ("controller", fps), ("tools", toolController));
+            var footsteps = player.AddComponent<FootstepAudio>();
+            Wire(footsteps, ("controller", fps), ("audioManager", audio));
+            var stepClips = new List<AudioClip>();
+            foreach (var path in RugWashAudioGenerator.Footsteps) stepClips.Add(Clip(path));
+            WireList(footsteps, "steps", stepClips);
 
             interactor = player.AddComponent<PlayerInteractor>();
             Wire(interactor, ("playerCamera", camera), ("input", input), ("equipment", equipment), ("gameState", gameState));
@@ -744,24 +671,10 @@ namespace RugWash.Editor
             public RugWashContentBuilder.Content Content;
             public AudioManager Audio;
             public CleaningVFXPool CleanPool;
+            public MeshStore Meshes;
         }
 
         static AudioClip Clip(string path) => AssetDatabase.LoadAssetAtPath<AudioClip>(path);
-
-        static Transform CreateViewModel(ToolBuildContext ctx, string name, Vector3 position, Vector3 euler)
-        {
-            var model = new GameObject($"ViewModel_{name}").transform;
-            model.SetParent(ctx.Camera, false);
-            model.localPosition = position;
-            model.localRotation = Quaternion.Euler(euler);
-            return model;
-        }
-
-        static void FinishViewModel(Transform model)
-        {
-            SetLayerRecursively(model.gameObject, RugWashPaths.PlayerLayer);
-            DisableShadows(model.gameObject);
-        }
 
         /// <summary>Crée l'objet logique de l'outil avec sa source audio en boucle.</summary>
         static T CreateTool<T>(ToolBuildContext ctx, string name, ToolDefinition definition, Transform model, string loopClip,
@@ -787,47 +700,36 @@ namespace RugWash.Editor
         static VacuumTool BuildVacuum(ToolBuildContext ctx)
         {
             var c = ctx.Content;
-            var model = CreateViewModel(ctx, "Vacuum", new Vector3(0.28f, -0.34f, 0.48f), new Vector3(6f, -10f, 0f));
-            CreatePrimitive(PrimitiveType.Cylinder, "Wand", model, new Vector3(0f, 0f, 0.2f), new Vector3(0.04f, 0.3f, 0.04f), c["Chrome"],
-                rotation: Quaternion.Euler(90f, 0f, 0f));
-            CreatePrimitive(PrimitiveType.Cube, "Grip", model, new Vector3(0f, -0.05f, -0.08f), new Vector3(0.05f, 0.12f, 0.08f), c["RedPlastic"]);
-            var nozzle = CreatePrimitive(PrimitiveType.Cube, "Nozzle", model, new Vector3(0f, -0.04f, 0.52f), new Vector3(0.26f, 0.05f, 0.08f), c["Rubber"]).transform;
-            CreatePrimitive(PrimitiveType.Cube, "Nozzle_Lip", model, new Vector3(0f, -0.07f, 0.52f), new Vector3(0.27f, 0.012f, 0.09f), c["RedPlastic"]);
-            FinishViewModel(model);
-
+            var model = RugWashToolModels.Vacuum(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
             var suction = CreateParticles("VacuumDust", ctx.Effects, c["Dust"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.15f, 0.3f), Speed = new Vector2(1.5f, 3f), Size = new Vector2(0.01f, 0.025f), Color = Color.white,
                 Gravity = 0f, MaxParticles = 160, Shape = ParticleSystemShapeType.Cone, Angle = 25f, Radius = 0.12f, Rate = 0f,
                 Loop = true, PlayOnAwake = true,
             });
-            var tool = CreateTool<VacuumTool>(ctx, "Vacuum", c.Vacuum, model, RugWashAudioGenerator.VacuumLoop, 0.45f, 0.2f, -0.06f);
-            Wire(tool, ("suctionParticles", suction), ("nozzle", nozzle));
+            var tool = CreateTool<VacuumTool>(ctx, "Vacuum", c.Vacuum, model.Root, RugWashAudioGenerator.VacuumLoop, 0.45f, 0.2f, -0.06f);
+            Wire(tool, ("suctionParticles", suction), ("nozzle", model.Tip));
             return tool;
         }
 
         static SoapSprayerTool BuildSoap(ToolBuildContext ctx)
         {
             var c = ctx.Content;
-            var model = CreateViewModel(ctx, "Soap", new Vector3(0.27f, -0.27f, 0.42f), new Vector3(4f, -8f, 0f));
-            CreatePrimitive(PrimitiveType.Cylinder, "Bottle", model, new Vector3(0f, -0.04f, 0f), new Vector3(0.09f, 0.08f, 0.09f), c["GreenPlastic"]);
-            CreatePrimitive(PrimitiveType.Cube, "Head", model, new Vector3(0f, 0.06f, 0.03f), new Vector3(0.05f, 0.05f, 0.1f), c["WhitePlastic"]);
-            CreatePrimitive(PrimitiveType.Cube, "Trigger", model, new Vector3(0f, 0.02f, 0.07f), new Vector3(0.015f, 0.05f, 0.02f), c["WhitePlastic"]);
-            FinishViewModel(model);
-
-            var spray = CreateParticles("SoapMist", model, c["SoapMist"], new ParticleConfig
+            var model = RugWashToolModels.Soap(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
+            var spray = CreateParticles("SoapMist", model.Tip, c["SoapMist"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.3f, 0.45f), Speed = new Vector2(6f, 8f), Size = new Vector2(0.015f, 0.03f), Color = Color.white,
                 Gravity = 0.2f, MaxParticles = 220, Shape = ParticleSystemShapeType.Cone, Angle = 9f, Radius = 0.005f, Rate = 0f,
                 Loop = true, PlayOnAwake = true, SizeGrowth = 2.2f,
             });
-            spray.transform.localPosition = new Vector3(0f, 0.065f, 0.09f);
             var puffs = CreateParticles("FoamPuffs", ctx.Effects, c["Foam"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.5f, 0.9f), Speed = new Vector2(0.05f, 0.25f), Size = new Vector2(0.03f, 0.07f), Color = Color.white,
                 Gravity = 0f, MaxParticles = 80, Shape = ParticleSystemShapeType.Circle, Radius = 0.15f, Rate = 0f, Loop = true, PlayOnAwake = true,
             });
-            var tool = CreateTool<SoapSprayerTool>(ctx, "Soap", c.Soap, model, RugWashAudioGenerator.SoapLoop, 0.4f, 0.1f, 0f);
+            var tool = CreateTool<SoapSprayerTool>(ctx, "Soap", c.Soap, model.Root, RugWashAudioGenerator.SoapLoop, 0.4f, 0.1f, 0f);
             Wire(tool, ("sprayParticles", spray), ("foamPuffs", puffs));
             return tool;
         }
@@ -835,20 +737,15 @@ namespace RugWash.Editor
         static BrushTool BuildBrush(ToolBuildContext ctx)
         {
             var c = ctx.Content;
-            var model = CreateViewModel(ctx, "Brush", new Vector3(0.3f, -0.3f, 0.5f), new Vector3(8f, -12f, 0f));
-            CreatePrimitive(PrimitiveType.Cylinder, "Handle", model, new Vector3(0f, 0f, 0.1f), new Vector3(0.035f, 0.32f, 0.035f), c["Wood"],
-                rotation: Quaternion.Euler(90f, 0f, 0f));
-            CreatePrimitive(PrimitiveType.Cube, "Head", model, new Vector3(0f, -0.02f, 0.44f), new Vector3(0.24f, 0.05f, 0.1f), c["GreenPlastic"]);
-            CreatePrimitive(PrimitiveType.Cube, "Bristles", model, new Vector3(0f, -0.065f, 0.44f), new Vector3(0.22f, 0.045f, 0.09f), c["Bristle"]);
-            FinishViewModel(model);
-
+            var model = RugWashToolModels.Brush(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
             var debris = CreateParticles("BrushDebris", ctx.Effects, c["Debris"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.35f, 0.7f), Speed = new Vector2(0.3f, 1.1f), Size = new Vector2(0.008f, 0.02f),
                 Color = Color.white, Gravity = 1f, MaxParticles = 160, Shape = ParticleSystemShapeType.Cone, Angle = 55f,
                 Radius = 0.08f, Rate = 0f, Loop = true, PlayOnAwake = true,
             });
-            var tool = CreateTool<BrushTool>(ctx, "Brush", c.Brush, model, RugWashAudioGenerator.BrushLoop, 0.25f, 0.35f, 0.05f);
+            var tool = CreateTool<BrushTool>(ctx, "Brush", c.Brush, model.Root, RugWashAudioGenerator.BrushLoop, 0.25f, 0.35f, 0.05f);
             Wire(tool, ("debrisParticles", debris));
             return tool;
         }
@@ -856,30 +753,21 @@ namespace RugWash.Editor
         static WaterRinseTool BuildRinse(ToolBuildContext ctx)
         {
             var c = ctx.Content;
-            var model = CreateViewModel(ctx, "Rinse", new Vector3(0.26f, -0.26f, 0.42f), new Vector3(4f, -6f, 0f));
-            CreatePrimitive(PrimitiveType.Cube, "Grip", model, new Vector3(0f, -0.07f, -0.02f), new Vector3(0.04f, 0.13f, 0.06f), c["Rubber"],
-                rotation: Quaternion.Euler(-15f, 0f, 0f));
-            CreatePrimitive(PrimitiveType.Cube, "Body", model, new Vector3(0f, 0f, 0.04f), new Vector3(0.06f, 0.07f, 0.16f), c["SafetyYellow"]);
-            CreatePrimitive(PrimitiveType.Cylinder, "Lance", model, new Vector3(0f, 0.01f, 0.36f), new Vector3(0.022f, 0.24f, 0.022f), c["Steel"],
-                rotation: Quaternion.Euler(90f, 0f, 0f));
-            CreatePrimitive(PrimitiveType.Cylinder, "Nozzle", model, new Vector3(0f, 0.01f, 0.61f), new Vector3(0.04f, 0.025f, 0.04f), c["DarkMetal"],
-                rotation: Quaternion.Euler(90f, 0f, 0f));
-            FinishViewModel(model);
-
-            var jet = CreateParticles("WaterJet", model, c["WaterJet"], new ParticleConfig
+            var model = RugWashToolModels.Rinse(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
+            var jet = CreateParticles("WaterJet", model.Tip, c["WaterJet"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.26f, 0.32f), Speed = new Vector2(13f, 15f), Size = new Vector2(0.018f, 0.032f),
                 Color = Color.white, Gravity = 0.3f, MaxParticles = 600, Shape = ParticleSystemShapeType.Cone, Angle = 2f,
                 Radius = 0.004f, Rate = 0f, Loop = true, PlayOnAwake = true, SizeGrowth = 2.2f, Stretch = 0.035f,
             });
-            jet.transform.localPosition = new Vector3(0f, 0.01f, 0.64f);
             var splash = CreateParticles("WaterSplash", ctx.Effects, c["Splash"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.25f, 0.5f), Speed = new Vector2(1f, 2.8f), Size = new Vector2(0.015f, 0.04f),
                 Color = Color.white, Gravity = 1.3f, MaxParticles = 300, Shape = ParticleSystemShapeType.Hemisphere,
                 Radius = 0.05f, Rate = 0f, Loop = true, PlayOnAwake = true, Stretch = 0.02f,
             });
-            var tool = CreateTool<WaterRinseTool>(ctx, "Rinse", c.Rinse, model, RugWashAudioGenerator.RinseLoop, 0.45f, 0.15f, -0.05f);
+            var tool = CreateTool<WaterRinseTool>(ctx, "Rinse", c.Rinse, model.Root, RugWashAudioGenerator.RinseLoop, 0.45f, 0.15f, -0.05f);
             Wire(tool, ("jetParticles", jet), ("splashParticles", splash));
             SetFloat(tool, "jetRate", 520f);
             return tool;
@@ -888,22 +776,16 @@ namespace RugWash.Editor
         static WaterExtractorTool BuildExtractor(ToolBuildContext ctx)
         {
             var c = ctx.Content;
-            var model = CreateViewModel(ctx, "Extractor", new Vector3(0.27f, -0.34f, 0.46f), new Vector3(8f, -10f, 0f));
-            CreatePrimitive(PrimitiveType.Cylinder, "Wand", model, new Vector3(0f, 0f, 0.2f), new Vector3(0.045f, 0.3f, 0.045f), c["Steel"],
-                rotation: Quaternion.Euler(90f, 0f, 0f));
-            CreatePrimitive(PrimitiveType.Cube, "Grip", model, new Vector3(0f, -0.05f, -0.08f), new Vector3(0.05f, 0.12f, 0.08f), c["BluePlastic"]);
-            var nozzle = CreatePrimitive(PrimitiveType.Cube, "Head", model, new Vector3(0f, -0.045f, 0.52f), new Vector3(0.3f, 0.05f, 0.06f), c["BluePlastic"]).transform;
-            CreatePrimitive(PrimitiveType.Cube, "Slot", model, new Vector3(0f, -0.072f, 0.52f), new Vector3(0.28f, 0.01f, 0.02f), c["Rubber"]);
-            FinishViewModel(model);
-
+            var model = RugWashToolModels.Extractor(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
             var droplets = CreateParticles("ExtractorDroplets", ctx.Effects, c["Droplet"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.12f, 0.25f), Speed = new Vector2(1.8f, 3.2f), Size = new Vector2(0.01f, 0.02f), Color = Color.white,
                 Gravity = 0f, MaxParticles = 180, Shape = ParticleSystemShapeType.Cone, Angle = 20f, Radius = 0.1f, Rate = 0f,
                 Loop = true, PlayOnAwake = true, Stretch = 0.02f,
             });
-            var tool = CreateTool<WaterExtractorTool>(ctx, "Extractor", c.Extractor, model, RugWashAudioGenerator.ExtractorLoop, 0.45f, 0.25f, -0.1f);
-            Wire(tool, ("suctionDroplets", droplets), ("nozzle", nozzle));
+            var tool = CreateTool<WaterExtractorTool>(ctx, "Extractor", c.Extractor, model.Root, RugWashAudioGenerator.ExtractorLoop, 0.45f, 0.25f, -0.1f);
+            Wire(tool, ("suctionDroplets", droplets), ("nozzle", model.Tip));
             return tool;
         }
 

@@ -250,6 +250,8 @@ namespace RugWash.Editor
                 EditorUtility.SetDirty(rendererData);
             }
 
+            if (rendererData != null) EnsureAmbientOcclusion(rendererData);
+
             var serialized = new SerializedObject(pipeline);
             var additionalShadows = serialized.FindProperty("m_AdditionalLightShadowsSupported");
             if (additionalShadows != null && !additionalShadows.boolValue)
@@ -257,6 +259,29 @@ namespace RugWash.Editor
                 additionalShadows.boolValue = true;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
             }
+        }
+
+        /// <summary>Occlusion ambiante en espace écran (SSAO) : contact des objets avec le sol et les murs.</summary>
+        static void EnsureAmbientOcclusion(UniversalRendererData rendererData)
+        {
+            if (rendererData.rendererFeatures.Exists(f => f is ScreenSpaceAmbientOcclusion)) return;
+            var ssao = ScriptableObject.CreateInstance<ScreenSpaceAmbientOcclusion>();
+            ssao.name = "ScreenSpaceAmbientOcclusion";
+            AssetDatabase.AddObjectToAsset(ssao, rendererData);
+            rendererData.rendererFeatures.Add(ssao);
+
+            // Table des identifiants attendue par l'éditeur de renderer (sinon la fonctionnalité est signalée invalide).
+            var serialized = new SerializedObject(rendererData);
+            var map = serialized.FindProperty("m_RendererFeatureMap");
+            if (map != null && AssetDatabase.TryGetGUIDAndLocalFileIdentifier(ssao, out _, out long localId))
+            {
+                map.arraySize++;
+                map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+            }
+            rendererData.SetDirty();
+            EditorUtility.SetDirty(rendererData);
+            AssetDatabase.SaveAssets();
         }
 
         static void EnsurePostProcessData(UniversalRendererData rendererData)
