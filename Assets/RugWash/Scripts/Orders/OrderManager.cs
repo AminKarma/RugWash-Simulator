@@ -1,0 +1,136 @@
+using System;
+using System.Collections.Generic;
+using RugWash.Audio;
+using RugWash.Cleaning;
+using RugWash.Core;
+using RugWash.Economy;
+using RugWash.Effects;
+using UnityEngine;
+
+namespace RugWash.Orders
+{
+    /// <summary>
+    /// Cycle d'une commande : acceptation → nettoyage (état ActiveOrder, chronomètre) → livraison
+    /// (évaluation centralisée, paiement unique, réputation) → résultats → retour à l'atelier.
+    /// </summary>
+    [DisallowMultipleComponent]
+    public sealed class OrderManager : MonoBehaviour
+    {
+        [SerializeField] List<OrderDefinition> orders = new List<OrderDefinition>();
+        [Tooltip("Tapis d'entraînement présenté hors commande.")]
+        [SerializeField] RugDefinition practiceRug;
+        [SerializeField] RugCleaningController rug;
+        [SerializeField] RugSnapshotService snapshots;
+        [SerializeField] GameStateManager gameState;
+        [SerializeField] WalletManager wallet;
+        [SerializeField] ReputationManager reputation;
+        [SerializeField] AudioManager audioManager;
+
+        public OrderBook Book { get; private set; }
+        public OrderDefinition ActiveOrder => Book?.Active;
+        public float ElapsedSeconds { get; private set; }
+        public OrderResult LastResult { get; private set; }
+        public int Reputation => reputation.Points;
+
+        public event Action<OrderDefinition> OrderStarted;
+        public event Action<OrderResult> OrderFinished;
+        public event Action Changed;
+
+        public bool IsConfigured(out string missing)
+        {
+            missing = orders.Count == 0 || orders.Contains(null) ? nameof(orders)
+                : practiceRug == null ? nameof(practiceRug)
+                : rug == null ? nameof(rug)
+                : snapshots == null ? nameof(snapshots)
+                : gameState == null ? nameof(gameState)
+                : wallet == null ? nameof(wallet)
+                : reputation == null ? nameof(reputation) : null;
+            return missing == null;
+        }
+
+        void Awake() => Book = new OrderBook(orders);
+
+        void Update()
+        {
+            if (ActiveOrder != null && gameState.State == GameState.ActiveOrder)
+                ElapsedSeconds += Time.deltaTime;
+        }
+
+        public OrderStartResult TryStart(OrderDefinition order)
+        {
+            var result = Book.Start(order, reputation.Points);
+            if (result != OrderStartResult.Started) return result;
+
+            ElapsedSeconds = 0f;
+            LastResult = null;
+            rug.LoadRug(order.rug, order.dirt, order.dirtSeed);
+            gameState.SetState(GameState.ActiveOrder);
+            OrderStarted?.Invoke(order);
+            Changed?.Invoke();
+            return result;
+        }
+
+        /// <summary>Recommence la commande active (saleté régénérée, chronomètre remis à zéro).</summary>
+        public bool RestartActive()
+        {
+            var order = ActiveOrder;
+            if (order == null) return false;
+            ElapsedSeconds = 0f;
+            rug.LoadRug(order.rug, order.dirt, order.dirtSeed);
+            Changed?.Invoke();
+            return true;
+        }
+
+        /// <summary>Estimation de la note actuelle (aucun effet sur l'état).</summary>
+        public OrderResult Preview() =>
+            ActiveOrder == null ? null : OrderEvaluator.Evaluate(ActiveOrder, rug.Grid.ComputeSummary(), ElapsedSeconds);
+
+        /// <summary>Livre la commande active. Le paiement n'a lieu qu'une fois : sans commande active, rien ne se passe.</summary>
+        public OrderResult Deliver()
+        {
+            var order = ActiveOrder;
+            if (order == null) return null;
+
+            snapshots.CaptureAfter();
+            var result = OrderEvaluator.Evaluate(order, rug.Grid.ComputeSummary(), ElapsedSeconds);
+            if (!Book.Complete(result)) return null;
+
+            if (result.Accepted) wallet.Wallet.Add(result.Reward);
+            reputation.Add(result.ReputationDelta);
+            LastResult = result;
+            if (audioManager != null && result.Accepted) audioManager.PlayInterface(audioManager.ConfirmClip);
+
+            gameState.SetState(GameState.Results);
+            OrderFinished?.Invoke(result);
+            Changed?.Invoke();
+            return result;
+        }
+
+        public bool Abandon()
+        {
+            if (!Book.Abandon()) return false;
+            ReturnToWorkshop();
+            return true;
+        }
+
+        /// <summary>Retour à l'atelier libre avec le tapis d'entraînement.</summary>
+        public void ReturnToWorkshop()
+        {
+            rug.LoadRug(practiceRug);
+            gameState.SetState(GameState.Workshop);
+            Changed?.Invoke();
+        }
+
+        public static string StartResultMessage(OrderStartResult result)
+        {
+            switch (result)
+            {
+                case OrderStartResult.Started: return "Commande acceptée";
+                case OrderStartResult.AnotherOrderActive: return "Terminez d'abord la commande en cours";
+                case OrderStartResult.NotAvailable: return "Commande déjà terminée";
+                case OrderStartResult.ReputationTooLow: return "Réputation insuffisante";
+                default: return "Commande inconnue";
+            }
+        }
+    }
+}

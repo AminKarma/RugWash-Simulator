@@ -1,0 +1,114 @@
+using UnityEngine;
+
+namespace RugWash.Player
+{
+    /// <summary>
+    /// Contrôleur FPS : CharacterController (collisions, marches), accélération/décélération,
+    /// gravité, orientation souris en degrés par pixel (indépendante du framerate).
+    /// </summary>
+    [RequireComponent(typeof(CharacterController))]
+    [DisallowMultipleComponent]
+    public sealed class FirstPersonController : MonoBehaviour
+    {
+        [SerializeField] PlayerInputReader input;
+        [SerializeField] Transform cameraPivot;
+
+        [Header("Déplacement")]
+        [SerializeField] float walkSpeed = 3.2f;
+        [SerializeField] float sprintSpeed = 5.2f;
+        [SerializeField] float acceleration = 14f;
+        [SerializeField] float deceleration = 18f;
+        [SerializeField] float gravity = -20f;
+
+        [Header("Caméra")]
+        [Tooltip("Degrés par pixel de déplacement souris.")]
+        [SerializeField, Range(0.01f, 0.5f)] float lookSensitivity = 0.1f;
+        [SerializeField] bool invertY;
+        [SerializeField] float minPitch = -85f;
+        [SerializeField] float maxPitch = 85f;
+
+        CharacterController controller;
+        Vector3 horizontalVelocity;
+        float verticalVelocity;
+        float pitch;
+
+        public float LookSensitivity
+        {
+            get => lookSensitivity;
+            set => lookSensitivity = Mathf.Clamp(value, 0.01f, 0.5f);
+        }
+
+        public bool InvertY
+        {
+            get => invertY;
+            set => invertY = value;
+        }
+
+        public Vector3 Velocity => horizontalVelocity + Vector3.up * verticalVelocity;
+        public bool IsGrounded => controller != null && controller.isGrounded;
+
+        public bool IsConfigured(out string missing)
+        {
+            missing = input == null ? nameof(input) : cameraPivot == null ? nameof(cameraPivot) : null;
+            return missing == null;
+        }
+
+        void Awake()
+        {
+            controller = GetComponent<CharacterController>();
+            if (!IsConfigured(out string missing))
+            {
+                Debug.LogError($"[RugWash] FirstPersonController : référence manquante '{missing}'.", this);
+                enabled = false;
+                return;
+            }
+            pitch = NormalizePitch(cameraPivot.localEulerAngles.x);
+        }
+
+        void Update()
+        {
+            float dt = Time.deltaTime;
+            if (dt <= 0f) return;
+
+            Look(input.LookDelta);
+            Move(input.Move, input.SprintHeld, dt);
+        }
+
+        void Look(Vector2 delta)
+        {
+            if (delta.sqrMagnitude <= 0f) return;
+            transform.Rotate(0f, delta.x * lookSensitivity, 0f, Space.Self);
+            pitch = Mathf.Clamp(pitch + (invertY ? delta.y : -delta.y) * lookSensitivity, minPitch, maxPitch);
+            cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+        }
+
+        void Move(Vector2 moveInput, bool sprint, float dt)
+        {
+            Vector3 wish = transform.right * moveInput.x + transform.forward * moveInput.y;
+            if (wish.sqrMagnitude > 1f) wish.Normalize();
+            Vector3 target = wish * (sprint ? sprintSpeed : walkSpeed);
+            float rate = target.sqrMagnitude > 0.0001f ? acceleration : deceleration;
+            horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, rate * dt);
+
+            if (controller.isGrounded && verticalVelocity < 0f) verticalVelocity = -2f;
+            verticalVelocity += gravity * dt;
+
+            CollisionFlags flags = controller.Move((horizontalVelocity + Vector3.up * verticalVelocity) * dt);
+            if ((flags & CollisionFlags.Above) != 0 && verticalVelocity > 0f) verticalVelocity = 0f;
+        }
+
+        /// <summary>Place le joueur (spawn, tests) sans conflit avec le CharacterController.</summary>
+        public void Teleport(Vector3 position, float yaw, float newPitch = 0f)
+        {
+            controller.enabled = false;
+            transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
+            controller.enabled = true;
+            pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
+            cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+            horizontalVelocity = Vector3.zero;
+            verticalVelocity = 0f;
+        }
+
+        static float NormalizePitch(float angle) => angle > 180f ? angle - 360f : angle;
+    }
+}

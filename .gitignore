@@ -1,0 +1,11 @@
+# Seul le dossier Assets/ (avec ses fichiers .meta) est versionné, à la demande du propriétaire.
+/*
+!/Assets/
+!/.gitignore
+!/.gitattributes
+
+# Fichiers temporaires de l'éditeur pouvant apparaître dans Assets/
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db

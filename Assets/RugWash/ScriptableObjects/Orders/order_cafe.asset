@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa13e84074b259e4d92f25ad115ca3c2, type: 3}
+  m_Name: order_cafe
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Orders.OrderDefinition
+  id: order_cafe
+  clientName: "Caf\xE9 du Parc"
+  title: "Tapis d'entr\xE9e du caf\xE9"
+  description: "Boue, terre et boissons renvers\xE9es. Le g\xE9rant ne veut aucune
+    trace de produit."
+  rug: {fileID: 11400000, guid: a17a1c8d40c3bf44c9ed2feedb5230fa, type: 2}
+  dirtSeed: 102
+  dirt:
+  - type: 1
+    pattern: 0
+    coverage: 0.6
+    intensity: 0.4
+    scale: 0.3
+  - type: 2
+    pattern: 1
+    coverage: 0.4
+    intensity: 0.85
+    scale: 0.3
+  - type: 3
+    pattern: 4
+    coverage: 0.5
+    intensity: 0.7
+    scale: 0.2
+  - type: 4
+    pattern: 2
+    coverage: 0.3
+    intensity: 0.9
+    scale: 0.12
+  difficulty: 2
+  baseReward: 190
+  requiredReputation: 0
+  objectives:
+    targetCleanliness: 0.8
+    limitResidue: 1
+    maxResidue: 0.2
+    limitMoisture: 0
+    maxMoisture: 0
+    bonusTimeSeconds: 420

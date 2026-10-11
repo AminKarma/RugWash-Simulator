@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a56e950a7c9d1a347aaa213b9612f7e2, type: 3}
+  m_Name: Tool_Extractor
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.ToolDefinition
+  id: extractor
+  displayName: Extracteur
+  description: "Aspire l'eau des fibres avec la salet\xE9 et le produit qu'elle contient.
+    Remplit la cuve de r\xE9cup\xE9ration."
+  slot: 5
+  range: 2.2
+  radius: 0.16
+  falloffHardness: 5
+  power: 0.9
+  wettingPerSecond: 0
+  resource: 3
+  resourcePerSecond: 0

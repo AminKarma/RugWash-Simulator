@@ -1,0 +1,428 @@
+using System.Collections.Generic;
+using RugWash.Cleaning;
+using RugWash.Economy;
+using RugWash.Orders;
+using UnityEditor;
+using UnityEngine;
+
+namespace RugWash.Editor
+{
+    /// <summary>
+    /// Crée les données de contenu (types de saleté, outils, tapis) et les matériaux.
+    /// Création uniquement si absents : les réglages modifiés dans l'Inspector sont conservés.
+    /// </summary>
+    public static class RugWashContentBuilder
+    {
+        public const string DirtLibraryPath = RugWashPaths.DirtTypeDefinitions + "/DirtTypeLibrary.asset";
+        public const string BrushToolPath = RugWashPaths.ToolDefinitions + "/Tool_Brush.asset";
+        public const string RinseToolPath = RugWashPaths.ToolDefinitions + "/Tool_Rinse.asset";
+        public const string VacuumToolPath = RugWashPaths.ToolDefinitions + "/Tool_Vacuum.asset";
+        public const string SoapToolPath = RugWashPaths.ToolDefinitions + "/Tool_Soap.asset";
+        public const string ExtractorToolPath = RugWashPaths.ToolDefinitions + "/Tool_Extractor.asset";
+        public const string OrientalRugPath = RugWashPaths.RugDefinitions + "/Rug_Oriental.asset";
+        public const string ClassicRugPath = RugWashPaths.RugDefinitions + "/Rug_Classic.asset";
+        public const string ShagRugPath = RugWashPaths.RugDefinitions + "/Rug_Shag.asset";
+
+        public sealed class Content
+        {
+            public DirtTypeLibrary DirtLibrary;
+            public ToolDefinition Brush;
+            public ToolDefinition Rinse;
+            public ToolDefinition Vacuum, Soap, Extractor;
+            public RugDefinition Oriental, Classic, Shag;
+            public readonly List<OrderDefinition> Orders = new List<OrderDefinition>();
+            public readonly List<UpgradeDefinition> Upgrades = new List<UpgradeDefinition>();
+            public readonly Dictionary<string, Material> Materials = new Dictionary<string, Material>();
+
+            public Material this[string name] => Materials[name];
+        }
+
+        [MenuItem("RugWash/Setup/Créer le Contenu Manquant (données, matériaux)", priority = 30)]
+        static void EnsureContentMenu() => EnsureContent();
+
+        public static Content EnsureContent()
+        {
+            RugWashProjectBootstrapper.EnsureFolders();
+            RugWashTextureGenerator.GenerateAll(force: false);
+            RugWashAudioGenerator.GenerateAll(force: false);
+
+            var content = new Content
+            {
+                DirtLibrary = EnsureDirtLibrary(),
+                Brush = EnsureTool(BrushToolPath, "brush", "Brosse", 3,
+                    "Détache la saleté incrustée et la poussière. Plus efficace sur fibres humides ou savonneuses.",
+                    range: 2.2f, radius: 0.13f, hardness: 3.5f, power: 0.6f, wetting: 0f, ToolResource.None, 0f),
+                Rinse = EnsureTool(RinseToolPath, "rinse", "Lance de rinçage", 4,
+                    "Évacue la saleté détachée et la mousse. Mouille les fibres. Consomme de l'eau.",
+                    range: 4.5f, radius: 0.2f, hardness: 2f, power: 0.9f, wetting: 0.9f, ToolResource.Water, 1.5f),
+                Vacuum = EnsureTool(VacuumToolPath, "vacuum", "Aspirateur", 1,
+                    "Retire la poussière et les débris secs. Sans effet sur les taches incrustées. Aspire aussi la saleté détachée sur fibres sèches.",
+                    range: 2.2f, radius: 0.17f, hardness: 4f, power: 0.8f, wetting: 0f, ToolResource.None, 0f),
+                Soap = EnsureTool(SoapToolPath, "soap", "Détergent", 2,
+                    "Dépose une mousse détergente : la brosse devient très efficace sur graisse, boissons et taches incrustées. À rincer ensuite.",
+                    range: 3f, radius: 0.24f, hardness: 2f, power: 1.4f, wetting: 0.15f, ToolResource.Soap, 0.1f),
+                Extractor = EnsureTool(ExtractorToolPath, "extractor", "Extracteur", 5,
+                    "Aspire l'eau des fibres avec la saleté et le produit qu'elle contient. Remplit la cuve de récupération.",
+                    range: 2.2f, radius: 0.16f, hardness: 5f, power: 0.9f, wetting: 0f, ToolResource.Recovery, 0f),
+            };
+
+            EnsureMaterials(content);
+            content.Oriental = EnsureRug(OrientalRugPath, "oriental", "Tapis oriental à médaillon", RugPileType.Oriental,
+                new Vector2(3f, 2f), 0.014f, 64, RugWashTextureGenerator.OrientalAlbedo, RugWashTextureGenerator.FiberShortNormal,
+                fiberTiles: 7f, fiberStrength: 0.9f, fringe: true, seed: 11,
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.9f, 0.6f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.55f, 0.85f, 0.25f),
+                new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.3f, 0.85f, 0.35f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.16f, 0.9f, 0.14f),
+                new DirtLayer(DirtType.Grease, DirtPattern.Spots, 0.08f, 0.8f, 0.1f));
+            content.Classic = EnsureRug(ClassicRugPath, "classic", "Tapis classique à poils courts", RugPileType.ShortPile,
+                new Vector2(2.4f, 1.6f), 0.01f, 64, RugWashTextureGenerator.ClassicAlbedo, RugWashTextureGenerator.FiberShortNormal,
+                fiberTiles: 9f, fiberStrength: 0.7f, fringe: false, seed: 23,
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.7f, 0.4f, 0.3f),
+                new DirtLayer(DirtType.HairDebris, DirtPattern.Blotches, 0.35f, 0.5f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.Edges, 0.5f, 0.6f, 0.2f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.2f, 0.9f, 0.12f));
+            content.Shag = EnsureRug(ShagRugPath, "shag", "Tapis à poils longs", RugPileType.LongPile,
+                new Vector2(2.1f, 1.4f), 0.035f, 64, RugWashTextureGenerator.ShagAlbedo, RugWashTextureGenerator.FiberLongNormal,
+                fiberTiles: 3.5f, fiberStrength: 1.4f, fringe: false, seed: 37,
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.9f, 0.55f, 0.25f),
+                new DirtLayer(DirtType.HairDebris, DirtPattern.Uniform, 0.5f, 0.35f, 0.2f),
+                new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.25f, 0.8f, 0.3f),
+                new DirtLayer(DirtType.Embedded, DirtPattern.Spots, 0.1f, 0.7f, 0.08f));
+
+            EnsureOrders(content);
+            EnsureUpgrades(content);
+
+            AssetDatabase.SaveAssets();
+            return content;
+        }
+
+        // ------------------------------------------------------------------ Commandes
+
+        static OrderObjectives Objectives(float clean, float maxResidue = -1f, float maxMoisture = -1f, float bonusSeconds = 0f) =>
+            new OrderObjectives
+            {
+                targetCleanliness = clean,
+                limitResidue = maxResidue >= 0f,
+                maxResidue = Mathf.Max(0f, maxResidue),
+                limitMoisture = maxMoisture >= 0f,
+                maxMoisture = Mathf.Max(0f, maxMoisture),
+                bonusTimeSeconds = bonusSeconds,
+            };
+
+        static void EnsureOrders(Content c)
+        {
+            c.Orders.Add(EnsureOrder("order_salon", "Mme Dubois", "Le tapis du salon",
+                "Un tapis du quotidien, poussiéreux et marqué par le passage. Idéal pour débuter.",
+                c.Classic, 101, 1, 120, 0, Objectives(0.75f, bonusSeconds: 300f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.7f, 0.4f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.4f, 0.6f, 0.25f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.1f, 0.8f, 0.12f)));
+            c.Orders.Add(EnsureOrder("order_cafe", "Café du Parc", "Tapis d'entrée du café",
+                "Boue, terre et boissons renversées. Le gérant ne veut aucune trace de produit.",
+                c.Classic, 102, 2, 190, 0, Objectives(0.8f, maxResidue: 0.2f, bonusSeconds: 420f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.6f, 0.4f, 0.3f),
+                new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.4f, 0.85f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.Edges, 0.5f, 0.7f, 0.2f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.3f, 0.9f, 0.12f)));
+            c.Orders.Add(EnsureOrder("order_shag", "Famille Martin", "Tapis de chambre d'enfant",
+                "Poils longs pleins de poussière, de poils d'animaux et de jus de fruits. À rendre bien sec.",
+                c.Shag, 103, 2, 220, 1, Objectives(0.8f, maxMoisture: 0.3f, bonusSeconds: 420f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.9f, 0.5f, 0.25f),
+                new DirtLayer(DirtType.HairDebris, DirtPattern.Uniform, 0.6f, 0.4f, 0.2f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.2f, 0.85f, 0.1f),
+                new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.2f, 0.7f, 0.3f)));
+            c.Orders.Add(EnsureOrder("order_heirloom", "M. Haddad", "Tapis oriental de famille",
+                "Un tapis transmis depuis trois générations. Le motif doit retrouver tout son éclat.",
+                c.Oriental, 104, 2, 280, 2, Objectives(0.85f, maxResidue: 0.15f, maxMoisture: 0.35f, bonusSeconds: 600f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.9f, 0.6f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.55f, 0.85f, 0.25f),
+                new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.3f, 0.85f, 0.35f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.16f, 0.9f, 0.14f)));
+            c.Orders.Add(EnsureOrder("order_restaurant", "Restaurant Le Saule", "Tapis de la salle à manger",
+                "Graisse, vin et passages répétés. Un vrai défi qui demande du détergent.",
+                c.Oriental, 105, 3, 400, 4, Objectives(0.85f, maxResidue: 0.12f, maxMoisture: 0.3f, bonusSeconds: 720f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.6f, 0.4f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.5f, 0.8f, 0.25f),
+                new DirtLayer(DirtType.Grease, DirtPattern.Spots, 0.35f, 0.9f, 0.14f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.25f, 0.9f, 0.12f)));
+            c.Orders.Add(EnsureOrder("order_gallery", "Galerie Lumen", "Pièce de collection",
+                "Un tapis exposé, à rendre parfaitement propre, sec et sans le moindre résidu.",
+                c.Oriental, 106, 3, 560, 6, Objectives(0.95f, maxResidue: 0.05f, maxMoisture: 0.2f, bonusSeconds: 900f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.8f, 0.5f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.Blotches, 0.25f, 0.6f, 0.35f),
+                new DirtLayer(DirtType.Embedded, DirtPattern.Spots, 0.2f, 0.8f, 0.08f)));
+        }
+
+        static OrderDefinition EnsureOrder(string id, string client, string title, string description, RugDefinition rug, int seed,
+            int difficulty, int reward, int reputation, OrderObjectives objectives, params DirtLayer[] dirt)
+        {
+            var order = LoadOrCreate<OrderDefinition>($"{RugWashPaths.OrderDefinitions}/{id}.asset", out bool created);
+            if (!created && order.rug != null) return order;
+            order.id = id;
+            order.clientName = client;
+            order.title = title;
+            order.description = description;
+            order.rug = rug;
+            order.dirtSeed = seed;
+            order.dirt = new List<DirtLayer>(dirt);
+            order.difficulty = difficulty;
+            order.baseReward = reward;
+            order.requiredReputation = reputation;
+            order.objectives = objectives;
+            EditorUtility.SetDirty(order);
+            return order;
+        }
+
+        // ------------------------------------------------------------------ Améliorations
+
+        static void EnsureUpgrades(Content c)
+        {
+            var water1 = EnsureUpgrade("up_water_1", "Réservoir d'eau 60 L", "Rincez plus longtemps entre deux remplissages.",
+                150, UpgradeEffect.WaterCapacity, 20f, null, null);
+            c.Upgrades.Add(water1);
+            c.Upgrades.Add(EnsureUpgrade("up_water_2", "Réservoir d'eau 80 L", "Le plus grand réservoir du catalogue.",
+                300, UpgradeEffect.WaterCapacity, 20f, null, water1));
+            c.Upgrades.Add(EnsureUpgrade("up_soap_capacity", "Bidon de détergent 6 L", "Plus de produit embarqué.",
+                120, UpgradeEffect.SoapCapacity, 2f, null, null));
+            c.Upgrades.Add(EnsureUpgrade("up_soap_eco", "Buse économe", "La même mousse avec 30 % de produit en moins.",
+                180, UpgradeEffect.ToolConsumption, 0.7f, "soap", null));
+            c.Upgrades.Add(EnsureUpgrade("up_recovery", "Cuve de récupération 18 L", "Videz la cuve moins souvent.",
+                160, UpgradeEffect.RecoveryCapacity, 6f, null, null));
+            c.Upgrades.Add(EnsureUpgrade("up_vacuum", "Moteur d'aspiration turbo", "Aspire la poussière 40 % plus vite.",
+                220, UpgradeEffect.ToolPower, 1.4f, "vacuum", null));
+            c.Upgrades.Add(EnsureUpgrade("up_brush", "Brosse à poils renforcés", "Détache la saleté 35 % plus vite.",
+                250, UpgradeEffect.ToolPower, 1.35f, "brush", null));
+            c.Upgrades.Add(EnsureUpgrade("up_rinse", "Buse haute pression", "Évacue la saleté 30 % plus vite.",
+                240, UpgradeEffect.ToolPower, 1.3f, "rinse", null));
+            c.Upgrades.Add(EnsureUpgrade("up_extractor", "Extracteur haute dépression", "Sèche les fibres 40 % plus vite.",
+                260, UpgradeEffect.ToolPower, 1.4f, "extractor", null));
+        }
+
+        static UpgradeDefinition EnsureUpgrade(string id, string name, string description, int price, UpgradeEffect effect, float value,
+            string toolId, UpgradeDefinition prerequisite)
+        {
+            var upgrade = LoadOrCreate<UpgradeDefinition>($"{RugWashPaths.UpgradeDefinitions}/{id}.asset", out bool created);
+            if (!created) return upgrade;
+            upgrade.id = id;
+            upgrade.displayName = name;
+            upgrade.description = description;
+            upgrade.price = price;
+            upgrade.effect = effect;
+            upgrade.value = value;
+            upgrade.targetToolId = toolId;
+            upgrade.prerequisite = prerequisite;
+            EditorUtility.SetDirty(upgrade);
+            return upgrade;
+        }
+
+        // ------------------------------------------------------------------ Données
+
+        static DirtTypeLibrary EnsureDirtLibrary()
+        {
+            var library = LoadOrCreate<DirtTypeLibrary>(DirtLibraryPath, out _);
+            var names = new Dictionary<DirtType, string>
+            {
+                { DirtType.Dust, "Poussière" }, { DirtType.Mud, "Boue" }, { DirtType.Soil, "Terre" },
+                { DirtType.Drink, "Boisson" }, { DirtType.Grease, "Graisse" }, { DirtType.HairDebris, "Poils et débris" },
+                { DirtType.Embedded, "Tache incrustée" },
+            };
+            foreach (var pair in names)
+            {
+                string path = $"{RugWashPaths.DirtTypeDefinitions}/Dirt_{pair.Key}.asset";
+                var definition = LoadOrCreate<DirtTypeDefinition>(path, out bool created);
+                if (created)
+                {
+                    definition.type = pair.Key;
+                    definition.displayName = pair.Value;
+                    definition.color = DirtTypeTable.DefaultColor(pair.Key);
+                    definition.response = DirtTypeTable.DefaultResponse(pair.Key);
+                    EditorUtility.SetDirty(definition);
+                }
+                if (!library.definitions.Contains(definition))
+                {
+                    library.definitions.Add(definition);
+                    EditorUtility.SetDirty(library);
+                }
+            }
+            return library;
+        }
+
+        static ToolDefinition EnsureTool(string path, string id, string displayName, int slot, string description,
+            float range, float radius, float hardness, float power, float wetting, ToolResource resource, float perSecond)
+        {
+            var tool = LoadOrCreate<ToolDefinition>(path, out bool created);
+            if (!created) return tool;
+            tool.id = id;
+            tool.displayName = displayName;
+            tool.slot = slot;
+            tool.description = description;
+            tool.range = range;
+            tool.radius = radius;
+            tool.falloffHardness = hardness;
+            tool.power = power;
+            tool.wettingPerSecond = wetting;
+            tool.resource = resource;
+            tool.resourcePerSecond = perSecond;
+            EditorUtility.SetDirty(tool);
+            return tool;
+        }
+
+        static RugDefinition EnsureRug(string path, string id, string displayName, RugPileType pile, Vector2 size, float thickness,
+            int cellsPerMeter, string albedoPath, string normalPath, float fiberTiles, float fiberStrength, bool fringe, int seed,
+            params DirtLayer[] dirt)
+        {
+            var rug = LoadOrCreate<RugDefinition>(path, out bool created);
+            if (!created && rug.patternTexture != null) return rug;
+            rug.id = id;
+            rug.displayName = displayName;
+            rug.pileType = pile;
+            rug.sizeMeters = size;
+            rug.thickness = thickness;
+            rug.cellsPerMeter = cellsPerMeter;
+            rug.patternTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(albedoPath);
+            rug.fiberNormal = AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath);
+            rug.fiberTilesPerMeter = fiberTiles;
+            rug.fiberNormalStrength = fiberStrength;
+            rug.hasFringe = fringe;
+            rug.dirtSeed = seed;
+            rug.defaultDirt = new List<DirtLayer>(dirt);
+            EditorUtility.SetDirty(rug);
+            return rug;
+        }
+
+        // ------------------------------------------------------------------ Matériaux
+
+        static void EnsureMaterials(Content content)
+        {
+            Texture2D Tex(string path) => AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+
+            var rugSurface = EnsureMaterial("M_RugSurface", "RugWash/Rug Surface", out bool created);
+            if (created || rugSurface.GetTexture("_DirtDetail") == null)
+            {
+                rugSurface.SetTexture("_DirtDetail", Tex(RugWashTextureGenerator.DirtDetail));
+                rugSurface.SetTexture("_FiberNormal", Tex(RugWashTextureGenerator.FiberShortNormal));
+                EditorUtility.SetDirty(rugSurface);
+            }
+            content.Materials["RugSurface"] = rugSurface;
+
+            var fringe = EnsureLit("M_RugFringe", new Color(0.9f, 0.86f, 0.75f), 0.15f);
+            fringe.SetFloat("_Cull", 0f);
+            fringe.doubleSidedGI = true;
+            content.Materials["RugFringe"] = fringe;
+
+            content.Materials["TargetRing"] = EnsureMaterial("M_TargetRing", "RugWash/Target Ring", out _);
+            content.Materials["WaterJet"] = EnsureParticle("M_Particle_Water", new Color(0.72f, 0.88f, 1f, 0.55f), 0.7f);
+            content.Materials["Splash"] = EnsureParticle("M_Particle_Splash", new Color(0.9f, 0.96f, 1f, 0.7f), 0.5f);
+            content.Materials["Debris"] = EnsureParticle("M_Particle_Debris", new Color(0.36f, 0.27f, 0.18f, 0.9f), 0.35f);
+            content.Materials["Dust"] = EnsureParticle("M_Particle_Dust", new Color(0.66f, 0.62f, 0.55f, 0.55f), 0.8f);
+            content.Materials["SoapMist"] = EnsureParticle("M_Particle_SoapMist", new Color(0.9f, 0.97f, 1f, 0.35f), 0.9f);
+            content.Materials["Foam"] = EnsureParticle("M_Particle_Foam", new Color(1f, 1f, 1f, 0.9f), 0.25f);
+            content.Materials["Sparkle"] = EnsureParticle("M_Particle_Sparkle", new Color(1f, 0.96f, 0.75f, 1f), 0.5f);
+            content.Materials["Droplet"] = EnsureParticle("M_Particle_Droplet", new Color(0.6f, 0.75f, 0.9f, 0.7f), 0.4f);
+
+            content.Materials["Concrete"] = EnsureLit("M_Concrete", new Color(1f, 1f, 1f), 0.22f,
+                Tex(RugWashTextureGenerator.ConcreteAlbedo), Tex(RugWashTextureGenerator.ConcreteNormal), tiling: 0.5f);
+            content.Materials["WashPad"] = EnsureLit("M_WashPad", new Color(0.78f, 0.8f, 0.82f), 0.5f,
+                Tex(RugWashTextureGenerator.ConcreteAlbedo), Tex(RugWashTextureGenerator.ConcreteNormal), tiling: 0.7f);
+            content.Materials["Plaster"] = EnsureLit("M_Plaster", new Color(0.95f, 0.94f, 0.9f), 0.12f,
+                Tex(RugWashTextureGenerator.PlasterAlbedo), null, tiling: 0.6f);
+            content.Materials["Wainscot"] = EnsureLit("M_Wainscot", new Color(0.24f, 0.36f, 0.38f), 0.35f,
+                Tex(RugWashTextureGenerator.PlasterAlbedo), null, tiling: 0.6f);
+            content.Materials["Ceiling"] = EnsureLit("M_Ceiling", new Color(0.55f, 0.56f, 0.57f), 0.1f,
+                Tex(RugWashTextureGenerator.PlasterAlbedo), null, tiling: 0.5f);
+            content.Materials["Wood"] = EnsureLit("M_Wood", Color.white, 0.3f, Tex(RugWashTextureGenerator.WoodAlbedo), null, tiling: 1f);
+            content.Materials["Grate"] = EnsureLit("M_Grate", Color.white, 0.55f, Tex(RugWashTextureGenerator.GrateAlbedo), null,
+                tiling: 1f, metallic: 0.8f);
+            content.Materials["Steel"] = EnsureLit("M_Steel", new Color(0.62f, 0.64f, 0.66f), 0.6f, metallic: 0.9f);
+            content.Materials["DarkMetal"] = EnsureLit("M_DarkMetal", new Color(0.16f, 0.17f, 0.19f), 0.45f, metallic: 0.7f);
+            content.Materials["SafetyYellow"] = EnsureLit("M_SafetyYellow", new Color(0.95f, 0.72f, 0.12f), 0.35f);
+            content.Materials["BluePlastic"] = EnsureLit("M_BluePlastic", new Color(0.12f, 0.36f, 0.68f), 0.55f);
+            content.Materials["WhitePlastic"] = EnsureLit("M_WhitePlastic", new Color(0.88f, 0.89f, 0.9f), 0.5f);
+            content.Materials["Chrome"] = EnsureLit("M_Chrome", new Color(0.8f, 0.82f, 0.85f), 0.85f, metallic: 1f);
+            content.Materials["RedPlastic"] = EnsureLit("M_RedPlastic", new Color(0.72f, 0.16f, 0.12f), 0.5f);
+            content.Materials["GreenPlastic"] = EnsureLit("M_GreenPlastic", new Color(0.2f, 0.55f, 0.32f), 0.5f);
+            content.Materials["Rubber"] = EnsureLit("M_Rubber", new Color(0.07f, 0.07f, 0.08f), 0.25f);
+            content.Materials["Bristle"] = EnsureLit("M_Bristle", new Color(0.85f, 0.55f, 0.15f), 0.2f);
+            content.Materials["Pegboard"] = EnsureLit("M_Pegboard", new Color(0.62f, 0.5f, 0.36f), 0.15f);
+            content.Materials["Cardboard"] = EnsureLit("M_Cardboard", new Color(0.6f, 0.45f, 0.3f), 0.1f);
+            content.Materials["DoorPaint"] = EnsureLit("M_DoorPaint", new Color(0.2f, 0.3f, 0.42f), 0.4f);
+            content.Materials["Signage"] = EnsureLit("M_Signage", new Color(0.1f, 0.13f, 0.16f), 0.3f);
+            content.Materials["LampPanel"] = EnsureEmissive("M_LampPanel", new Color(1f, 0.95f, 0.85f), 3.2f);
+            content.Materials["Window"] = EnsureEmissive("M_Window", new Color(0.55f, 0.7f, 0.88f), 0.75f);
+            content.Materials["ScreenGlow"] = EnsureEmissive("M_ScreenGlow", new Color(0.35f, 0.75f, 0.85f), 1.2f);
+        }
+
+        static Material EnsureMaterial(string name, string shaderName, out bool created)
+        {
+            string path = $"{RugWashPaths.Materials}/{name}.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            created = material == null;
+            if (created)
+            {
+                var shader = Shader.Find(shaderName);
+                if (shader == null) throw new System.InvalidOperationException($"[RugWash] Shader introuvable : {shaderName}");
+                material = new Material(shader) { name = name };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            return material;
+        }
+
+        static Material EnsureLit(string name, Color color, float smoothness, Texture2D albedo = null, Texture2D normal = null,
+            float tiling = 1f, float metallic = 0f)
+        {
+            var material = EnsureMaterial(name, "Universal Render Pipeline/Lit", out bool created);
+            if (!created) return material;
+            material.SetColor("_BaseColor", color);
+            material.SetFloat("_Smoothness", smoothness);
+            material.SetFloat("_Metallic", metallic);
+            if (albedo != null)
+            {
+                material.SetTexture("_BaseMap", albedo);
+                material.SetTextureScale("_BaseMap", new Vector2(tiling, tiling));
+            }
+            if (normal != null)
+            {
+                material.SetTexture("_BumpMap", normal);
+                material.SetFloat("_BumpScale", 0.6f);
+                material.EnableKeyword("_NORMALMAP");
+            }
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        static Material EnsureEmissive(string name, Color color, float intensity)
+        {
+            var material = EnsureLit(name, color * 0.6f, 0.4f);
+            material.EnableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", color * intensity);
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        static Material EnsureParticle(string name, Color color, float softness)
+        {
+            var material = EnsureMaterial(name, "RugWash/Particle Soft", out bool created);
+            if (created)
+            {
+                material.SetColor("_Color", color);
+                material.SetFloat("_Softness", softness);
+                EditorUtility.SetDirty(material);
+            }
+            return material;
+        }
+
+        static T LoadOrCreate<T>(string path, out bool created) where T : ScriptableObject
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<T>(path);
+            created = asset == null;
+            if (created)
+            {
+                asset = ScriptableObject.CreateInstance<T>();
+                AssetDatabase.CreateAsset(asset, path);
+            }
+            return asset;
+        }
+    }
+}

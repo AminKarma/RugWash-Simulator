@@ -1,0 +1,197 @@
+using System;
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+namespace RugWash.Editor
+{
+    /// <summary>
+    /// Génère des sons TEMPORAIRES par synthèse (bruit filtré, oscillateurs) et les écrit en WAV
+    /// dans Audio/Generated. Ce sont des substituts fonctionnels et identifiables (préfixe « tmp_»),
+    /// à remplacer par des enregistrements définitifs : il suffit de changer le clip assigné.
+    /// </summary>
+    public static class RugWashAudioGenerator
+    {
+        const int SampleRate = 44100;
+        const string Folder = RugWashPaths.Root + "/Audio/Generated";
+
+        public const string VacuumLoop = Folder + "/tmp_vacuum_loop.wav";
+        public const string SoapLoop = Folder + "/tmp_soap_spray_loop.wav";
+        public const string BrushLoop = Folder + "/tmp_brush_loop.wav";
+        public const string RinseLoop = Folder + "/tmp_rinse_loop.wav";
+        public const string ExtractorLoop = Folder + "/tmp_extractor_loop.wav";
+        public const string UIClick = Folder + "/tmp_ui_click.wav";
+        public const string UIConfirm = Folder + "/tmp_ui_confirm.wav";
+        public const string Refill = Folder + "/tmp_refill.wav";
+        public const string Drain = Folder + "/tmp_drain.wav";
+        public const string CleanSparkle = Folder + "/tmp_clean_sparkle.wav";
+
+        [MenuItem("RugWash/Setup/Regénérer les Sons Temporaires", priority = 41)]
+        static void RegenerateMenu() => GenerateAll(force: true);
+
+        public static void GenerateAll(bool force)
+        {
+            RugWashProjectBootstrapper.EnsureFolders();
+            Write(VacuumLoop, force, true, 2f, Vacuum);
+            Write(SoapLoop, force, true, 1f, SoapSpray);
+            Write(BrushLoop, force, true, 1f, Brush);
+            Write(RinseLoop, force, true, 2f, Rinse);
+            Write(ExtractorLoop, force, true, 2f, Extractor);
+            Write(UIClick, force, false, 0.05f, Click);
+            Write(UIConfirm, force, false, 0.45f, Confirm);
+            Write(Refill, force, false, 1.1f, Pour);
+            Write(Drain, force, false, 1.2f, Gurgle);
+            Write(CleanSparkle, force, false, 0.35f, Sparkle);
+        }
+
+        // ------------------------------------------------------------------ Synthèses
+
+        /// <summary>Générateur appelé échantillon par échantillon (t en secondes, état de filtre partagé).</summary>
+        delegate float Synth(float t, float duration, ref State state);
+
+        struct State
+        {
+            public System.Random Random;
+            public float Lp1, Lp2, Hp, HpIn, Env;
+            public float Noise() => (float)(Random.NextDouble() * 2.0 - 1.0);
+        }
+
+        static float LowPass(ref float memory, float input, float cutoff)
+        {
+            float a = 1f - Mathf.Exp(-2f * Mathf.PI * cutoff / SampleRate);
+            memory += a * (input - memory);
+            return memory;
+        }
+
+        static float HighPass(ref State s, float input, float cutoff)
+        {
+            float rc = 1f / (2f * Mathf.PI * cutoff), dt = 1f / SampleRate, a = rc / (rc + dt);
+            float output = a * (s.Hp + input - s.HpIn);
+            s.Hp = output;
+            s.HpIn = input;
+            return output;
+        }
+
+        static float Sine(float t, float frequency) => Mathf.Sin(2f * Mathf.PI * frequency * t);
+
+        static float Vacuum(float t, float d, ref State s)
+        {
+            float motor = 0.22f * Sine(t, 110f) + 0.12f * Sine(t, 220f) + 0.05f * Sine(t, 330f) + 0.04f * Sine(t, 1850f);
+            float air = LowPass(ref s.Lp1, s.Noise(), 2400f) * 0.55f;
+            return (motor + air) * 0.7f;
+        }
+
+        static float SoapSpray(float t, float d, ref State s)
+        {
+            float hiss = HighPass(ref s, s.Noise(), 2500f);
+            float pump = 0.75f + 0.25f * Sine(t, 6f);
+            return hiss * pump * 0.5f;
+        }
+
+        static float Brush(float t, float d, ref State s)
+        {
+            float bristles = HighPass(ref s, s.Noise(), 1200f);
+            float stroke = Mathf.Pow(Mathf.Abs(Sine(t, 3f)), 0.6f);
+            return LowPass(ref s.Lp1, bristles, 5000f) * (0.25f + 0.75f * stroke) * 0.6f;
+        }
+
+        static float Rinse(float t, float d, ref State s)
+        {
+            float body = LowPass(ref s.Lp1, s.Noise(), 1800f) * 0.6f;
+            float spray = HighPass(ref s, s.Noise(), 3000f) * 0.35f;
+            float droplets = s.Random.NextDouble() < 0.0015 ? 0.6f : 0f;
+            s.Env = Mathf.Max(droplets, s.Env * 0.995f);
+            return body + spray + s.Env * Sine(t, 900f + 600f * s.Env) * 0.2f;
+        }
+
+        static float Extractor(float t, float d, ref State s)
+        {
+            float motor = 0.18f * Sine(t, 90f) + 0.1f * Sine(t, 180f) + 0.04f * Sine(t, 2200f);
+            float suction = LowPass(ref s.Lp1, s.Noise(), 1500f) * 0.45f;
+            if (s.Random.NextDouble() < 0.0009) s.Env = 1f;
+            s.Env *= 0.9993f;
+            float gurgle = s.Env * Sine(t, 180f + 260f * s.Env) * 0.35f;
+            return (motor + suction + gurgle) * 0.75f;
+        }
+
+        static float Click(float t, float d, ref State s) => Sine(t, 1300f) * Mathf.Exp(-t * 90f) * 0.6f;
+
+        static float Confirm(float t, float d, ref State s)
+        {
+            float first = t < 0.15f ? Sine(t, 660f) * Mathf.Exp(-t * 12f) : 0f;
+            float second = t >= 0.12f ? Sine(t, 990f) * Mathf.Exp(-(t - 0.12f) * 8f) : 0f;
+            return (first + second) * 0.45f;
+        }
+
+        static float Pour(float t, float d, ref State s)
+        {
+            float envelope = Mathf.Clamp01(t * 12f) * Mathf.Clamp01((d - t) * 4f);
+            return LowPass(ref s.Lp1, s.Noise(), 1400f + 400f * Sine(t, 7f)) * envelope * 0.7f;
+        }
+
+        static float Gurgle(float t, float d, ref State s)
+        {
+            float envelope = Mathf.Clamp01(t * 10f) * Mathf.Clamp01((d - t) * 3f);
+            float water = LowPass(ref s.Lp1, s.Noise(), 900f) * 0.6f;
+            float bubble = Sine(t, 220f - 100f * t / d + 40f * Sine(t, 11f)) * 0.25f * (0.5f + 0.5f * Sine(t, 9f));
+            return (water + bubble) * envelope;
+        }
+
+        static float Sparkle(float t, float d, ref State s)
+        {
+            float a = Sine(t, 1568f) * Mathf.Exp(-t * 18f);
+            float b = t > 0.06f ? Sine(t, 2093f) * Mathf.Exp(-(t - 0.06f) * 16f) : 0f;
+            float c = t > 0.12f ? Sine(t, 2637f) * Mathf.Exp(-(t - 0.12f) * 14f) : 0f;
+            return (a + b + c) * 0.25f;
+        }
+
+        // ------------------------------------------------------------------ Écriture
+
+        static void Write(string assetPath, bool force, bool loop, float seconds, Synth synth)
+        {
+            if (!force && File.Exists(assetPath)) return;
+
+            int length = Mathf.RoundToInt(seconds * SampleRate);
+            int fade = loop ? Mathf.RoundToInt(0.12f * SampleRate) : 0;
+            var raw = new float[length + fade];
+            var state = new State { Random = new System.Random(assetPath.GetHashCode()) };
+            for (int i = 0; i < raw.Length; i++)
+                raw[i] = synth(i / (float)SampleRate, seconds, ref state);
+
+            var samples = new float[length];
+            Array.Copy(raw, samples, length);
+            // Boucle sans couture : la queue générée au-delà de la durée est fondue dans le début.
+            for (int i = 0; i < fade; i++)
+            {
+                float k = i / (float)fade;
+                samples[i] = raw[length + i] * (1f - k) + raw[i] * k;
+            }
+
+            float peak = 0.0001f;
+            foreach (float v in samples) peak = Mathf.Max(peak, Mathf.Abs(v));
+            float gain = Mathf.Min(1f, 0.85f / peak);
+
+            string fullPath = Path.Combine(Directory.GetCurrentDirectory(), assetPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            using (var writer = new BinaryWriter(File.Create(fullPath)))
+            {
+                int dataBytes = samples.Length * 2;
+                writer.Write(new[] { 'R', 'I', 'F', 'F' });
+                writer.Write(36 + dataBytes);
+                writer.Write(new[] { 'W', 'A', 'V', 'E', 'f', 'm', 't', ' ' });
+                writer.Write(16);
+                writer.Write((short)1);
+                writer.Write((short)1);
+                writer.Write(SampleRate);
+                writer.Write(SampleRate * 2);
+                writer.Write((short)2);
+                writer.Write((short)16);
+                writer.Write(new[] { 'd', 'a', 't', 'a' });
+                writer.Write(dataBytes);
+                foreach (float v in samples)
+                    writer.Write((short)Mathf.Clamp(Mathf.RoundToInt(v * gain * 32767f), -32768, 32767));
+            }
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+        }
+    }
+}

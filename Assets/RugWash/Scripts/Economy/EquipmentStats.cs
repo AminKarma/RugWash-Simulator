@@ -1,0 +1,87 @@
+using System.Collections.Generic;
+
+namespace RugWash.Economy
+{
+    /// <summary>
+    /// Caractéristiques effectives de l'équipement, calculées à partir des améliorations possédées
+    /// (règle pure, testée). Ces valeurs sont réellement utilisées par les réservoirs et les outils.
+    /// </summary>
+    public sealed class EquipmentStats
+    {
+        public float WaterCapacity;
+        public float SoapCapacity;
+        public float RecoveryCapacity;
+        readonly Dictionary<string, float> power = new Dictionary<string, float>();
+        readonly Dictionary<string, float> consumption = new Dictionary<string, float>();
+
+        public float PowerMultiplier(string toolId) => toolId != null && power.TryGetValue(toolId, out float v) ? v : 1f;
+        public float ConsumptionMultiplier(string toolId) => toolId != null && consumption.TryGetValue(toolId, out float v) ? v : 1f;
+
+        public static EquipmentStats Compute(float baseWater, float baseSoap, float baseRecovery, IEnumerable<UpgradeDefinition> owned)
+        {
+            var stats = new EquipmentStats { WaterCapacity = baseWater, SoapCapacity = baseSoap, RecoveryCapacity = baseRecovery };
+            foreach (var upgrade in owned)
+            {
+                if (upgrade == null) continue;
+                switch (upgrade.effect)
+                {
+                    case UpgradeEffect.WaterCapacity: stats.WaterCapacity += upgrade.value; break;
+                    case UpgradeEffect.SoapCapacity: stats.SoapCapacity += upgrade.value; break;
+                    case UpgradeEffect.RecoveryCapacity: stats.RecoveryCapacity += upgrade.value; break;
+                    case UpgradeEffect.ToolPower: Multiply(stats.power, upgrade.targetToolId, upgrade.value); break;
+                    case UpgradeEffect.ToolConsumption: Multiply(stats.consumption, upgrade.targetToolId, upgrade.value); break;
+                }
+            }
+            return stats;
+        }
+
+        static void Multiply(Dictionary<string, float> table, string id, float value)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+            table[id] = (table.TryGetValue(id, out float current) ? current : 1f) * value;
+        }
+    }
+
+    public enum PurchaseResult
+    {
+        Purchased,
+        AlreadyOwned,
+        MissingPrerequisite,
+        InsufficientFunds,
+        Unknown,
+    }
+
+    /// <summary>Règle d'achat pure : le solde n'est débité que si l'achat est entièrement valide.</summary>
+    public static class ShopRules
+    {
+        public static PurchaseResult Check(UpgradeDefinition upgrade, ICollection<string> owned, Wallet wallet)
+        {
+            if (upgrade == null) return PurchaseResult.Unknown;
+            if (owned.Contains(upgrade.id)) return PurchaseResult.AlreadyOwned;
+            if (upgrade.prerequisite != null && !owned.Contains(upgrade.prerequisite.id)) return PurchaseResult.MissingPrerequisite;
+            if (!wallet.CanAfford(upgrade.price)) return PurchaseResult.InsufficientFunds;
+            return PurchaseResult.Purchased;
+        }
+
+        public static PurchaseResult TryPurchase(UpgradeDefinition upgrade, ICollection<string> owned, Wallet wallet)
+        {
+            var check = Check(upgrade, owned, wallet);
+            if (check != PurchaseResult.Purchased) return check;
+            if (!wallet.TrySpend(upgrade.price)) return PurchaseResult.InsufficientFunds;
+            owned.Add(upgrade.id);
+            return PurchaseResult.Purchased;
+        }
+
+        public static string Describe(PurchaseResult result)
+        {
+            switch (result)
+            {
+                case PurchaseResult.Purchased: return "Achat effectué";
+                case PurchaseResult.AlreadyOwned: return "Déjà acheté";
+                case PurchaseResult.MissingPrerequisite: return "Amélioration précédente requise";
+                case PurchaseResult.InsufficientFunds: return "Fonds insuffisants";
+                default: return "Article inconnu";
+            }
+        }
+    }
+}

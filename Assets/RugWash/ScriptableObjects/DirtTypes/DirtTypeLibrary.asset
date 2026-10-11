@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3be875a25b1f31f4298ae9b2051b9a6c, type: 3}
+  m_Name: DirtTypeLibrary
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.DirtTypeLibrary
+  definitions:
+  - {fileID: 11400000, guid: 96a8bbf527cfd444f8c18fc604ae17dd, type: 2}
+  - {fileID: 11400000, guid: 7764824c449fa444eaef981df7430818, type: 2}
+  - {fileID: 11400000, guid: 0c65f808f60c6da48a1630f7048751ec, type: 2}
+  - {fileID: 11400000, guid: 7beac90b36e5a6a44a388ea6812b4029, type: 2}
+  - {fileID: 11400000, guid: 9b72478c3a6b36a40a80940bf1791940, type: 2}
+  - {fileID: 11400000, guid: 3a76cbbcfa6b25544b931e1357dcd0db, type: 2}
+  - {fileID: 11400000, guid: c946b66a2b71aa746a3f3a0121e0af73, type: 2}

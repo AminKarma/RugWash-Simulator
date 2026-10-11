@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a56e950a7c9d1a347aaa213b9612f7e2, type: 3}
+  m_Name: Tool_Rinse
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.ToolDefinition
+  id: rinse
+  displayName: "Lance de rin\xE7age"
+  description: "\xC9vacue la salet\xE9 d\xE9tach\xE9e et la mousse. Mouille les fibres.
+    Consomme de l'eau."
+  slot: 4
+  range: 4.5
+  radius: 0.2
+  falloffHardness: 2
+  power: 0.9
+  wettingPerSecond: 0.9
+  resource: 1
+  resourcePerSecond: 1.5
