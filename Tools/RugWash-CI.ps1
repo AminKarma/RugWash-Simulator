@@ -15,7 +15,7 @@
       PlayMode    : Unity.exe -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults Logs/ci/playmode-results.xml -logFile Logs/ci/playmode.log
 #>
 param(
-    [ValidateSet('compile', 'bootstrap', 'scene', 'test', 'playmode', 'all')]
+    [ValidateSet('compile', 'bootstrap', 'scene', 'test', 'playmode', 'build', 'benchmark', 'all')]
     [string]$Step = 'all',
     [string]$UnityPath
 )
@@ -97,4 +97,25 @@ if ($Step -in 'playmode', 'all') {
     # Avec GPU : la catégorie « Capture » écrit des captures d'écran dans Logs/ci/screens.
     Invoke-Unity 'playmode' @('-runTests', '-testPlatform', 'PlayMode', '-testResults', "`"$results`"") -Graphics
     Write-Host "Résultats : $results"
+}
+if ($Step -eq 'build') {
+    Invoke-Unity 'build' @('-quit', '-executeMethod', 'RugWash.Editor.RugWashBuild.BuildWindows')
+    Write-Host "Build : $(Join-Path $ProjectPath 'Builds\Windows\RugWashSimulator.exe')"
+}
+if ($Step -eq 'benchmark') {
+    # Lance le jeu compilé (fenêtre visible) en mode vérification : parcours automatique + mesure en 1080p.
+    $exe = Join-Path $ProjectPath 'Builds\Windows\RugWashSimulator.exe'
+    if (-not (Test-Path $exe)) { throw "Build absent : lancez d'abord -Step build." }
+    $report = Join-Path $LogDir 'benchmark.json'
+    $playerLog = Join-Path $LogDir 'player.log'
+    if (Test-Path $report) { Remove-Item $report }
+    $benchArgs = @('-rugwash-benchmark', "`"$report`"", '-screen-width', '1920', '-screen-height', '1080', '-screen-fullscreen', '1', '-logFile', "`"$playerLog`"")
+    Write-Host "==> [benchmark] $exe $($benchArgs -join ' ')"
+    $process = Start-Process -FilePath $exe -ArgumentList $benchArgs -PassThru
+    $null = $process.Handle
+    if (-not $process.WaitForExit(300000)) { $process.Kill(); throw "[benchmark] délai dépassé (5 min)." }
+    if (-not (Test-Path $report)) { throw "[benchmark] aucun rapport produit (code $($process.ExitCode)). Log : $playerLog" }
+    Get-Content $report
+    if ($process.ExitCode -ne 0) { throw "[benchmark] des vérifications ont échoué (code $($process.ExitCode))." }
+    Write-Host "==> [benchmark] OK"
 }

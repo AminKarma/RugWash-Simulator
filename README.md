@@ -4,8 +4,8 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : fin de la PHASE 5 (qualité visuelle, animations, ambiance sonore).**
-> Reste : validation finale, mesure de performance et build Windows (phase 6).
+> **État actuel : démo complète (phases 0 à 6).** Build Windows produit et vérifié automatiquement.
+> Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
 > Voir [Assets/RugWash/Documentation/PRODUCTION.md](Assets/RugWash/Documentation/PRODUCTION.md) pour le suivi détaillé.
 
@@ -230,7 +230,8 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 ```
 
 Étapes : `compile`, `bootstrap`, `scene` (atelier + menu principal), `test` (EditMode, sans GPU),
-`playmode` (avec GPU, produit des captures dans `Logs/ci/screens`). Les tests utilisent un dossier de
+`playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows) et
+`benchmark` (lance le jeu compilé en mode vérification). `all` enchaîne les cinq premières étapes. Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 
@@ -238,8 +239,23 @@ Dans l'éditeur : *Window → General → Test Runner*.
 
 ## 10. Build Windows
 
-Non encore produit ni vérifié. Procédure prévue : *File → Build Profiles → Windows* (scènes déjà
-enregistrées : MainMenu puis Workshop), ou en ligne de commande en phase 6.
+**Dans l'éditeur** : menu **RugWash → Build → Build Windows (64 bits)**, ou *File → Build Profiles → Windows*
+(scènes : `MainMenu` puis `Workshop`).
+
+**En ligne de commande** (Unity fermé) :
+
+```bash
+powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step build
+```
+
+Résultat : `Builds/Windows/RugWashSimulator.exe` (≈ 120 Mo, Mono, Direct3D 11/12 et Vulkan).
+Pour distribuer, copier tout le dossier `Builds/Windows` **sauf** `RugWash Simulator_BurstDebugInformation_DoNotShip`.
+
+**Vérification automatique du build** : `-Step benchmark` lance l'exécutable en 1920×1080 avec l'argument
+`-rugwash-benchmark <rapport.json>`. Le jeu enchaîne seul : menu → nouvelle partie → commande → nettoyage → livraison
+→ sauvegarde → changement de résolution et de mode d'affichage → retour au menu, mesure les temps de frame dans
+quatre scénarios (vSync désactivé), écrit `Logs/ci/benchmark.json` puis se ferme. La sauvegarde utilisée est
+temporaire : celle du joueur n'est jamais modifiée. Sans cet argument, le build se comporte normalement.
 
 ## 11. Limites connues
 

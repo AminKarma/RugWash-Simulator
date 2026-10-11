@@ -3,7 +3,7 @@
 Statuts : **À faire** · **En cours** · **Implémenté** (code présent, non vérifié par un test exécuté) ·
 **Testé** (vérifié par un test automatisé réellement exécuté, ou par une capture examinée) · **Bloqué**.
 
-Dernière mise à jour : fin de la phase 5 — Unity 6000.5.7f1. Tests exécutés : 84/84 EditMode, 36/36 PlayMode.
+Dernière mise à jour : fin de la phase 6 — Unity 6000.5.7f1. Tests exécutés : 84/84 EditMode, 36/36 PlayMode, 11/11 contrôles dans le build. Rapport complet : [VALIDATION.md](VALIDATION.md).
 
 ## Phase 0 — Audit et outillage
 
@@ -108,11 +108,25 @@ Dernière mise à jour : fin de la phase 5 — Unity 6000.5.7f1. Tests exécuté
 | Ambiance sonore d'atelier, bruits de pas (selon la distance parcourue), annonce « objectif atteint » unique | Testé | `Ambience_Plays…`, `Footsteps_FollowDistance_NotTime`, `ObjectiveReached_IsAnnouncedOnce` |
 | Chevauchements corrigés (panneaux sur les fenêtres, tuyau sur le panneau du poste d'eau) | Testé (visuel) | Captures `16`, `18` |
 
-## Phases suivantes
+## Phase 6 — Validation et livraison
 
-| Fonctionnalité | Statut |
+| Élément | Statut | Preuve |
+|---|---|---|
+| Build Windows 64 bits en ligne de commande et depuis le menu | Testé | 119,3 Mo, 0 erreur, 0 avertissement |
+| Vérification automatique du jeu compilé (menu → commande → sauvegarde → résolution → menu) | Testé | 11/11 contrôles |
+| Mesure de performance en 1080p (4 scénarios) | Testé | ≥ 410 FPS de moyenne sur la machine de mesure |
+| Résolution et mode d'affichage dans un build | Testé | Contrôles 8 à 10 |
+| Rapport de validation, instructions de build, limites | Implémenté | `VALIDATION.md`, README |
+| Performance sur matériel plus modeste | À faire | Une seule machine disponible |
+
+## Hors périmètre de la démo (documenté)
+
+| Élément | Statut |
 |---|---|
-| Build Windows vérifié, mesure de performance 1080p (phase 6) | À faire |
+| Sons enregistrés définitifs | À faire (substituts synthétisés `tmp_*`) |
+| Modèles 3D réalisés par un artiste | À faire (modèles procéduraux) |
+| Génération de nouvelles commandes après les 6 du catalogue | À faire |
+| Mode coopératif | Non développé (architecture préparée, voir ci-dessous) |
 
 ## Limites connues (phase 1)
 
