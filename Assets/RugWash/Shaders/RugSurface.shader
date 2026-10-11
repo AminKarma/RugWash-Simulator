@@ -30,6 +30,7 @@ Shader "RugWash/Rug Surface"
         _WetDarkening("Assombrissement humide", Range(0, 1)) = 0.32
         _CleanBoost("Éclat des zones propres", Range(0, 0.3)) = 0.08
         _EdgeNoise("Irrégularité des bords", Range(0, 1)) = 0.65
+        _ScanResponse("Réponse au scan de saleté", Range(0, 1)) = 1
     }
 
     SubShader
@@ -54,6 +55,7 @@ Shader "RugWash/Rug Surface"
             half _WetDarkening;
             half _CleanBoost;
             half _EdgeNoise;
+            half _ScanResponse;
         CBUFFER_END
         ENDHLSL
 
@@ -183,7 +185,10 @@ Shader "RugWash/Rug Surface"
 
                 // Mousse : bulles blanches, teintées par la saleté détachée qu'elles contiennent.
                 half foamCoverage = saturate(a.a * 1.25);
-                half bubbles = detail.b * 0.75 + fineDetail.b * 0.25;
+                // Bulles qui frémissent : un second échantillon du bruit dérive lentement (aucun objet, aucune particule).
+                float2 fizzUV = meters * _DirtDetailTiling * 4.7 + float2(_Time.y * 0.011, -_Time.y * 0.008);
+                half fizz = SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, fizzUV).b;
+                half bubbles = detail.b * 0.6 + fineDetail.b * 0.2 + fizz * 0.2;
                 half foamMask = smoothstep(1.0 - foamCoverage, 1.0 - foamCoverage + 0.22, bubbles * 0.85 + 0.12) * saturate(a.a * 5.0);
                 half bubbleShade = lerp(0.68, 1.0, saturate(fineDetail.b * 1.3));
                 half3 foamColor = lerp(_FoamColor.rgb, _FoamColor.rgb * (stainTint * 1.6 + 0.35), looseMask * 0.7) * bubbleShade;
@@ -193,6 +198,11 @@ Shader "RugWash/Rug Surface"
                 // Relief des fibres, écrasé par la poussière et masqué par la mousse.
                 half strength = _FiberNormalStrength * (1.0 - dustMask * 0.5) * (1.0 - foamMask) * (1.0 - moisture * 0.35);
                 half3 normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_FiberNormal, sampler_FiberNormal, meters * _FiberTiling), strength);
+                // Relief des bulles : pente du bruit de mousse (deux échantillons décalés), pondérée par la présence de mousse.
+                half fizzX = SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, fizzUV + float2(0.004, 0.0)).b;
+                half fizzZ = SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, fizzUV + float2(0.0, 0.004)).b;
+                half3 foamNormal = normalize(half3((fizz - fizzX) * 7.0, (fizz - fizzZ) * 7.0, 1.0));
+                normalTS = normalize(lerp(normalTS, foamNormal, foamMask * 0.85));
                 float3 bitangent = input.tangentWS.w * cross(input.normalWS, input.tangentWS.xyz);
                 half3 normalWS = NormalizeNormalPerPixel(TransformTangentToWorld(normalTS, half3x3(input.tangentWS.xyz, bitangent, input.normalWS)));
 
@@ -236,7 +246,7 @@ Shader "RugWash/Rug Surface"
                 half reveal = weight * revealed;
                 half3 scanned = lit.rgb * (1.0 + scanHue * reveal * (0.45 + 0.55 * stripe))
                               + scanHue * (reveal * 0.015 + weight * front * 0.18 + edge * revealed * 0.2);
-                lit.rgb = lerp(lit.rgb, scanned, _RugScanParams.x);
+                lit.rgb = lerp(lit.rgb, scanned, _RugScanParams.x * _ScanResponse);
 
                 lit.rgb = MixFog(lit.rgb, inputData.fogCoord);
                 return half4(lit.rgb, 1);

@@ -87,13 +87,13 @@ namespace RugWash.Cleaning
         {
             switch (type)
             {
-                case DirtType.Dust: return new DirtResponse(1.00f, 0.35f, 0.45f, 0.45f, 0.60f);
-                case DirtType.HairDebris: return new DirtResponse(0.80f, 0.50f, 0.30f, 0.30f, 0.30f);
-                case DirtType.Mud: return new DirtResponse(0.15f, 0.30f, 0.90f, 1.00f, 0.25f);
-                case DirtType.Soil: return new DirtResponse(0.30f, 0.40f, 0.70f, 0.80f, 0.20f);
-                case DirtType.Drink: return new DirtResponse(0.00f, 0.10f, 0.60f, 1.00f, 0.35f);
-                case DirtType.Grease: return new DirtResponse(0.00f, 0.05f, 0.15f, 1.00f, 0.02f);
-                case DirtType.Embedded: return new DirtResponse(0.00f, 0.05f, 0.20f, 0.45f, 0.00f);
+                case DirtType.Dust: return new DirtResponse(1.00f, 0.35f, 0.45f, 0.45f, 0.60f, 0.55f);
+                case DirtType.HairDebris: return new DirtResponse(0.80f, 0.50f, 0.30f, 0.30f, 0.30f, 1.20f);
+                case DirtType.Mud: return new DirtResponse(0.15f, 0.30f, 0.90f, 1.00f, 0.25f, 0.10f);
+                case DirtType.Soil: return new DirtResponse(0.30f, 0.40f, 0.70f, 0.80f, 0.20f, 0.30f);
+                case DirtType.Drink: return new DirtResponse(0.00f, 0.10f, 0.60f, 1.00f, 0.35f, 0.00f);
+                case DirtType.Grease: return new DirtResponse(0.00f, 0.05f, 0.15f, 1.00f, 0.02f, 0.00f);
+                case DirtType.Embedded: return new DirtResponse(0.00f, 0.05f, 0.20f, 0.45f, 0.00f, 0.00f);
                 default: return new DirtResponse(0f, 0f, 0f, 0f, 0f);
             }
         }

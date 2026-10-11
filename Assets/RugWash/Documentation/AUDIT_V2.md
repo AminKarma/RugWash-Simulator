@@ -71,4 +71,7 @@ est mesurée (`AimErrorDegrees`) et testée.
 
 Jalon 1 (corrections et game feel) : **terminé** — implémenté, compilé, testé (91 EditMode, 50 PlayMode), build et
 benchmark revalidés ; détail dans `PRODUCTION.md` (section Roadmap V2) et `VALIDATION.md` (section 8).
+Jalon 2 (outils et atelier) : **terminé** — canon à mousse, système de mousse, balai, brosse de détail, aire de lavage
+et traces de pas, robot aspirateur ; détail dans `PRODUCTION.md` et `VALIDATION.md` (section 9). Le plan de travail et le
+sol réutilisent la grille, les opérations, les outils et le rendu du tapis (aucun système parallèle).
 Les jalons suivants seront traités dans l'ordre de la roadmap, chacun compilé, testé et documenté avant le suivant.

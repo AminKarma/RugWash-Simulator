@@ -11,6 +11,7 @@ using RugWash.Effects;
 using RugWash.Player;
 using RugWash.Save;
 using RugWash.UI;
+using RugWash.Workshop;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -82,7 +83,7 @@ namespace RugWash.Editor
             var bootstrap = game.AddComponent<GameBootstrap>();
 
             BuildRoom(environment, content, meshes);
-            var washPad = BuildWashBay(environment, content, meshes, audio);
+            BuildWashBay(environment, content, meshes, audio);
             RugWashDecor.WaterStation(environment, content, meshes, audio);
             var shopCounter = RugWashDecor.ToolStorage(environment, content, meshes);
             var orderCounter = RugWashDecor.OrderDesk(environment, content, meshes);
@@ -100,16 +101,45 @@ namespace RugWash.Editor
             var rug = BuildRug(gameplay, content);
             var snapshots = BuildSnapshotCamera(gameplay, rug);
 
+            // Surfaces de l'atelier, nettoyables comme le tapis : sol (traces, poussière) et plan de travail de l'aire de lavage.
+            var floorSurface = BuildSurface(gameplay, "FloorSurface", content.Floor, content["FloorSurface"], content, Vector3.zero);
+            var workSurfaceArea = BuildSurface(gameplay, "WorkSurface", content.WorkSurface, content["WorkSurface"], content,
+                WashPadCenter + Vector3.up * WashPadSize.y);
+            environment.Find("Room/Floor").GetComponent<MeshRenderer>().enabled = false;
+
             var cleanPool = BuildCleanFeedbackPool(effects, content, audio);
             var player = BuildPlayer(gameplay, content, meshes, effects, gameState, audio, cleanPool,
                 out var input, out var fps, out var toolController, out var interactor);
 
-            var waterEffect = effects.gameObject.AddComponent<WaterEffectController>();
-            WireList(waterEffect, "wetSurfaces", new Renderer[] { washPad });
-            WireList(waterEffect, "wettingTools", new CleaningToolBase[]
-            {
-                player.GetComponentInChildren<WaterRinseTool>(true), player.GetComponentInChildren<SoapSprayerTool>(true),
-            });
+            // Plan de travail : reçoit le ruissellement du tapis et recontamine le tapis suivant s'il reste sale.
+            var workSurface = game.AddComponent<WorkSurface>();
+            Wire(workSurface, ("surface", workSurfaceArea), ("orderRug", rug));
+
+            // Robot aspirateur et sa base (contre le mur avant, entre la porte et le comptoir).
+            var dockParts = RugWashWorkshopModels.Dock(gameplay, meshes, content, new Vector3(0.8f, 0f, -RoomHalfZ + 0.3f), Quaternion.identity);
+            var robotParts = RugWashWorkshopModels.Robot(gameplay, meshes, content);
+            robotParts.Root.position = dockParts.Root.position;
+            robotParts.Root.rotation = Quaternion.LookRotation(-dockParts.Root.forward);
+            var motor = robotParts.Root.gameObject.AddComponent<AudioSource>();
+            motor.playOnAwake = false;
+            motor.loop = true;
+            motor.clip = Clip(RugWashAudioGenerator.RobotHumLoop);
+            motor.volume = 0f;
+            motor.spatialBlend = 1f;
+            motor.rolloffMode = AudioRolloffMode.Linear;
+            motor.minDistance = 0.6f;
+            motor.maxDistance = 9f;
+            var robot = robotParts.Root.gameObject.AddComponent<RobotVacuum>();
+            Wire(robot, ("floor", floorSurface), ("dock", dockParts.Root), ("obstacleRoot", environment), ("audioManager", audio),
+                ("motorSource", motor), ("startClip", Clip(RugWashAudioGenerator.RobotStart)), ("stopClip", Clip(RugWashAudioGenerator.RobotStop)),
+                ("bumpClip", Clip(RugWashAudioGenerator.RobotBump)), ("dockedClip", Clip(RugWashAudioGenerator.RobotDocked)),
+                ("ledRenderer", robotParts.Led), ("sideBrush", robotParts.SideBrush), ("turret", robotParts.Turret));
+            SetInt(robot, "playerMask", 1 << RugWashPaths.PlayerLayer);
+            SetInt(robot, "obstacleMask", ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5)));
+            Wire(dockParts.Root.gameObject.AddComponent<RobotDock>(), ("robot", robot));
+
+            var workshopState = game.AddComponent<WorkshopStateService>();
+            Wire(workshopState, ("workSurface", workSurfaceArea), ("floor", floorSurface), ("robot", robot));
 
             var wallet = game.AddComponent<WalletManager>();
             var reputation = game.AddComponent<ReputationManager>();
@@ -137,7 +167,7 @@ namespace RugWash.Editor
                 ("viewModelRig", player.GetComponentInChildren<ViewModelRig>(true)), ("cameraMotion", player.GetComponentInChildren<CameraMotion>(true)));
             var save = game.AddComponent<SaveManager>();
             Wire(save, ("settings", settings), ("wallet", wallet), ("reputation", reputation), ("upgrades", upgrades),
-                ("orders", orders), ("shop", shop));
+                ("orders", orders), ("shop", shop), ("workshop", workshopState));
 
             var ui = BuildUI(uiRoot, sprites, performance);
 
@@ -159,6 +189,9 @@ namespace RugWash.Editor
                 ("snapshots", snapshots),
                 ("dirtScanner", scanner),
                 ("progressFeedback", progressFeedback),
+                ("workSurface", workSurface),
+                ("robot", robot),
+                ("workshopState", workshopState),
                 ("hud", ui.Hud),
                 ("toolbar", ui.Toolbar),
                 ("pauseMenu", ui.Pause),
@@ -567,8 +600,32 @@ namespace RugWash.Editor
 
             Wire(dirtRenderer, ("targetRenderer", renderer), ("rugMaterialTemplate", c["RugSurface"]), ("fringeMaterialTemplate", c["RugFringe"]));
             Wire(rug, ("definition", definition), ("dirtLibrary", c.DirtLibrary), ("dirtRenderer", dirtRenderer),
-                ("meshFilter", filter), ("surfaceCollider", collider));
+                ("meshFilter", filter), ("surfaceCollider", collider), ("tuning", c.Tuning));
             return rug;
+        }
+
+        /// <summary>
+        /// Surface nettoyable de l'atelier (sol, plan de travail) : même composant, même grille, même rendu que le tapis.
+        /// Couche par défaut (absente des captures avant/après du tapis) ; le maillage est créé au lancement.
+        /// </summary>
+        static RugCleaningController BuildSurface(Transform parent, string name, RugDefinition definition, Material material,
+            RugWashContentBuilder.Content c, Vector3 position)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = position;
+            var filter = go.AddComponent<MeshFilter>();
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            var collider = go.AddComponent<BoxCollider>();
+            collider.size = new Vector3(definition.sizeMeters.x, 0.01f, definition.sizeMeters.y);
+            collider.center = new Vector3(0f, definition.thickness - 0.005f, 0f);
+            var dirtRenderer = go.AddComponent<RugDirtRenderer>();
+            var surface = go.AddComponent<RugCleaningController>();
+            Wire(dirtRenderer, ("targetRenderer", renderer), ("rugMaterialTemplate", material), ("fringeMaterialTemplate", c["RugFringe"]));
+            Wire(surface, ("definition", definition), ("dirtLibrary", c.DirtLibrary), ("dirtRenderer", dirtRenderer),
+                ("meshFilter", filter), ("surfaceCollider", collider), ("tuning", c.Tuning));
+            return surface;
         }
 
         static Mesh PreviewRugMesh(RugDefinition definition, string path = RugWashPaths.Root + "/Prefabs/RugPreview_Mesh.asset")
@@ -655,6 +712,7 @@ namespace RugWash.Editor
             var tools = new CleaningToolBase[]
             {
                 BuildVacuum(ctx), BuildSoap(ctx), BuildBrush(ctx), BuildRinse(ctx), BuildExtractor(ctx),
+                BuildFoamCannon(ctx), BuildBroom(ctx), BuildDetailBrush(ctx),
             };
 
             toolController = player.AddComponent<PlayerToolController>();
@@ -667,6 +725,9 @@ namespace RugWash.Editor
             Wire(rig.gameObject.AddComponent<ViewModelRig>(), ("input", input), ("controller", fps), ("tools", toolController),
                 ("audioManager", audio), ("equipClip", Clip(RugWashAudioGenerator.ToolEquip)));
             Wire(cameraGo.AddComponent<CameraMotion>(), ("controller", fps));
+            var footprints = player.AddComponent<FootprintTrail>();
+            Wire(footprints, ("controller", fps));
+            SetInt(footprints, "surfaceMask", aimMask);
             var footsteps = player.AddComponent<FootstepAudio>();
             Wire(footsteps, ("controller", fps), ("audioManager", audio));
             var stepClips = new List<AudioClip>();
@@ -810,6 +871,70 @@ namespace RugWash.Editor
             return tool;
         }
 
+        static FoamCannonTool BuildFoamCannon(ToolBuildContext ctx)
+        {
+            var c = ctx.Content;
+            var model = RugWashToolModels.FoamCannon(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
+            var stream = CreateParticles("FoamStream", model.Tip, c["Foam"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.35f, 0.5f), Speed = new Vector2(6f, 8f), Size = new Vector2(0.03f, 0.06f), Color = Color.white,
+                Gravity = 0.4f, MaxParticles = 260, Shape = ParticleSystemShapeType.Cone, Angle = 9f, Radius = 0.02f, Rate = 0f,
+                Loop = true, PlayOnAwake = true, SizeGrowth = 2.5f,
+            });
+            var puffs = CreateParticles("FoamImpact", ctx.Effects, c["Foam"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.6f, 1f), Speed = new Vector2(0.05f, 0.2f), Size = new Vector2(0.05f, 0.1f), Color = Color.white,
+                Gravity = 0f, MaxParticles = 120, Shape = ParticleSystemShapeType.Circle, Radius = 0.25f, Rate = 0f, Loop = true, PlayOnAwake = true,
+            });
+            var tool = CreateTool<FoamCannonTool>(ctx, "FoamCannon", c.FoamCannon, model, RugWashAudioGenerator.FoamCannonLoop, 0.4f, 0.08f, 0f,
+                RugWashAudioGenerator.FoamContactLoop, 0.45f);
+            Wire(tool, ("foamStream", stream), ("impactPuffs", puffs));
+            return tool;
+        }
+
+        static BroomTool BuildBroom(ToolBuildContext ctx)
+        {
+            var c = ctx.Content;
+            var model = RugWashToolModels.Broom(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
+            var dust = CreateParticles("BroomDust", ctx.Effects, c["Dust"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.4f, 0.8f), Speed = new Vector2(0.2f, 0.7f), Size = new Vector2(0.02f, 0.05f), Color = Color.white,
+                Gravity = 0.3f, MaxParticles = 160, Shape = ParticleSystemShapeType.Hemisphere, Radius = 0.15f, Rate = 0f, Loop = true, PlayOnAwake = true,
+            });
+            var water = CreateParticles("BroomWater", ctx.Effects, c["Droplet"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.3f, 0.5f), Speed = new Vector2(0.4f, 1.2f), Size = new Vector2(0.015f, 0.03f), Color = Color.white,
+                Gravity = 1.2f, MaxParticles = 160, Shape = ParticleSystemShapeType.Hemisphere, Radius = 0.12f, Rate = 0f, Loop = true,
+                PlayOnAwake = true, Stretch = 0.02f,
+            });
+            var tool = CreateTool<BroomTool>(ctx, "Broom", c.Broom, model, RugWashAudioGenerator.BroomLoop, 0.35f, 0.1f, 0f,
+                RugWashAudioGenerator.BroomContactLoop, 0.5f);
+            Wire(tool, ("dustPuffs", dust), ("waterPush", water));
+            return tool;
+        }
+
+        static BrushTool BuildDetailBrush(ToolBuildContext ctx)
+        {
+            var c = ctx.Content;
+            var model = RugWashToolModels.DetailBrush(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
+            var debris = CreateParticles("DetailBrushDebris", ctx.Effects, c["Debris"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.3f, 0.6f), Speed = new Vector2(0.3f, 0.9f), Size = new Vector2(0.006f, 0.015f),
+                Color = new Color(0.36f, 0.27f, 0.18f, 1f), Gravity = 1f, MaxParticles = 100, Shape = ParticleSystemShapeType.Cone, Angle = 50f,
+                Radius = 0.04f, Rate = 0f, Loop = true, PlayOnAwake = true,
+            });
+            var tool = CreateTool<BrushTool>(ctx, "DetailBrush", c.DetailBrush, model, RugWashAudioGenerator.BrushLoop, 0.2f, 0.15f, 0.12f,
+                RugWashAudioGenerator.BrushContactLoop, 0.4f);
+            Wire(tool, ("debrisParticles", debris));
+            SetFloat(tool, "stubbornBonus", 2.2f);
+            SetFloat(tool, "scrubFrequency", 14f);
+            SetFloat(tool, "scrubAmplitude", 0.02f);
+            return tool;
+        }
+
         static CleaningVFXPool BuildCleanFeedbackPool(Transform effects, RugWashContentBuilder.Content c, AudioManager audio)
         {
             var root = new GameObject("CleanFeedbackPool");
@@ -870,14 +995,14 @@ namespace RugWash.Editor
             var cleanFill = CreateFillBar("Bar", cleanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(520f, 18f),
                 sprites.Rounded, sprites.White, new Color(0f, 0f, 0f, 0.5f), Accent, out _);
 
-            var scanPanel = CreateRect("ScanPanel", hudRoot, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), new Vector2(330f, 64f));
+            var scanPanel = CreateRect("ScanPanel", hudRoot, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), new Vector2(300f, 64f));
             AddImage(scanPanel, sprites.Rounded, PanelColor);
-            var scanLabel = AddText(CreateRect("Label", scanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(306f, 30f)),
+            var scanLabel = AddText(CreateRect("Label", scanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(276f, 30f)),
                 "Scanner la saleté", 21, TextAnchor.MiddleLeft, Color.white);
             scanLabel.resizeTextForBestFit = true;
             scanLabel.resizeTextMinSize = 14;
             scanLabel.resizeTextMaxSize = 21;
-            var scanFill = CreateFillBar("Bar", scanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(306f, 10f),
+            var scanFill = CreateFillBar("Bar", scanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(276f, 10f),
                 sprites.Rounded, sprites.White, new Color(0f, 0f, 0f, 0.5f), new Color(1f, 0.62f, 0.2f), out _);
 
             var toast = AddText(CreateRect("Toast", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(900f, 36f)),
@@ -892,28 +1017,34 @@ namespace RugWash.Editor
             var prompt = AddText(CreateRect("Prompt", hudRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 1f), new Vector2(0f, -60f), new Vector2(1000f, 40f)),
                 string.Empty, 26, TextAnchor.UpperCenter, Color.white);
 
-            var hint = AddText(CreateRect("Hint", hudRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -20f), new Vector2(560f, 120f)),
+            var hint = AddText(CreateRect("Hint", hudRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -20f), new Vector2(780f, 60f)),
                 string.Empty, 18, TextAnchor.UpperLeft, Muted);
+            var workSurfaceLabel = AddText(CreateRect("WorkSurfaceAlert", hudRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(24f, -74f), new Vector2(760f, 30f)), string.Empty, 20, TextAnchor.UpperLeft, new Color(1f, 0.72f, 0.35f));
 
-            var toolPanel = CreateRect("ToolPanel", hudRoot, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(24f, 24f), new Vector2(420f, 116f));
+            var toolPanel = CreateRect("ToolPanel", hudRoot, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(24f, 24f), new Vector2(380f, 116f));
             AddImage(toolPanel, sprites.Rounded, PanelColor);
-            var toolName = AddText(CreateRect("ToolName", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -10f), new Vector2(390f, 40f)),
+            var toolName = AddText(CreateRect("ToolName", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -10f), new Vector2(350f, 40f)),
                 "Outil", 30, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
-            var toolStatus = AddText(CreateRect("ToolStatus", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -50f), new Vector2(390f, 30f)),
+            toolName.resizeTextForBestFit = true;
+            toolName.resizeTextMinSize = 20;
+            toolName.resizeTextMaxSize = 30;
+            var toolStatus = AddText(CreateRect("ToolStatus", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -50f), new Vector2(350f, 30f)),
                 string.Empty, 22, TextAnchor.MiddleLeft, Muted);
-            var resourceFill = CreateFillBar("ResourceBar", toolPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(384f, 14f),
+            var resourceFill = CreateFillBar("ResourceBar", toolPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(344f, 14f),
                 sprites.Rounded, sprites.White, new Color(0f, 0f, 0f, 0.5f), new Color(0.35f, 0.65f, 1f), out var resourceBar);
 
             built.Hud = hudRoot.gameObject.AddComponent<HUDController>();
             Wire(built.Hud, ("root", hudGroup), ("toolNameLabel", toolName), ("toolStatusLabel", toolStatus), ("resourceFill", resourceFill),
                 ("resourceBar", resourceBar.gameObject), ("cleanlinessLabel", cleanLabel), ("cleanlinessFill", cleanFill),
                 ("promptLabel", prompt), ("hintLabel", hint), ("toastLabel", toast), ("economyLabel", economy), ("orderLabel", orderInfo),
-                ("cleanlinessPanel", cleanPanel), ("scanLabel", scanLabel), ("scanFill", scanFill));
+                ("cleanlinessPanel", cleanPanel), ("scanLabel", scanLabel), ("scanFill", scanFill), ("workSurfaceLabel", workSurfaceLabel));
 
             // ---- Barre d'outils
-            var bar = CreateRect("ToolBar", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(900f, 52f));
+            // Huit emplacements entre le panneau d'outil (gauche) et le panneau de scan (droite).
+            var bar = CreateRect("ToolBar", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(40f, 24f), new Vector2(1162f, 60f));
             var barLayout = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
-            barLayout.spacing = 10;
+            barLayout.spacing = 6;
             barLayout.childAlignment = TextAnchor.MiddleCenter;
             barLayout.childControlWidth = true;
             barLayout.childControlHeight = true;
@@ -922,12 +1053,16 @@ namespace RugWash.Editor
             var slotLabels = new List<Text>();
             for (int i = 0; i < RugWashInputActions.ToolSlotCount; i++)
             {
-                var slot = CreateRect($"Slot_{i}", bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(220f, 52f));
+                var slot = CreateRect($"Slot_{i}", bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(140f, 60f));
                 var element = slot.gameObject.AddComponent<LayoutElement>();
-                element.preferredWidth = 230f;
-                element.preferredHeight = 52f;
+                element.preferredWidth = 140f;
+                element.preferredHeight = 60f;
                 slotImages.Add(AddImage(slot, sprites.Rounded, PanelColor));
-                slotLabels.Add(AddText(Stretch("Label", slot, 8f), "-", 22, TextAnchor.MiddleCenter, Color.white));
+                var slotLabel = AddText(Stretch("Label", slot, 4f), "-", 19, TextAnchor.MiddleCenter, Color.white);
+                slotLabel.resizeTextForBestFit = true;
+                slotLabel.resizeTextMinSize = 10;
+                slotLabel.resizeTextMaxSize = 19;
+                slotLabels.Add(slotLabel);
             }
             built.Toolbar = bar.gameObject.AddComponent<ToolSelectionUI>();
             WireList(built.Toolbar, "slotBackgrounds", slotImages);
@@ -1078,11 +1213,11 @@ namespace RugWash.Editor
                 string.Empty, 24, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
             var grid = CreateRect("Grid", shopWindow, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -96f), new Vector2(1440f, 700f));
             var gridLayout = grid.gameObject.AddComponent<GridLayoutGroup>();
-            gridLayout.cellSize = new Vector2(714f, 128f);
-            gridLayout.spacing = new Vector2(12f, 10f);
+            gridLayout.cellSize = new Vector2(714f, 110f);
+            gridLayout.spacing = new Vector2(12f, 8f);
             gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             gridLayout.constraintCount = 2;
-            var shopRow = BuildRowTemplate(grid, sprites, 714f, 128f, 120f);
+            var shopRow = BuildRowTemplate(grid, sprites, 714f, 110f, 120f);
             var shopMessage = AddText(CreateRect("Message", shopWindow, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(1300f, 44f)),
                 string.Empty, 24, TextAnchor.MiddleCenter, Color.white);
             built.Shop = shopWindow.parent.parent.gameObject.AddComponent<ShopUI>();

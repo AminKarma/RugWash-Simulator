@@ -13,8 +13,13 @@ namespace RugWash.Economy
         public float RecoveryCapacity;
         readonly Dictionary<string, float> power = new Dictionary<string, float>();
         readonly Dictionary<string, float> consumption = new Dictionary<string, float>();
+        readonly Dictionary<string, float> radius = new Dictionary<string, float>();
+        readonly HashSet<string> unlocked = new HashSet<string>();
 
         public float PowerMultiplier(string toolId) => toolId != null && power.TryGetValue(toolId, out float v) ? v : 1f;
+        public float RadiusMultiplier(string toolId) => toolId != null && radius.TryGetValue(toolId, out float v) ? v : 1f;
+        /// <summary>Vrai si l'outil a été débloqué par un achat (les outils sans déblocage sont toujours utilisables).</summary>
+        public bool IsUnlocked(string toolId) => toolId != null && unlocked.Contains(toolId);
         public float ConsumptionMultiplier(string toolId) => toolId != null && consumption.TryGetValue(toolId, out float v) ? v : 1f;
 
         public static EquipmentStats Compute(float baseWater, float baseSoap, float baseRecovery, IEnumerable<UpgradeDefinition> owned)
@@ -30,6 +35,10 @@ namespace RugWash.Economy
                     case UpgradeEffect.RecoveryCapacity: stats.RecoveryCapacity += upgrade.value; break;
                     case UpgradeEffect.ToolPower: Multiply(stats.power, upgrade.targetToolId, upgrade.value); break;
                     case UpgradeEffect.ToolConsumption: Multiply(stats.consumption, upgrade.targetToolId, upgrade.value); break;
+                    case UpgradeEffect.ToolRadius: Multiply(stats.radius, upgrade.targetToolId, upgrade.value); break;
+                    case UpgradeEffect.UnlockTool:
+                        if (!string.IsNullOrEmpty(upgrade.targetToolId)) stats.unlocked.Add(upgrade.targetToolId);
+                        break;
                 }
             }
             return stats;

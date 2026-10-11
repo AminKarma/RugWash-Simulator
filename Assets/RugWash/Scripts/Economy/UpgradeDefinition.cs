@@ -14,6 +14,10 @@ namespace RugWash.Economy
         ToolConsumption,
         /// <summary>Multiplicateur de puissance de l'outil ciblé.</summary>
         ToolPower,
+        /// <summary>Rend utilisable un outil « à débloquer » (achat de l'outil).</summary>
+        UnlockTool,
+        /// <summary>Multiplicateur de la largeur (rayon) de la zone traitée par l'outil ciblé.</summary>
+        ToolRadius,
     }
 
     /// <summary>Amélioration achetable. Prix et valeurs modifiables dans l'Inspector.</summary>

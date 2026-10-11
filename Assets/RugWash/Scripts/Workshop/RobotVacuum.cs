@@ -1,0 +1,550 @@
+using System;
+using System.Collections.Generic;
+using RugWash.Audio;
+using RugWash.Cleaning;
+using RugWash.Player;
+using UnityEngine;
+
+namespace RugWash.Workshop
+{
+    /// <summary>État sauvegardé du robot (position conservée s'il travaillait quand le joueur a quitté).</summary>
+    [Serializable]
+    public struct RobotState
+    {
+        public int mode;
+        public float battery;
+        public bool resumeAfterCharge;
+        public float x;
+        public float z;
+        public float yaw;
+    }
+
+    /// <summary>
+    /// Robot aspirateur de l'atelier. Il aspire réellement la poussière et les traces sèches du sol (données de la surface
+    /// « sol »), choisit les zones les plus sales, s'y rend par un chemin calculé sur une grille d'occupation (murs,
+    /// meubles et objets posés au sol sont évités, la zone autorisée n'est jamais quittée), s'arrête devant le joueur,
+    /// rentre à sa base quand sa batterie faiblit ou quand on l'arrête, puis repart une fois rechargé.
+    /// Voyant : vert = nettoyage, bleu = retour, ambre = charge, blanc = prêt, rouge = bloqué.
+    /// </summary>
+    [DisallowMultipleComponent]
+    public sealed class RobotVacuum : MonoBehaviour, IInteractable
+    {
+        static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
+
+        enum Nav { Idle, Undocking, Following, Docking, Waiting }
+
+        [Header("Références")]
+        [SerializeField] RugCleaningController floor;
+        [Tooltip("Pose de la base : position de recharge, axe Z vers la pièce.")]
+        [SerializeField] Transform dock;
+        [Tooltip("Racine des objets de l'atelier pris en compte comme obstacles au sol (même sans collider).")]
+        [SerializeField] Transform obstacleRoot;
+        [SerializeField] AudioManager audioManager;
+        [SerializeField] AudioSource motorSource;
+        [SerializeField] AudioClip startClip;
+        [SerializeField] AudioClip stopClip;
+        [SerializeField] AudioClip bumpClip;
+        [SerializeField] AudioClip dockedClip;
+        [SerializeField] Renderer ledRenderer;
+        [SerializeField] Transform sideBrush;
+        [SerializeField] Transform turret;
+
+        [Header("Déplacement")]
+        [SerializeField] float speed = 0.32f;
+        [SerializeField] float turnSpeed = 170f;
+        [SerializeField] float radius = 0.17f;
+        [SerializeField] float cellSize = 0.2f;
+        [Tooltip("Couches des obstacles physiques (murs, meubles) et du joueur.")]
+        [SerializeField] LayerMask obstacleMask = ~0;
+        [SerializeField] LayerMask playerMask;
+
+        [Header("Nettoyage")]
+        [SerializeField] float cleanRadius = 0.16f;
+        [SerializeField] float cleanPower = 1.2f;
+        [SerializeField, Range(0.01f, 0.3f)] float dirtTarget = 0.04f;
+        [SerializeField] float revisitDelay = 25f;
+        [Tooltip("Longueur de trajet préférée entre deux cibles (m) : le robot avance par longues lignes, comme un vrai robot.")]
+        [SerializeField] float preferredLeg = 1.2f;
+
+        readonly RobotVacuumBrain brain = new RobotVacuumBrain();
+        readonly List<Vector2> path = new List<Vector2>();
+        readonly Collider[] overlapBuffer = new Collider[16];
+        readonly List<Bounds> floorObstacles = new List<Bounds>();
+        OccupancyGrid occupancy;
+        float[] lastVisit;
+        Nav nav;
+        int pathIndex;
+        float waitTimer, stuckTimer, idleTimer;
+        Vector3 stuckCheckPosition;
+        int failedPlans;
+        bool started, hasPendingState, bumped;
+        RobotState pendingState;
+        MaterialPropertyBlock ledBlock;
+        Color ledColor = Color.clear;
+
+        public RobotVacuumBrain Brain => brain;
+        public RobotMode Mode => brain.Mode;
+        public OccupancyGrid Occupancy => occupancy;
+        public RugCleaningController Floor => floor;
+        public bool IsAtDock => (FlatPosition - DockFlat).magnitude < 0.06f && nav != Nav.Undocking;
+        public bool IsWaitingForObstacle => nav == Nav.Waiting;
+        /// <summary>Prochain point du chemin suivi (diagnostic, tests), ou null.</summary>
+        public Vector2? NextWaypoint => nav == Nav.Following && pathIndex < path.Count ? path[pathIndex] : (Vector2?)null;
+        /// <summary>Saleté totale aspirée depuis le chargement de la scène.</summary>
+        public float TotalCleaned { get; private set; }
+        public int BumpCount { get; private set; }
+        public string LastMessage { get; private set; }
+
+        public event Action<string> Message;
+
+        Vector2 FlatPosition => new Vector2(transform.position.x, transform.position.z);
+        Vector2 DockFlat => new Vector2(dock.position.x, dock.position.z);
+        Vector3 DockForward => Vector3.ProjectOnPlane(dock.forward, Vector3.up).normalized;
+        Vector2 DockApproach => DockFlat + new Vector2(DockForward.x, DockForward.z) * 0.5f;
+        float FloorY => floor != null ? floor.UVToWorld(new Vector2(0.5f, 0.5f)).y : 0f;
+
+        public bool IsConfigured(out string missing)
+        {
+            missing = floor == null ? nameof(floor) : dock == null ? nameof(dock) : null;
+            return missing == null;
+        }
+
+        void Awake()
+        {
+            ledBlock = new MaterialPropertyBlock();
+            brain.ModeChanged += OnModeChanged;
+        }
+
+        void Start()
+        {
+            if (!IsConfigured(out string missing))
+            {
+                Debug.LogError($"[RugWash] Robot aspirateur : référence manquante '{missing}'.", this);
+                enabled = false;
+                return;
+            }
+            BuildOccupancy();
+            started = true;
+            if (hasPendingState) ApplyState(pendingState);
+            else SnapToDock();
+        }
+
+        void OnDestroy() => brain.ModeChanged -= OnModeChanged;
+
+        // ------------------------------------------------------------------ Carte des obstacles
+
+        /// <summary>Construit la grille d'occupation : colliders physiques et objets posés au sol (gonflés du rayon du robot).</summary>
+        public void BuildOccupancy()
+        {
+            Vector2 size = floor.SizeMeters;
+            Vector3 center = floor.transform.position;
+            var min = new Vector2(center.x - size.x * 0.5f, center.z - size.y * 0.5f);
+            var max = new Vector2(center.x + size.x * 0.5f, center.z + size.y * 0.5f);
+            occupancy = new OccupancyGrid(min, max, cellSize);
+            CollectFloorObstacles();
+            float y = FloorY;
+            occupancy.Build(xz => IsBlockedAt(xz, y));
+            lastVisit = new float[occupancy.Width * occupancy.Height];
+            for (int i = 0; i < lastVisit.Length; i++) lastVisit[i] = float.NegativeInfinity;
+            // La base et son accès restent libres même si un objet voisin déborde.
+            ClearAround(DockFlat, 0.25f);
+            ClearAround(DockApproach, 0.2f);
+        }
+
+        void CollectFloorObstacles()
+        {
+            floorObstacles.Clear();
+            if (obstacleRoot == null) return;
+            float y = FloorY;
+            foreach (var renderer in obstacleRoot.GetComponentsInChildren<MeshRenderer>())
+            {
+                if (renderer.transform.IsChildOf(transform) || renderer.transform.IsChildOf(dock)) continue;
+                if (renderer.GetComponentInParent<RugCleaningController>() != null) continue;
+                var bounds = renderer.bounds;
+                if (bounds.min.y > y + 0.14f || bounds.max.y < y + 0.015f) continue;
+                floorObstacles.Add(bounds);
+            }
+        }
+
+        bool IsBlockedAt(Vector2 xz, float floorY)
+        {
+            float half = cellSize * 0.5f + radius;
+            var center = new Vector3(xz.x, floorY + 0.075f, xz.y);
+            var extents = new Vector3(half, 0.055f, half);
+            int count = Physics.OverlapBoxNonAlloc(center, extents, overlapBuffer, Quaternion.identity, obstacleMask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                var hit = overlapBuffer[i];
+                if (hit.transform.IsChildOf(transform) || hit.transform.IsChildOf(dock)) continue;
+                if ((playerMask.value & (1 << hit.gameObject.layer)) != 0) continue;
+                if (hit.GetComponentInParent<RugCleaningController>() == floor) continue;
+                return true;
+            }
+            var box = new Bounds(center, extents * 2f);
+            foreach (var bounds in floorObstacles)
+                if (bounds.Intersects(box)) return true;
+            return false;
+        }
+
+        void ClearAround(Vector2 xz, float radiusMeters)
+        {
+            var c = occupancy.WorldToCell(xz);
+            int r = Mathf.CeilToInt(radiusMeters / cellSize);
+            for (int dy = -r; dy <= r; dy++)
+            for (int dx = -r; dx <= r; dx++)
+                occupancy.SetBlocked(new Vector2Int(c.x + dx, c.y + dy), false);
+        }
+
+        // ------------------------------------------------------------------ Boucle
+
+        void Update()
+        {
+            float dt = Time.deltaTime;
+            if (!started || dt <= 0f) return;
+
+            brain.Tick(dt, nav == Nav.Idle && IsAtDock);
+            switch (brain.Mode)
+            {
+                case RobotMode.Docked:
+                    nav = Nav.Idle;
+                    break;
+                case RobotMode.Cleaning:
+                    UpdateCleaning(dt);
+                    break;
+                case RobotMode.Returning:
+                    UpdateReturning(dt);
+                    break;
+            }
+            UpdatePresentation(dt);
+        }
+
+        void UpdateCleaning(float dt)
+        {
+            if (nav == Nav.Undocking)
+            {
+                if (MoveTowards(DockApproach, dt, avoidPlayer: true)) nav = Nav.Idle;
+            }
+            else if (nav == Nav.Idle || nav == Nav.Docking)
+            {
+                if (!PlanToNextDirtySpot()) return;
+            }
+            else FollowPath(dt);
+
+            var vacuum = new VacuumOperation { Table = floor.DirtTable, Power = cleanPower, DeltaTime = dt };
+            floor.ApplyOperation(transform.position, cleanRadius, 4f, ref vacuum);
+            TotalCleaned += vacuum.Removed;
+            MarkVisited(FlatPosition);
+        }
+
+        void UpdateReturning(float dt)
+        {
+            if (nav == Nav.Docking)
+            {
+                if (MoveTowards(DockFlat, dt, avoidPlayer: true))
+                {
+                    Face(-DockForward, 1000f);
+                    nav = Nav.Idle;
+                }
+                return;
+            }
+            if (nav == Nav.Undocking || nav == Nav.Idle)
+            {
+                if ((FlatPosition - DockApproach).magnitude < 0.08f)
+                {
+                    nav = Nav.Docking;
+                    return;
+                }
+                if (!PlanTo(DockApproach))
+                {
+                    // Aucun chemin (joueur ou objet déplacé) : nouvel essai un peu plus tard.
+                    nav = Nav.Waiting;
+                    waitTimer = 1f;
+                }
+                return;
+            }
+            if (FollowPath(dt)) nav = Nav.Docking;
+        }
+
+        bool PlanToNextDirtySpot()
+        {
+            if (!TryFindDirtySpot(out Vector2 target))
+            {
+                Notify("Robot aspirateur : sol propre, retour à la base");
+                brain.FinishCleaning();
+                return false;
+            }
+            if (PlanTo(target)) return true;
+            MarkVisited(target, revisitDelay * 2f);
+            return false;
+        }
+
+        /// <summary>
+        /// Prochaine cible : zone sale (poussière et traces sèches) non visitée récemment, de préférence à environ
+        /// <see cref="preferredLeg"/> mètres et dans la direction actuelle — le robot balaie la pièce par longues lignes
+        /// et va en priorité là où il y a le plus à aspirer.
+        /// </summary>
+        public bool TryFindDirtySpot(out Vector2 target)
+        {
+            target = default;
+            float best = float.MinValue;
+            float now = Time.time;
+            Vector2 here = FlatPosition;
+            var forward = new Vector2(transform.forward.x, transform.forward.z).normalized;
+            for (int y = 0; y < occupancy.Height; y++)
+            for (int x = 0; x < occupancy.Width; x++)
+            {
+                var cell = new Vector2Int(x, y);
+                if (occupancy.IsBlocked(cell) || now - lastVisit[y * occupancy.Width + x] < revisitDelay) continue;
+                Vector2 xz = occupancy.CellCenter(cell);
+                Vector2 offset = xz - here;
+                float distance = offset.magnitude;
+                if (distance < 0.3f) continue;
+                float dirt = VacuumableDirt(xz);
+                if (dirt < dirtTarget) continue;
+                float heading = Vector2.Dot(forward, offset / distance);
+                float score = dirt * 3f - Mathf.Abs(distance - preferredLeg) * 0.25f + heading * 0.5f;
+                if (score <= best) continue;
+                best = score;
+                target = xz;
+            }
+            return best > float.MinValue;
+        }
+
+        float VacuumableDirt(Vector2 xz)
+        {
+            if (!floor.TrySampleCell(new Vector3(xz.x, 0f, xz.y), out RugCell cell)) return 0f;
+            return cell.Dust + (cell.Moisture < 0.25f ? cell.Loosened : 0f);
+        }
+
+        bool PlanTo(Vector2 target)
+        {
+            path.Clear();
+            pathIndex = 0;
+            if (!occupancy.TryNearestFree(occupancy.WorldToCell(FlatPosition), 3, out Vector2Int start)) return false;
+            if (!occupancy.TryNearestFree(occupancy.WorldToCell(target), 3, out Vector2Int goal)) return false;
+            var cells = GridPathfinder.Simplify(occupancy, GridPathfinder.FindPath(occupancy, start, goal));
+            if (cells == null)
+            {
+                failedPlans++;
+                return false;
+            }
+            for (int i = 1; i < cells.Count; i++) path.Add(occupancy.CellCenter(cells[i]));
+            if (path.Count == 0) path.Add(target);
+            failedPlans = 0;
+            nav = Nav.Following;
+            stuckTimer = 0f;
+            stuckCheckPosition = transform.position;
+            return true;
+        }
+
+        /// <returns>Vrai à l'arrivée du dernier point.</returns>
+        bool FollowPath(float dt)
+        {
+            if (nav == Nav.Waiting)
+            {
+                // Obstacle imprévu (le joueur) : il attend, puis recalcule un chemin.
+                waitTimer -= dt;
+                if (waitTimer <= 0f) nav = Nav.Idle;
+                return false;
+            }
+            if (pathIndex >= path.Count)
+            {
+                nav = Nav.Idle;
+                return true;
+            }
+
+            if (MoveTowards(path[pathIndex], dt, avoidPlayer: true)) pathIndex++;
+            if (nav == Nav.Waiting) return false;
+
+            // Détection de blocage : s'il n'avance plus, il recalcule son chemin.
+            stuckTimer += dt;
+            if (stuckTimer > 2.5f)
+            {
+                if ((transform.position - stuckCheckPosition).magnitude < 0.03f) nav = Nav.Idle;
+                stuckTimer = 0f;
+                stuckCheckPosition = transform.position;
+            }
+            if (pathIndex >= path.Count)
+            {
+                nav = Nav.Idle;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Tourne vers la cible puis avance ; s'arrête devant le joueur ou un obstacle imprévu.</summary>
+        bool MoveTowards(Vector2 target, float dt, bool avoidPlayer)
+        {
+            Vector2 delta = target - FlatPosition;
+            float distance = delta.magnitude;
+            if (distance < 0.03f) return true;
+            var direction = new Vector3(delta.x / distance, 0f, delta.y / distance);
+            float angle = Vector3.SignedAngle(transform.forward, direction, Vector3.up);
+            Face(direction, turnSpeed * dt);
+            if (Mathf.Abs(angle) > 25f) return false;
+
+            if (avoidPlayer && SomethingAhead(direction))
+            {
+                if (!bumped)
+                {
+                    bumped = true;
+                    BumpCount++;
+                    if (audioManager != null) audioManager.PlayAt(bumpClip, transform.position, 0.5f);
+                }
+                nav = Nav.Waiting;
+                waitTimer = 1.2f;
+                return false;
+            }
+            bumped = false;
+            float step = Mathf.Min(distance, speed * dt);
+            transform.position += direction * step;
+            return step >= distance - 1e-4f;
+        }
+
+        /// <summary>
+        /// Capteur avant : volume vertical juste devant le robot, sur toute la hauteur du joueur (une capsule de personnage
+        /// est arrondie en bas : un test au ras du sol la manquerait). Le robot s'arrête à une vingtaine de centimètres.
+        /// </summary>
+        bool SomethingAhead(Vector3 direction)
+        {
+            Vector3 center = transform.position + direction * (radius + 0.1f);
+            return Physics.CheckCapsule(center + Vector3.up * 0.1f, center + Vector3.up * 0.9f, radius * 0.8f, playerMask, QueryTriggerInteraction.Ignore);
+        }
+
+        void Face(Vector3 direction, float maxDegrees)
+        {
+            if (direction.sqrMagnitude < 1e-6f) return;
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(direction, Vector3.up), maxDegrees);
+        }
+
+        void MarkVisited(Vector2 xz, float extraDelay = 0f)
+        {
+            var c = occupancy.WorldToCell(xz);
+            if (!occupancy.InBounds(c)) return;
+            lastVisit[c.y * occupancy.Width + c.x] = Time.time + extraDelay;
+        }
+
+        // ------------------------------------------------------------------ Modes, présentation
+
+        void OnModeChanged(RobotMode previous, RobotMode next)
+        {
+            switch (next)
+            {
+                case RobotMode.Cleaning:
+                    nav = previous == RobotMode.Docked ? Nav.Undocking : Nav.Idle;
+                    if (audioManager != null) audioManager.PlayAt(startClip, transform.position, 0.7f);
+                    break;
+                case RobotMode.Returning:
+                    nav = Nav.Idle;
+                    if (audioManager != null) audioManager.PlayAt(stopClip, transform.position, 0.7f);
+                    if (brain.ResumeAfterCharge) Notify("Robot aspirateur : batterie faible, retour en charge");
+                    break;
+                case RobotMode.Docked:
+                    nav = Nav.Idle;
+                    SnapToDock();
+                    if (audioManager != null) audioManager.PlayAt(dockedClip, transform.position, 0.7f);
+                    break;
+            }
+        }
+
+        void UpdatePresentation(float dt)
+        {
+            bool moving = brain.Mode != RobotMode.Docked;
+            if (sideBrush != null && brain.Mode == RobotMode.Cleaning) sideBrush.Rotate(0f, 720f * dt, 0f, Space.Self);
+            if (turret != null && moving) turret.Rotate(0f, 240f * dt, 0f, Space.Self);
+
+            if (motorSource != null)
+            {
+                float volume = moving ? (brain.Mode == RobotMode.Cleaning ? 0.55f : 0.35f) : 0f;
+                float category = audioManager != null ? audioManager.VolumeFor(AudioCategory.Effects) : 1f;
+                motorSource.volume = Mathf.MoveTowards(motorSource.volume, volume * category, dt * 2f);
+                motorSource.pitch = nav == Nav.Waiting ? 0.9f : 1f;
+                if (motorSource.volume > 0.001f && !motorSource.isPlaying) motorSource.Play();
+                else if (motorSource.volume <= 0.001f && motorSource.isPlaying) motorSource.Stop();
+            }
+
+            if (ledRenderer == null) return;
+            Color color;
+            if (nav == Nav.Waiting) color = Mathf.Repeat(Time.time * 2f, 1f) < 0.5f ? new Color(1f, 0.15f, 0.1f) : new Color(0.3f, 0.05f, 0.03f);
+            else if (brain.Mode == RobotMode.Cleaning) color = new Color(0.2f, 1f, 0.35f);
+            else if (brain.Mode == RobotMode.Returning) color = new Color(0.25f, 0.55f, 1f);
+            else if (brain.IsCharging) color = new Color(1f, 0.6f, 0.1f) * (0.6f + 0.4f * Mathf.Sin(Time.time * 3f));
+            else color = new Color(0.9f, 0.95f, 1f);
+            if (color == ledColor) return;
+            ledColor = color;
+            ledBlock.SetColor(BaseColorId, color);
+            ledBlock.SetColor(EmissionId, color * 2.5f);
+            ledRenderer.SetPropertyBlock(ledBlock);
+        }
+
+        void SnapToDock()
+        {
+            if (dock == null) return;
+            transform.SetPositionAndRotation(new Vector3(dock.position.x, FloorY, dock.position.z), Quaternion.LookRotation(-DockForward, Vector3.up));
+            nav = Nav.Idle;
+            path.Clear();
+        }
+
+        void Notify(string message)
+        {
+            LastMessage = message;
+            Message?.Invoke(message);
+        }
+
+        // ------------------------------------------------------------------ Sauvegarde
+
+        public RobotState CaptureState() => new RobotState
+        {
+            mode = (int)brain.Mode,
+            battery = brain.Battery01,
+            resumeAfterCharge = brain.ResumeAfterCharge,
+            x = transform.position.x,
+            z = transform.position.z,
+            yaw = transform.eulerAngles.y,
+        };
+
+        /// <summary>Restaure l'état sauvegardé : sur la base, ou à sa position s'il travaillait (position invalide → base).</summary>
+        public void ApplyState(RobotState state)
+        {
+            if (!started)
+            {
+                pendingState = state;
+                hasPendingState = true;
+                return;
+            }
+            hasPendingState = false;
+            brain.Restore(state.mode, state.battery, state.resumeAfterCharge);
+            path.Clear();
+            var cell = occupancy.WorldToCell(new Vector2(state.x, state.z));
+            if (brain.Mode == RobotMode.Docked || occupancy.IsBlocked(cell))
+            {
+                SnapToDock();
+                if (brain.Mode != RobotMode.Docked) nav = Nav.Undocking;
+                return;
+            }
+            transform.SetPositionAndRotation(new Vector3(state.x, FloorY, state.z), Quaternion.Euler(0f, state.yaw, 0f));
+            nav = Nav.Idle;
+        }
+
+        // ------------------------------------------------------------------ Interaction
+
+        public string GetPrompt(PlayerInteractor interactor) =>
+            $"{(brain.Mode == RobotMode.Cleaning || brain.ResumeAfterCharge ? "Arrêter" : "Démarrer")} le robot aspirateur ({brain.Describe()})";
+
+        public bool CanInteract(PlayerInteractor interactor) => started;
+
+        public string Interact(PlayerInteractor interactor) => Toggle();
+
+        /// <summary>Démarre ou arrête le robot ; retourne le message affiché au joueur.</summary>
+        public string Toggle()
+        {
+            switch (brain.Toggle())
+            {
+                case RobotToggleResult.Started: return "Robot aspirateur démarré";
+                case RobotToggleResult.WillStartWhenCharged: return "Batterie trop faible : le robot partira une fois rechargé";
+                default: return "Robot aspirateur arrêté : retour à la base";
+            }
+        }
+    }
+}

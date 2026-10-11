@@ -10,7 +10,18 @@ namespace RugWash.Cleaning
         LongPile,
     }
 
-    /// <summary>Définition d'un modèle de tapis (apparence, dimensions, saleté par défaut).</summary>
+    /// <summary>Nature d'une surface nettoyable : tapis à traiter, plan de travail de l'aire de lavage, sol de l'atelier.</summary>
+    public enum SurfaceKind
+    {
+        Rug,
+        WorkSurface,
+        Floor,
+    }
+
+    /// <summary>
+    /// Définition d'une surface nettoyable (apparence, dimensions, saleté par défaut). Sert aux tapis, et aussi au plan
+    /// de travail et au sol de l'atelier, qui réutilisent la même grille, les mêmes outils et le même rendu.
+    /// </summary>
     [CreateAssetMenu(menuName = "RugWash/Tapis", fileName = "Rug_")]
     public sealed class RugDefinition : ScriptableObject
     {
@@ -18,6 +29,10 @@ namespace RugWash.Cleaning
         public string displayName = "Tapis";
         [TextArea] public string description;
         public RugPileType pileType;
+        [Tooltip("Tapis (commandes), plan de travail ou sol de l'atelier.")]
+        public SurfaceKind surfaceKind = SurfaceKind.Rug;
+        [Tooltip("Humidité évaporée par seconde (0 = ne sèche pas seule, cas des tapis).")]
+        [Range(0f, 0.2f)] public float dryingPerSecond;
 
         [Header("Dimensions")]
         public Vector2 sizeMeters = new Vector2(3f, 2f);

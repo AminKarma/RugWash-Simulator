@@ -38,6 +38,9 @@ namespace RugWash.Core
         [SerializeField] RugSnapshotService snapshots;
         [SerializeField] DirtScanner dirtScanner;
         [SerializeField] CleaningProgressFeedback progressFeedback;
+        [SerializeField] WorkSurface workSurface;
+        [SerializeField] Workshop.RobotVacuum robot;
+        [SerializeField] WorkshopStateService workshopState;
         [SerializeField] List<RugDefinition> availableRugs = new List<RugDefinition>();
 
         [Header("Commandes et économie")]
@@ -79,6 +82,8 @@ namespace RugWash.Core
         public HUDController Hud => hud;
         public DirtScanner DirtScanner => dirtScanner;
         public CleaningProgressFeedback ProgressFeedback => progressFeedback;
+        public WorkSurface WorkSurface => workSurface;
+        public Workshop.RobotVacuum Robot => robot;
         public bool IsReady { get; private set; }
 
         /// <summary>Vérifie toutes les références, y compris celles des composants enfants.</summary>
@@ -103,6 +108,9 @@ namespace RugWash.Core
             Require(snapshots, nameof(snapshots));
             Require(dirtScanner, nameof(dirtScanner));
             Require(progressFeedback, nameof(progressFeedback));
+            Require(workSurface, nameof(workSurface));
+            Require(robot, nameof(robot));
+            Require(workshopState, nameof(workshopState));
             Require(orders, nameof(orders));
             Require(wallet, nameof(wallet));
             Require(reputation, nameof(reputation));
@@ -127,6 +135,9 @@ namespace RugWash.Core
             if (snapshots != null && !snapshots.IsConfigured(out detail)) problems.Add($"snapshots.{detail}");
             if (dirtScanner != null && !dirtScanner.IsConfigured(out detail)) problems.Add($"dirtScanner.{detail}");
             if (progressFeedback != null && !progressFeedback.IsConfigured(out detail)) problems.Add($"progressFeedback.{detail}");
+            if (workSurface != null && !workSurface.IsConfigured(out detail)) problems.Add($"workSurface.{detail}");
+            if (robot != null && !robot.IsConfigured(out detail)) problems.Add($"robot.{detail}");
+            if (workshopState != null && !workshopState.IsConfigured(out detail)) problems.Add($"workshopState.{detail}");
             if (orders != null && !orders.IsConfigured(out detail)) problems.Add($"orders.{detail}");
             if (upgrades != null && !upgrades.IsConfigured(out detail)) problems.Add($"upgrades.{detail}");
             if (shop != null && !shop.IsConfigured(out detail)) problems.Add($"shop.{detail}");
@@ -166,7 +177,11 @@ namespace RugWash.Core
             hud.Bind(toolController, interactor, input, rug, gameState);
             hud.BindEconomy(wallet, reputation, orders);
             hud.BindFeedback(dirtScanner, progressFeedback);
+            hud.BindWorkSurface(workSurface);
             toolbar.Bind(toolController);
+            upgrades.Changed += toolbar.Refresh;
+            robot.Message += hud.ShowToast;
+            orderBoard.SetWorkSurface(workSurface);
             pauseMenu.Bind(gameState, rug, orders, availableRugs, settingsUI, saveManager);
             settingsUI.Bind(settingsManager, saveManager, gameState);
             saveManager.Saved += OnSaved;
@@ -200,6 +215,8 @@ namespace RugWash.Core
         {
             if (saveManager != null) saveManager.Saved -= OnSaved;
             if (orders != null) orders.ObjectiveReached -= OnObjectiveReached;
+            if (upgrades != null && toolbar != null) upgrades.Changed -= toolbar.Refresh;
+            if (robot != null && hud != null) robot.Message -= hud.ShowToast;
             if (gameState == null) return;
             gameState.StateChanged -= OnGameStateChanged;
             gameState.ModalsChanged -= SyncGameplayInput;

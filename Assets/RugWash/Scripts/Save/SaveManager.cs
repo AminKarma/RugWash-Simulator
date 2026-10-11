@@ -26,6 +26,8 @@ namespace RugWash.Save
         [SerializeField] UpgradeManager upgrades;
         [SerializeField] OrderManager orders;
         [SerializeField] ShopManager shop;
+        [Tooltip("Robot aspirateur, plan de travail et sol.")]
+        [SerializeField] WorkshopStateService workshop;
 
         SaveFileStore store;
         bool applied;
@@ -76,6 +78,7 @@ namespace RugWash.Save
         void ApplyLoadedData()
         {
             settings.Apply(Current.settings);
+            if (workshop != null) workshop.Restore(Current.workshop);
             if (HasGameSystems)
             {
                 wallet.Wallet.Restore(Current.money);
@@ -90,6 +93,7 @@ namespace RugWash.Save
         void Capture()
         {
             Current.settings = settings.Current.Clone();
+            if (workshop != null) workshop.Capture(Current.workshop ??= new WorkshopSaveData());
             if (!HasGameSystems) return;
             Current.money = wallet.Balance;
             Current.reputation = reputation.Points;

@@ -39,6 +39,13 @@ par l'initialisation automatique).
 | `tmp_rinse_contact_loop` | Eau qui frappe le tissu | Effets | Rinse → `contactLoop` |
 | `tmp_extractor_loop` | Moteur de l'extracteur | Effets | Extractor → `loop` |
 | `tmp_extractor_contact_loop` | Eau aspirée hors des fibres | Effets | Extractor → `contactLoop` |
+| `tmp_foam_cannon_loop` | Canon à mousse (air comprimé et mousse) | Effets | FoamCannon → `loop` (contact : `tmp_foam_contact_loop`) |
+| `tmp_broom_loop` | Allers-retours du balai | Effets | Broom → `loop` |
+| `tmp_broom_contact_loop` | Poils raides qui raclent un sol mouillé | Effets | Broom → `contactLoop` |
+| `tmp_robot_hum_loop` | Moteur du robot aspirateur (son 3D) | Effets | `RobotVacuum.motorSource` |
+| `tmp_robot_bump` | Robot arrêté par un obstacle | Effets | `RobotVacuum.bumpClip` |
+| `tmp_robot_start` / `tmp_robot_stop` | Démarrage / arrêt du robot | Effets | `RobotVacuum.startClip` / `stopClip` |
+| `tmp_robot_docked` | Robot de retour sur sa base | Effets | `RobotVacuum.dockedClip` |
 | `tmp_tool_equip` | Prise en main d'un outil | Effets | `ViewModelRig.equipClip` |
 | `tmp_refill` | Remplissage (eau, détergent) | Effets | Postes `ResourceStation` |
 | `tmp_drain` | Vidange de la cuve au caniveau | Effets | Caniveau `ResourceStation` |

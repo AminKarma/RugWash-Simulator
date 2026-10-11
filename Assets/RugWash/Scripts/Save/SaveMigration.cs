@@ -7,7 +7,8 @@ namespace RugWash.Save
     /// Migration des anciens formats. Chaque version ajoute une étape ; les sauvegardes plus récentes
     /// que le jeu sont refusées (et jamais écrasées).
     ///   v0 : prototype (champs « coins » et « rep », sans profil ni paramètres).
-    ///   v1 : format actuel.
+    ///   v1 : format actuel. L'état de l'atelier (robot, plan de travail, sol) est un ajout compatible :
+    ///        absent d'une ancienne sauvegarde, il prend ses valeurs par défaut (atelier propre, robot sur sa base).
     /// </summary>
     public static class SaveMigration
     {
@@ -94,6 +95,9 @@ namespace RugWash.Save
             data.upgrades ??= new System.Collections.Generic.List<string>();
             data.completedOrders ??= new System.Collections.Generic.List<string>();
             data.settings ??= new SettingsData();
+            data.workshop ??= new WorkshopSaveData();
+            data.workshop.workSurface ??= string.Empty;
+            data.workshop.floor ??= string.Empty;
             if (string.IsNullOrWhiteSpace(data.profileId)) data.profileId = "profile0";
             data.savedAtUtc ??= string.Empty;
             data.upgrades.RemoveAll(string.IsNullOrWhiteSpace);

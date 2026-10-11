@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a56e950a7c9d1a347aaa213b9612f7e2, type: 3}
+  m_Name: Tool_Broom
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.ToolDefinition
+  id: broom
+  displayName: Balai
+  description: "Chasse les poils et les d\xE9bris d'un tapis sec : \xE0 passer avant
+    le produit. Sur l'aire de lavage, pousse l'eau sale, la boue et la mousse vers
+    le caniveau."
+  slot: 7
+  range: 2.4
+  radius: 0.26
+  falloffHardness: 3
+  power: 0.9
+  wettingPerSecond: 0
+  spreadAspect: 2.2
+  resource: 0
+  resourcePerSecond: 0
+  runoffDirt: 0.9
+  runoffFoam: 0
+  runoffWater: 0
+  runoffIsDry: 1
+  requiresUnlock: 0

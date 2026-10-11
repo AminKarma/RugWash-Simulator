@@ -4,7 +4,7 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : démo complète (phases 0 à 6).** Build Windows produit et vérifié automatiquement.
+> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 2** (game feel, scan, nouveaux outils, aire de lavage, robot aspirateur). Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
 > Voir [Assets/RugWash/Documentation/PRODUCTION.md](Assets/RugWash/Documentation/PRODUCTION.md) pour le suivi détaillé.
@@ -46,8 +46,8 @@ Si une scène est absente ou cassée : menu **RugWash → Setup → Générer la
 | Courir | Maj gauche |
 | Regarder | Souris |
 | Utiliser l'outil | Clic gauche (maintenu) |
-| Choisir un outil | 1–5 (rangée du haut ou pavé numérique) / molette |
-| Interagir (postes, caniveau, comptoir des commandes, boutique) | E |
+| Choisir un outil | 1–8 (rangée du haut ou pavé numérique) / molette (saute les outils pas encore achetés) |
+| Interagir (postes, caniveau, comptoir des commandes, boutique, robot aspirateur ou sa base) | E |
 | Scanner la saleté (surligne les zones encore sales, puis recharge) | R |
 | Inspecter le tapis (avant/après) | F |
 | Pause | Échap |
@@ -69,8 +69,17 @@ Résolution et mode d'affichage n'ont d'effet visible que dans un build (l'édit
 | 3 | Brosse | Détache la saleté fixée (devient boue à rincer) ; efficacité selon sec / humide / savonneux et type de saleté | — |
 | 4 | Lance de rinçage | Évacue saleté détachée, mousse et (plus lentement) résidus ; mouille | Eau 40 L (1,5 L/s) |
 | 5 | Extracteur | Aspire l'eau des fibres avec la saleté et le produit qu'elle contient | Remplit la cuve de récupération (12 L) |
+| 6 | Canon à mousse | Projette en **éventail large** une mousse épaisse et diluée (moins de résidus que le détergent pur). Laissée en place, la mousse **détache peu à peu** graisse, boissons et boue ; à brosser puis rincer | Détergent (0,22 L/s) |
+| 7 | Balai | Tapis **sec** : chasse poils et débris (à passer avant le produit) ; l'humidité colle les débris, les taches fixées ne bougent pas. Aire de lavage et sol : pousse **eau sale, boue et mousse** vers le caniveau | — |
+| 8 | Brosse de détail | Petite zone, **×2,2 sur la graisse et les taches incrustées** — **à acheter** à la boutique (140 €) | — |
 
-Séquence type : **aspirer → savonner → brosser → rincer → extraire**.
+Séquence type : **aspirer (ou balayer) → savonner ou mousser (et laisser agir) → brosser → rincer → extraire**,
+puis remettre l'aire de lavage au propre (rincer, balayer vers le caniveau).
+
+**La mousse** (détergent ou canon) apparaît exactement là où elle est projetée (disque pour le détergent, éventail pour le
+canon), uniquement sur la surface visée. Laissée en place, elle détache lentement les taches qui réagissent au savon puis
+retombe en eau ; brossée, elle monte et rend la brosse plus efficace ; le rinçage et l'extracteur l'évacuent. Le cercle de
+visée devient une ellipse pour les outils en éventail : il montre toujours la zone exacte traitée.
 - Eau : poste d'eau (mur gauche). Détergent : poste produits (mur gauche, bidon vert).
   Cuve pleine : la vider au **caniveau** de l'aire de lavage. Touche E dans les trois cas.
 - Un rinçage trop bref laisse des **résidus de produit** (voile pâle visible, compté dans l'inspection).
@@ -111,10 +120,31 @@ Contenu modifiable sans code : `ScriptableObjects/Orders` (commandes) et `Script
 **Créer une commande** : `Create → RugWash → Commande`, renseigner tapis, couches de saleté et graine,
 difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste `orders` de `[Game] → OrderManager`.
 
+## 4 quinquies. Aire de lavage, sol et robot aspirateur
+
+- **Plan de travail de l'aire de lavage** : ce qui ruisselle du tapis s'y dépose réellement, autour du tapis et du côté où
+  l'on travaille — eau sale et mousse évacuées par le rinçage, débris chassés par le balai. Il se nettoie avec les mêmes
+  outils (lance, balai qui pousse l'eau et la boue, extracteur) ; l'eau claire sèche seule. Le HUD affiche
+  « Aire de lavage sale (x %) » tant qu'il reste plus de 1 % de surface souillée, puis « Aire de lavage propre ».
+- **Jamais bloquant** : une nouvelle commande peut toujours être acceptée. Le comptoir prévient que l'aire est sale et le
+  tapis suivant arrive avec ses **bords recontaminés** (boue proportionnelle à la saleté de l'aire), à nettoyer en plus.
+- **Traces de pas** : marcher dans la boue, l'eau ou la mousse charge les semelles, qui laissent des empreintes de plus en
+  plus légères sur l'aire de lavage et le sol. Les tapis ne sont jamais salis par les pas.
+- **Sol de l'atelier** : surface nettoyable (poussière plus marquée le long des murs, poils, empreintes), avec les outils
+  ou par le robot.
+- **Robot aspirateur** (base contre le mur avant, entre la porte et le comptoir) : **E** sur le robot ou sa base pour le
+  démarrer ou l'arrêter. Il aspire réellement la poussière et les traces sèches du sol, choisit les zones sales par longues
+  lignes, contourne murs, meubles et objets posés au sol (grille d'occupation + chemin A*), ne sort jamais de la pièce,
+  s'arrête devant le joueur, rentre seul se recharger (batterie faible, arrêt demandé ou sol propre) puis repart.
+  Voyant : vert = nettoyage, bleu = retour, ambre = charge, blanc = prêt, rouge clignotant = obstacle.
+- **Réglages** centralisés : `ScriptableObjects/CleaningTuning` (mousse : retombée, action au repos ; ruissellement :
+  distance, taille des flaques, quantité), `Surface_WorkSurface` / `Surface_Floor` (taille, résolution, séchage, saleté
+  initiale du sol), composant `RobotVacuum` (vitesse, rayon, puissance, longueur des lignes).
+
 ## 4 bis. Audio
 
-Les 25 sons (outils et **contact avec le tapis** propres à chaque outil, prise en main, interface, remplissage,
-vidange, éclat de zone propre, scan, paliers, objectif, paiement, ambiance, pas) sont **générés par synthèse**
+Les 33 sons (outils et **contact avec le tapis** propres à chaque outil, prise en main, interface, remplissage,
+vidange, éclat de zone propre, scan, paliers, objectif, paiement, ambiance, pas, robot aspirateur) sont **générés par synthèse**
 (`RugWashAudioGenerator`) dans `Assets/RugWash/Audio/Generated/tmp_*.wav` : aucune licence tierce. Ce sont des
 **substituts temporaires** clairement préfixés `tmp_`, à remplacer en changeant le clip assigné.
 Inventaire complet, règles de lecture (catégories, pause, anti-empilement) et licences :
@@ -238,6 +268,10 @@ Fichier JSON local : `%USERPROFILE%\AppData\LocalLow\RugWash Studio\RugWash Simu
 - **Pas de double récompense** : le paiement et le passage de la commande à « Terminée » sont sauvegardés ensemble ;
   au chargement, le solde est restauré tel quel et la commande ne peut pas être refaite.
 - **Commande en cours non sauvegardée** : quitter ou revenir au menu pendant une commande l'abandonne (elle reste disponible).
+- **Atelier** (section `workshop`) : mode, batterie et position du robot (il reprend là où il était s'il travaillait),
+  état du plan de travail et du sol (grilles quantifiées, compressées puis encodées en Base64 ; une grille de taille
+  différente ou illisible est ignorée). Ajout compatible : une sauvegarde antérieure se charge avec un atelier propre et
+  le robot sur sa base.
 - Pas de sauvegarde cloud, de synchronisation ni de protection contre la modification du fichier.
 
 ## 9. Tests
@@ -249,7 +283,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 Étapes : `compile`, `bootstrap`, `scene` (atelier + menu principal), `test` (EditMode, sans GPU),
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows) et
 `benchmark` (lance le jeu compilé en mode vérification). `all` enchaîne les cinq premières étapes.
-État actuel : 91 tests EditMode et 50 tests PlayMode, tous réussis (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel : 112 tests EditMode et 64 tests PlayMode, tous réussis (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

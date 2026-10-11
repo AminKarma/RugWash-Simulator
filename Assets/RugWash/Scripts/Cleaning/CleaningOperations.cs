@@ -16,6 +16,10 @@ namespace RugWash.Cleaning
         public float DeltaTime;
         public bool FiberWearEnabled;
         public float WearPerSecond;
+        /// <summary>Multiplicateur sur la graisse et les taches incrustées (brosse de détail) ; 0 ou 1 = aucun.</summary>
+        public float StubbornBonus;
+        /// <summary>Mousse « montée » par seconde en brossant une zone savonneuse (0 = aucune).</summary>
+        public float LatherPerSecond;
 
         /// <summary>Statistique de sortie : saleté détachée pendant cette application.</summary>
         public float Loosened;
@@ -25,9 +29,15 @@ namespace RugWash.Cleaning
             float k = Power * DeltaTime * weight;
             if (k <= 0f) return;
 
+            // Brosser une zone savonneuse fait monter la mousse (elle se charge ensuite de la saleté détachée).
+            if (LatherPerSecond > 0f && cell.Foam > 0.02f)
+                cell.Foam += LatherPerSecond * DeltaTime * weight * (1f - cell.Foam) * Mathf.Clamp01(cell.Foam * 4f);
+
             if (cell.Stain > 0f)
             {
-                float amount = Mathf.Min(cell.Stain, k * ResponseFor(Table.GetResponse(cell.StainType), cell));
+                bool stubborn = cell.StainType == DirtType.Grease || cell.StainType == DirtType.Embedded;
+                float bonus = stubborn && StubbornBonus > 0f ? StubbornBonus : 1f;
+                float amount = Mathf.Min(cell.Stain, k * bonus * ResponseFor(Table.GetResponse(cell.StainType), cell));
                 cell.Stain -= amount;
                 cell.Loosened += amount;
                 Loosened += amount;
@@ -163,6 +173,8 @@ namespace RugWash.Cleaning
         public float FoamPerSecond;
         public float WettingPerSecond;
         public float DeltaTime;
+        /// <summary>Résidus de produit déposés par unité de mousse (0 = valeur de référence 0,8 du détergent pur).</summary>
+        public float ResiduePerFoam;
 
         public float FoamAdded;
 
@@ -172,7 +184,7 @@ namespace RugWash.Cleaning
             if (k <= 0f) return;
             float foam = Mathf.Min(1f - cell.Foam, FoamPerSecond * k);
             cell.Foam += foam;
-            cell.Residue += foam * 0.8f;
+            cell.Residue += foam * (ResiduePerFoam > 0f ? ResiduePerFoam : 0.8f);
             cell.Moisture += WettingPerSecond * k;
             FoamAdded += foam;
         }
@@ -215,6 +227,127 @@ namespace RugWash.Cleaning
 
             cell.Foam -= Mathf.Min(cell.Foam, k * 0.8f);
             if (wasDirty && cell.Dirt < RugCleaningGrid.CleanCellThreshold) CellsCleaned++;
+        }
+    }
+
+    /// <summary>
+    /// Balayage : pousse hors de la surface les débris secs (poils, poussière) selon leur réponse au balayage,
+    /// et la saleté détachée sèche. Sur un tapis, l'humidité colle les débris aux fibres (efficacité réduite)
+    /// et les taches fixées ne bougent pas. Sur un sol dur, le balai pousse aussi l'eau sale et la mousse.
+    /// </summary>
+    public struct SweepOperation : ICellOperation
+    {
+        public DirtTypeTable Table;
+        public float Power;
+        public float DeltaTime;
+        /// <summary>Surface dure (plan de travail, sol) : l'eau, la boue et la mousse sont poussées aussi.</summary>
+        public bool HardFloor;
+
+        public float Removed;
+        public float LiquidRemoved;
+        public int CellsCleaned;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            float k = Power * DeltaTime * weight;
+            if (k <= 0f) return;
+            bool wasDirty = cell.Dirt >= RugCleaningGrid.CleanCellThreshold;
+
+            float dryness = HardFloor ? 1f : 1f - Mathf.Clamp01(cell.Moisture * 3f);
+            float dust = Mathf.Min(cell.Dust, k * Table.GetResponse(cell.DustType).sweep * dryness);
+            cell.Dust -= dust;
+
+            float loose = Mathf.Min(cell.Loosened, k * (HardFloor ? 1f : 0.4f * dryness));
+            cell.Loosened -= loose;
+            Removed += dust + loose;
+
+            if (HardFloor)
+            {
+                float water = Mathf.Min(cell.Moisture, k * 1.2f);
+                float foam = Mathf.Min(cell.Foam, k * 1.2f);
+                cell.Moisture -= water;
+                cell.Foam -= foam;
+                LiquidRemoved += water + foam;
+            }
+            if (wasDirty && cell.Dirt < RugCleaningGrid.CleanCellThreshold) CellsCleaned++;
+        }
+    }
+
+    /// <summary>
+    /// Dépôt sur une surface : ruissellement depuis le tapis (eau sale, mousse), débris projetés, empreintes.
+    /// Les quantités sont données pour un poids de 1 et réparties selon l'atténuation de la zone.
+    /// </summary>
+    public struct DepositOperation : ICellOperation
+    {
+        /// <summary>Type (couleur) de la saleté transportée.</summary>
+        public DirtType Type;
+        public float Mud;
+        public float Debris;
+        public float Foam;
+        public float Water;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            if (weight <= 0f) return;
+            if (Mud > 0f)
+            {
+                float amount = Mud * weight;
+                if (cell.StainType == DirtType.None || amount > cell.Loosened) cell.StainType = Type != DirtType.None ? Type : DirtType.Soil;
+                cell.Loosened += amount;
+            }
+            if (Debris > 0f)
+            {
+                if (cell.DustType == DirtType.None) cell.DustType = DirtType.Dust;
+                cell.Dust += Debris * weight;
+            }
+            if (Foam > 0f) cell.Foam = Mathf.Min(1f, cell.Foam + Foam * weight);
+            if (Water > 0f) cell.Moisture += Water * weight;
+        }
+    }
+
+    /// <summary>
+    /// Évolution lente d'une surface, appliquée à intervalle régulier : la mousse « travaille » (détache peu à peu
+    /// les taches qui réagissent au savon), puis retombe en eau ; l'humidité s'évapore sur les surfaces qui sèchent
+    /// (plan de travail, sol). Aucun effet sur une cellule sans mousse ni humidité.
+    /// </summary>
+    public struct SurfaceAgingOperation : ICellOperation
+    {
+        public DirtTypeTable Table;
+        public float DeltaTime;
+        /// <summary>Fraction de la mousse qui retombe par seconde.</summary>
+        public float FoamDecayPerSecond;
+        /// <summary>Retombée minimale (unités par seconde) : la mousse finit toujours par disparaître.</summary>
+        public float FoamDecayFloor;
+        /// <summary>Saleté fixée détachée par seconde sous une mousse pleine, à réponse au savon nominale.</summary>
+        public float FoamDwellPower;
+        /// <summary>Humidité produite par unité de mousse retombée.</summary>
+        public float FoamToMoisture;
+        /// <summary>Humidité évaporée par seconde (0 = la surface ne sèche pas seule).</summary>
+        public float DryingPerSecond;
+
+        public float Loosened;
+        public float FoamLost;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            if (DeltaTime <= 0f) return;
+            if (cell.Foam > 0f)
+            {
+                if (cell.Stain > 0f && FoamDwellPower > 0f && Table != null)
+                {
+                    float reactivity = Table.GetResponse(cell.StainType).brushSoap;
+                    float amount = Mathf.Min(cell.Stain, FoamDwellPower * cell.Foam * reactivity * DeltaTime);
+                    cell.Stain -= amount;
+                    cell.Loosened += amount;
+                    Loosened += amount;
+                }
+                float lost = Mathf.Min(cell.Foam, (cell.Foam * FoamDecayPerSecond + FoamDecayFloor) * DeltaTime);
+                cell.Foam -= lost;
+                cell.Moisture += lost * FoamToMoisture;
+                FoamLost += lost;
+            }
+            if (DryingPerSecond > 0f && cell.Moisture > 0f)
+                cell.Moisture -= Mathf.Min(cell.Moisture, DryingPerSecond * DeltaTime);
         }
     }
 }

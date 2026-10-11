@@ -42,7 +42,7 @@ namespace RugWash.Cleaning
         protected override int ApplyToRug(RugCleaningController rug, in ToolAim aim, float deltaTime, float supply)
         {
             var operation = new ExtractOperation { Power = EffectivePower * supply, DeltaTime = deltaTime };
-            rug.ApplyOperation(aim.Point, definition.radius, definition.falloffHardness, ref operation);
+            ApplyArea(rug, aim, ref operation);
             float liters = operation.MoistureRemoved * rug.Grid.CellAreaM2 * litersPerSquareMeter;
             Resources.Recovery.Add(liters);
             litersPerSecond = liters / deltaTime;

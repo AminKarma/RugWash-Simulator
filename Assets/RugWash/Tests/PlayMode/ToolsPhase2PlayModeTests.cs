@@ -60,15 +60,18 @@ namespace RugWash.Tests
         }
 
         [Test]
-        public void FiveTools_AreAvailable_OnSlots1To5()
+        public void EightTools_AreAvailable_OnSlots1To8()
         {
-            Assert.AreEqual(5, tools.Tools.Count);
+            Assert.AreEqual(8, tools.Tools.Count);
             Assert.IsInstanceOf<VacuumTool>(tools.Tools[0]);
             Assert.IsInstanceOf<SoapSprayerTool>(tools.Tools[1]);
             Assert.IsInstanceOf<BrushTool>(tools.Tools[2]);
             Assert.IsInstanceOf<WaterRinseTool>(tools.Tools[3]);
             Assert.IsInstanceOf<WaterExtractorTool>(tools.Tools[4]);
-            for (int i = 0; i < 5; i++) Assert.AreEqual(i + 1, tools.Tools[i].Definition.slot);
+            Assert.IsInstanceOf<FoamCannonTool>(tools.Tools[5]);
+            Assert.IsInstanceOf<BroomTool>(tools.Tools[6]);
+            Assert.IsInstanceOf<BrushTool>(tools.Tools[7]);
+            for (int i = 0; i < 8; i++) Assert.AreEqual(i + 1, tools.Tools[i].Definition.slot);
         }
 
         [UnityTest]
@@ -190,16 +193,18 @@ namespace RugWash.Tests
         }
 
         [UnityTest]
-        public IEnumerator FloorGetsWet_WhenRinsing_ThenDries()
+        public IEnumerator WashArea_GetsWet_WhenRinsing_ThenDries()
         {
-            var water = Object.FindAnyObjectByType<WaterEffectController>();
-            Assert.IsNotNull(water);
-            AimAtRug(new Vector2(0.5f, 0.5f));
+            // Jalon 2 (V2) : l'eau au sol n'est plus un effet global mais de vraies données du plan de travail.
+            var surface = game.WorkSurface.Surface;
+            float before = surface.Grid.TotalMoisture;
+            AimAtRug(new Vector2(0.5f, 0.15f));
             yield return Use(4, 1.5f);
-            Assert.Greater(water.Wetness, 0.1f);
-            float wet = water.Wetness;
+            yield return new WaitForSeconds(0.3f);
+            float wet = surface.Grid.TotalMoisture;
+            Assert.Greater(wet, before + 0.5f, "L'eau du rinçage ruisselle du tapis sur l'aire de lavage.");
             yield return new WaitForSeconds(1f);
-            Assert.Less(water.Wetness, wet, "Le sol sèche quand on arrête de rincer.");
+            Assert.Less(surface.Grid.TotalMoisture, wet, "L'aire de lavage sèche quand on arrête de rincer.");
         }
     }
 }

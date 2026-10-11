@@ -37,6 +37,14 @@ namespace RugWash.Editor
         public const string ScanDenied = Folder + "/tmp_scan_denied.wav";
         public const string Milestone = Folder + "/tmp_milestone.wav";
         public const string Reward = Folder + "/tmp_reward.wav";
+        public const string FoamCannonLoop = Folder + "/tmp_foam_cannon_loop.wav";
+        public const string BroomLoop = Folder + "/tmp_broom_loop.wav";
+        public const string BroomContactLoop = Folder + "/tmp_broom_contact_loop.wav";
+        public const string RobotHumLoop = Folder + "/tmp_robot_hum_loop.wav";
+        public const string RobotBump = Folder + "/tmp_robot_bump.wav";
+        public const string RobotStart = Folder + "/tmp_robot_start.wav";
+        public const string RobotStop = Folder + "/tmp_robot_stop.wav";
+        public const string RobotDocked = Folder + "/tmp_robot_docked.wav";
         public static readonly string[] Footsteps =
         {
             Folder + "/tmp_footstep_1.wav", Folder + "/tmp_footstep_2.wav", Folder + "/tmp_footstep_3.wav",
@@ -70,6 +78,14 @@ namespace RugWash.Editor
             Write(ScanDenied, force, false, 0.26f, DeniedBeep);
             Write(Milestone, force, false, 0.55f, MilestoneChime);
             Write(Reward, force, false, 0.9f, RewardBell);
+            Write(FoamCannonLoop, force, true, 2f, FoamCannon);
+            Write(BroomLoop, force, true, 2f, BroomSwish);
+            Write(BroomContactLoop, force, true, 2f, BroomOnSurface);
+            Write(RobotHumLoop, force, true, 2f, RobotHum);
+            Write(RobotBump, force, false, 0.18f, RobotBumpThud);
+            Write(RobotStart, force, false, 0.45f, (float t, float d, ref State s) => RobotBeeps(t, 660f, 880f));
+            Write(RobotStop, force, false, 0.45f, (float t, float d, ref State s) => RobotBeeps(t, 880f, 587f));
+            Write(RobotDocked, force, false, 0.6f, RobotDockChime);
             for (int i = 0; i < Footsteps.Length; i++)
             {
                 float pitch = 0.85f + i * 0.12f;
@@ -256,6 +272,63 @@ namespace RugWash.Editor
             s.Env *= 0.9994f;
             float bubble = s.Env * Sine(t, 140f + 200f * s.Env + 30f * Sine(t, 7f)) * 0.5f;
             return water * (0.6f + 0.4f * Sine(t, 4f)) * 0.8f + bubble;
+        }
+
+        static float FoamCannon(float t, float d, ref State s)
+        {
+            // Air comprimé + mousse épaisse projetée : souffle médium pulsé par la pompe.
+            float air = HighPass(ref s, s.Noise(), 900f);
+            float body = LowPass(ref s.Lp1, s.Noise(), 1600f);
+            float pump = 0.8f + 0.2f * Sine(t, 9f);
+            return (air * 0.35f + body * 0.55f) * pump * 0.7f;
+        }
+
+        static float BroomSwish(float t, float d, ref State s)
+        {
+            // Allers-retours du balai (1,2 par seconde) : souffle filtré qui enfle à chaque passage.
+            float stroke = Mathf.Pow(Mathf.Abs(Sine(t, 1.2f)), 1.5f);
+            float swish = LowPass(ref s.Lp1, HighPass(ref s, s.Noise(), 700f), 3500f);
+            return swish * (0.15f + 0.85f * stroke) * 0.55f;
+        }
+
+        static float BroomOnSurface(float t, float d, ref State s)
+        {
+            // Poils raides qui raclent le sol mouillé : grattement rythmé et clapotis.
+            float stroke = 0.3f + 0.7f * Mathf.Pow(Mathf.Abs(Sine(t, 1.2f)), 0.8f);
+            float scrape = LowPass(ref s.Lp1, HighPass(ref s, s.Noise(), 1500f), 6000f);
+            if (s.Random.NextDouble() < 0.0025) s.Env = 0.5f + 0.5f * (float)s.Random.NextDouble();
+            s.Env *= 0.994f;
+            float splash = s.Env * LowPass(ref s.Lp2, s.Noise(), 1200f);
+            return scrape * stroke * 0.7f + splash * 0.5f;
+        }
+
+        static float RobotHum(float t, float d, ref State s)
+        {
+            // Petit moteur et turbine du robot : ronronnement aigu discret (périodes entières sur 2 s).
+            float motor = 0.12f * Sine(t, 180f) + 0.06f * Sine(t, 360f) + 0.03f * Sine(t, 1440f);
+            float air = LowPass(ref s.Lp1, s.Noise(), 2600f) * 0.3f;
+            return (motor + air) * (0.9f + 0.1f * Sine(t, 3f));
+        }
+
+        static float RobotBumpThud(float t, float d, ref State s)
+        {
+            float thud = Sine(t, 120f) * Mathf.Exp(-t * 45f);
+            float click = LowPass(ref s.Lp1, s.Noise(), 3000f) * Mathf.Exp(-t * 90f);
+            return thud * 0.8f + click * 0.5f;
+        }
+
+        static float RobotBeeps(float t, float first, float second)
+        {
+            float a = t < 0.16f ? Sine(t, first) * Mathf.Clamp01((0.16f - t) * 40f) : 0f;
+            float b = t > 0.2f && t < 0.38f ? Sine(t, second) * Mathf.Clamp01((0.38f - t) * 40f) : 0f;
+            return (a + b) * Mathf.Clamp01(t * 200f) * 0.3f;
+        }
+
+        static float RobotDockChime(float t, float d, ref State s)
+        {
+            float a = Sine(t, 523.25f) * Mathf.Exp(-t * 6f);
+            float b = t > 0.12f ? Sine(t, 783.99f) * Mathf.Exp(-(t - 0.12f) * 5f) : 0f;
+            return (a * 0.6f + b) * 0.22f;
         }
 
         // ---- Sons ponctuels

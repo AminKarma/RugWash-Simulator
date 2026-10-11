@@ -21,3 +21,4 @@ MonoBehaviour:
     brushWet: 0.7
     brushSoap: 0.8
     rinse: 0.2
+    sweep: 0.3

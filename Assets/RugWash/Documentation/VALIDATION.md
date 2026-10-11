@@ -124,3 +124,36 @@ image) avant de vérifier l'arrêt du son de l'outil rangé, car ce son s'étein
 
 À vérifier à la main (non automatisable) : ressenti du balancement et de l'alignement, qualité d'écoute des nouveaux
 sons, lisibilité du scan selon les goûts du joueur.
+
+## 9. Revalidation après le jalon 2 (outils et atelier)
+
+Exécutions réelles du 11-12/10/2026, même machine. **Attention** : pendant ces mesures, d'autres applications 3D tournaient
+sur la machine (jeu et logiciel de discussion ouverts), ce qui fait varier les FPS d'une exécution à l'autre ; la
+comparaison fiable est donc faite **coup sur coup** entre le build du jalon 1 et celui du jalon 2.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation | ✅ 0 erreur, 0 avertissement |
+| Tests EditMode | ✅ **112 / 112** (91 + 21 : mousse, balai, brosse de détail, aire de lavage, sauvegarde de l'atelier, chemin A*, robot) |
+| Tests PlayMode | ✅ **64 / 64** (50 + 14 ; le test du « sol mouillé » global est remplacé par celui de l'aire de lavage) |
+| Build Windows 64 bits | ✅ 120,6 Mo, 0 erreur, 0 avertissement |
+| Jeu compilé : 11 contrôles automatiques | ✅ 11 / 11 |
+
+**Performance comparée (1920 × 1080, mêmes conditions, deux tours alternés)** :
+
+| Scénario | Jalon 1 (tour 1 / tour 2) | Jalon 2 (tour 1 / tour 2) |
+|---|---|---|
+| Atelier au repos | 418,7 / 439,0 FPS | 269,4 / 410,4 FPS |
+| Rinçage intensif | 407,8 / 413,2 FPS | 380,4 / 373,2 FPS |
+| Savon puis brossage | 427,5 / 438,6 FPS | 382,2 / 392,5 FPS |
+| Tour complet | 455,8 / 467,6 FPS | 398,6 / 441,6 FPS |
+
+Coût du jalon 2 : environ 5 à 10 % (sol et aire de lavage rendus par le shader des surfaces nettoyables, robot, simulation
+lente). 1 % le plus lent ≥ 200 FPS au second tour. Le premier passage du premier scénario varie fortement d'une exécution à
+l'autre (chargement, machine chargée). Une première mesure isolée du jalon 2 à ~138 FPS avait été obtenue machine chargée ;
+des builds A/B (sol, aire de lavage et robot masqués tour à tour) puis les mesures alternées ci-dessus ont montré qu'il ne
+s'agissait pas d'une régression du jeu. La dernière exécution complète de la chaîne (machine toujours chargée) donne
+259 à 269 FPS de moyenne, 1 % le plus lent ≥ 138 FPS.
+
+À vérifier à la main : ressenti des nouveaux outils, lisibilité des empreintes, comportement du robot sur une longue
+session, performance sur une machine sans autre application ouverte.

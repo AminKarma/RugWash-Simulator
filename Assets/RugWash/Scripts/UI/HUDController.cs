@@ -32,6 +32,7 @@ namespace RugWash.UI
         [SerializeField] RectTransform cleanlinessPanel;
         [SerializeField] Text scanLabel;
         [SerializeField] Image scanFill;
+        [SerializeField] Text workSurfaceLabel;
         [SerializeField] Color gainColor = new Color(0.75f, 1f, 0.85f, 1f);
         [SerializeField] float barSmoothing = 10f;
         [SerializeField] float refreshInterval = 0.1f;
@@ -46,6 +47,8 @@ namespace RugWash.UI
         ReputationManager reputation;
         OrderManager orders;
         DirtScanner scanner;
+        WorkSurface workSurface;
+        bool workSurfaceWasClean = true;
         CleaningProgressFeedback progress;
         Color cleanlinessBaseColor;
         float displayedCleanliness;
@@ -76,7 +79,8 @@ namespace RugWash.UI
                 : orderLabel == null ? nameof(orderLabel)
                 : cleanlinessPanel == null ? nameof(cleanlinessPanel)
                 : scanLabel == null ? nameof(scanLabel)
-                : scanFill == null ? nameof(scanFill) : null;
+                : scanFill == null ? nameof(scanFill)
+                : workSurfaceLabel == null ? nameof(workSurfaceLabel) : null;
             return missing == null;
         }
 
@@ -90,6 +94,7 @@ namespace RugWash.UI
             gameState = state;
 
             interactor.Interacted += ShowToast;
+            tools.LockedToolRequested += OnLockedToolRequested;
             gameState.StateChanged += OnStateChanged;
             gameState.ModalsChanged += RefreshVisibility;
             toastLabel.text = string.Empty;
@@ -122,6 +127,32 @@ namespace RugWash.UI
 
         void OnScanned(DirtScanResult result) => ShowToast(DirtScan.Describe(result));
 
+        void OnLockedToolRequested(CleaningToolBase tool) =>
+            ShowToast($"{tool.Definition.displayName} : à acheter au meuble « Matériel & boutique »");
+
+        /// <summary>État du plan de travail de l'aire de lavage (ligne d'alerte quand il est sale).</summary>
+        public void BindWorkSurface(WorkSurface surface)
+        {
+            workSurface = surface;
+            workSurface.StatusChanged += OnWorkSurfaceChanged;
+            workSurface.Contaminated += OnContaminated;
+            OnWorkSurfaceChanged(workSurface.Status);
+        }
+
+        void OnWorkSurfaceChanged(WorkSurfaceStatus status)
+        {
+            workSurfaceLabel.text = status.IsClean ? string.Empty
+                : $"Aire de lavage sale ({status.SoiledPercent} %) — rincez (4) puis balayez vers le caniveau (7)";
+            if (status.IsClean && !workSurfaceWasClean) ShowToast("Aire de lavage propre");
+            workSurfaceWasClean = status.IsClean;
+        }
+
+        void OnContaminated(float amount) =>
+            ShowToast("Tapis posé sur une aire de lavage sale : ses bords sont recontaminés");
+
+        /// <summary>Texte de l'alerte du plan de travail (vide s'il est propre).</summary>
+        public string WorkSurfaceAlert => workSurfaceLabel.text;
+
         void OnScanDenied(float remaining) =>
             ShowToast(remaining > 0f ? $"Scan en recharge — encore {Mathf.CeilToInt(remaining)} s" : "Scan déjà en cours");
 
@@ -152,6 +183,12 @@ namespace RugWash.UI
         void OnDestroy()
         {
             if (interactor != null) interactor.Interacted -= ShowToast;
+            if (tools != null) tools.LockedToolRequested -= OnLockedToolRequested;
+            if (workSurface != null)
+            {
+                workSurface.StatusChanged -= OnWorkSurfaceChanged;
+                workSurface.Contaminated -= OnContaminated;
+            }
             if (wallet != null && wallet.Wallet != null) wallet.Wallet.Changed -= OnWalletChanged;
             if (reputation != null) reputation.Changed -= OnReputationChanged;
             if (scanner != null)
@@ -272,14 +309,15 @@ namespace RugWash.UI
                 return $"[{input.GetBindingLabel("Interact")}] {interactor.Current.GetPrompt(interactor)}";
             string block = tool?.GetBlockReason();
             if (block != null) return block;
-            if (tool != null && tool.IsTargetOutOfRange) return "Trop loin — rapprochez-vous du tapis";
+            // « Trop loin » seulement en visant le tapis de la commande, ou en utilisant l'outil (le sol est aussi nettoyable).
+            if (tool != null && tool.IsTargetOutOfRange && (tool.IsUsing || tools.CurrentAim.Rug == rug)) return "Trop loin — rapprochez-vous";
             return string.Empty;
         }
 
         string BuildHint(CleaningToolBase tool)
         {
             string verb = tool != null ? tool.ActionVerb : "utiliser";
-            return $"Clic gauche : {verb}   ·   1-5 / molette : outils   ·   " +
+            return $"Clic gauche : {verb}   ·   1-8 / molette : outils   ·   " +
                    $"{input.GetBindingLabel("Interact")} : interagir   ·   {input.GetBindingLabel("Scan")} : scanner   ·   " +
                    $"{input.GetBindingLabel("Inspect")} : inspecter   ·   Échap : pause";
         }

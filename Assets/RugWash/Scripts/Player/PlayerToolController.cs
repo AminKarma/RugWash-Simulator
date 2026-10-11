@@ -37,6 +37,8 @@ namespace RugWash.Player
         public bool AutomationUseOverride { get; set; }
 
         public event Action<CleaningToolBase> ActiveToolChanged;
+        /// <summary>Le joueur a demandé un outil pas encore acheté.</summary>
+        public event Action<CleaningToolBase> LockedToolRequested;
 
         public bool IsConfigured(out string missing)
         {
@@ -73,7 +75,20 @@ namespace RugWash.Player
 
         void Start()
         {
-            if (activeIndex < 0) SelectIndex(0);
+            if (activeIndex < 0) SelectIndex(FirstUsableIndex());
+        }
+
+        int FirstUsableIndex()
+        {
+            for (int i = 0; i < tools.Count; i++)
+                if (tools[i].IsUnlocked) return i;
+            return 0;
+        }
+
+        /// <summary>Si l'outil actif n'est pas (ou plus) utilisable, sélectionne le premier outil disponible.</summary>
+        public void EnsureUsableToolSelected()
+        {
+            if (activeIndex >= 0 && ActiveTool != null && !ActiveTool.IsUnlocked) SelectIndex(FirstUsableIndex());
         }
 
         void OnToolContact(CleaningToolBase tool)
@@ -111,7 +126,8 @@ namespace RugWash.Player
             {
                 bool clean = aim.Rug.TrySampleCell(aim.Point, out RugCell cell) && !DirtScan.IsDirty(cell)
                              && cell.Residue < DirtScan.DefaultResidueThreshold;
-                targetIndicator.Show(aim.Point, aim.Normal, tool.Radius, !tool.IsTargetOutOfRange, tool.IsUsing, clean);
+                targetIndicator.Show(aim.Point, aim.Normal, tool.Radius, tool.SpreadAspect, CleaningToolBase.SpreadAxis(aim),
+                    !tool.IsTargetOutOfRange, tool.IsUsing, clean);
             }
             else targetIndicator.Hide();
         }
@@ -125,8 +141,15 @@ namespace RugWash.Player
                 return;
             }
             int step = input.ToolScrollStep;
-            if (step != 0 && tools.Count > 1)
-                SelectIndex((activeIndex - step + tools.Count) % tools.Count);
+            if (step == 0 || tools.Count <= 1) return;
+            // La molette saute les outils pas encore achetés.
+            int index = activeIndex;
+            for (int i = 0; i < tools.Count; i++)
+            {
+                index = (index - step + tools.Count) % tools.Count;
+                if (tools[index].IsUnlocked) break;
+            }
+            SelectIndex(index);
         }
 
         /// <summary>Sélectionne l'outil associé à une touche numérique. Faux si aucun outil n'y est associé.</summary>
@@ -135,6 +158,11 @@ namespace RugWash.Player
             for (int i = 0; i < tools.Count; i++)
                 if (tools[i].Definition.slot == slot)
                 {
+                    if (!tools[i].IsUnlocked)
+                    {
+                        LockedToolRequested?.Invoke(tools[i]);
+                        return false;
+                    }
                     SelectIndex(i);
                     return true;
                 }

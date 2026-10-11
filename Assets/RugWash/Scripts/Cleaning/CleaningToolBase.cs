@@ -68,8 +68,13 @@ namespace RugWash.Cleaning
         /// <summary>Vrai si le tapis est visé mais hors de portée.</summary>
         public bool IsTargetOutOfRange { get; private set; }
 
+        /// <summary>Faux tant qu'un outil « à débloquer » n'a pas été acheté à la boutique.</summary>
+        public bool IsUnlocked { get; set; } = true;
+
         /// <summary>Multiplicateur de puissance issu des améliorations (1 = aucune).</summary>
         public float PowerMultiplier { get; set; } = 1f;
+        /// <summary>Multiplicateur du rayon de la zone traitée issu des améliorations (1 = aucune).</summary>
+        public float RadiusMultiplier { get; set; } = 1f;
         /// <summary>Multiplicateur de consommation issu des améliorations (1 = aucune).</summary>
         public float ConsumptionMultiplier { get; set; } = 1f;
 
@@ -78,7 +83,13 @@ namespace RugWash.Cleaning
         public float EffectiveConsumptionPerSecond => definition != null ? definition.resourcePerSecond * ConsumptionMultiplier : 0f;
 
         public float Range => definition != null ? definition.range : 0f;
-        public float Radius => definition != null ? definition.radius : 0f;
+        public float Radius => definition != null ? definition.radius * RadiusMultiplier : 0f;
+
+        /// <summary>Litres d'eau correspondant à 1 m² de fibres saturées (conversion humidité ↔ litres).</summary>
+        protected const float LitersPerSaturatedSquareMeter = 3f;
+
+        /// <summary>Ressource consommée pendant la dernière frame (litres).</summary>
+        protected float LastConsumed { get; private set; }
         public CleaningAudioController ToolAudio => toolAudio;
         public Transform AimTip => aimTip;
 
@@ -138,7 +149,7 @@ namespace RugWash.Cleaning
         /// <summary>Appelé chaque frame pour l'outil actif.</summary>
         public void Tick(bool wantsUse, in ToolAim aim, float deltaTime)
         {
-            SetUsing(wantsUse && CanOperate());
+            SetUsing(wantsUse && IsUnlocked && CanOperate());
 
             IsTargetOutOfRange = aim.HasRug && aim.Distance > Range;
             bool wasAffecting = IsAffectingRug;
@@ -260,10 +271,34 @@ namespace RugWash.Cleaning
         /// <summary>Consomme les ressources de la frame et retourne la fraction obtenue [0..1].</summary>
         protected virtual float ConsumeResources(float deltaTime)
         {
+            LastConsumed = 0f;
             if (definition.resource != ToolResource.Water && definition.resource != ToolResource.Soap) return 1f;
             float requested = EffectiveConsumptionPerSecond * deltaTime;
             if (requested <= 0f) return 1f;
-            return ResourceTank.Consume(requested) / requested;
+            LastConsumed = ResourceTank.Consume(requested);
+            return LastConsumed / requested;
+        }
+
+        /// <summary>
+        /// Applique l'opération sur la zone de l'outil : disque, ou éventail élargi perpendiculairement à la visée
+        /// (<see cref="ToolDefinition.spreadAspect"/>), avec le ruissellement défini par l'outil.
+        /// </summary>
+        protected int ApplyArea<T>(RugCleaningController rug, in ToolAim aim, ref T operation) where T : struct, ICellOperation
+        {
+            Vector3 across = SpreadAxis(aim);
+            float water = definition.resource == ToolResource.Water ? LastConsumed / LitersPerSaturatedSquareMeter : 0f;
+            var runoff = new RunoffProfile(definition.runoffDirt, definition.runoffFoam, definition.runoffWater * water, definition.runoffIsDry);
+            return rug.ApplyOperation(aim.Point, Radius, definition.falloffHardness, definition.spreadAspect, across, runoff, ref operation);
+        }
+
+        /// <summary>Rapport largeur / profondeur de la zone traitée (1 = disque).</summary>
+        public float SpreadAspect => definition != null ? Mathf.Max(1f, definition.spreadAspect) : 1f;
+
+        /// <summary>Grand axe de la zone traitée : dans le plan de la surface, en travers de la visée.</summary>
+        public static Vector3 SpreadAxis(in ToolAim aim)
+        {
+            Vector3 across = Vector3.Cross(aim.Normal, aim.Ray.direction);
+            return across.sqrMagnitude < 1e-6f ? Vector3.right : across.normalized;
         }
 
         /// <summary>Applique l'outil ; retourne le nombre de cellules devenues propres.</summary>

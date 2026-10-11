@@ -3,7 +3,7 @@ using UnityEngine;
 namespace RugWash.Effects
 {
     /// <summary>
-    /// Cercle projeté sur le tapis indiquant la zone réellement traitée par l'outil (rayon exact).
+    /// Cercle (ou ellipse pour les outils en éventail) projeté sur la surface visée : la zone réellement traitée.
     /// Couleur : rouge hors de portée, verte si la zone visée est déjà propre (lue dans la grille),
     /// bleue pendant l'utilisation, blanche sinon. Une courte impulsion marque le premier contact.
     /// </summary>
@@ -38,11 +38,21 @@ namespace RugWash.Effects
         }
 
         public void Show(Vector3 point, Vector3 normal, float radius, bool inRange, bool active, bool targetClean = false)
+            => Show(point, normal, radius, 1f, Vector3.right, inRange, active, targetClean);
+
+        /// <param name="aspect">Rapport largeur / profondeur (1 = cercle), même surface qu'un disque de rayon <paramref name="radius"/>.</param>
+        /// <param name="spreadAxis">Grand axe de l'ellipse, dans le plan de la surface.</param>
+        public void Show(Vector3 point, Vector3 normal, float radius, float aspect, Vector3 spreadAxis, bool inRange, bool active, bool targetClean)
         {
             if (ringRenderer == null) return;
             pulse = Mathf.MoveTowards(pulse, 0f, Time.deltaTime / Mathf.Max(0.01f, pulseDuration));
-            transform.SetPositionAndRotation(point + normal * 0.004f, Quaternion.LookRotation(-normal));
-            transform.localScale = Vector3.one * (radius * 2f * (1f + pulseScale * Mathf.Sin(pulse * Mathf.PI)));
+            // Axe X local du quad = grand axe : LookRotation(-n, axe × n) donne X = axe.
+            Vector3 up = Vector3.Cross(spreadAxis, normal);
+            var rotation = up.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(-normal, up) : Quaternion.LookRotation(-normal);
+            transform.SetPositionAndRotation(point + normal * 0.004f, rotation);
+            float stretch = Mathf.Sqrt(Mathf.Max(1f, aspect));
+            float size = radius * 2f * (1f + pulseScale * Mathf.Sin(pulse * Mathf.PI));
+            transform.localScale = new Vector3(size * stretch, size / stretch, 1f);
 
             CurrentState = !inRange ? State.OutOfRange : targetClean ? State.Clean : active ? State.Active : State.Idle;
             Color color = CurrentState == State.OutOfRange ? outOfRangeColor : CurrentState == State.Clean ? cleanColor

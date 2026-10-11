@@ -41,14 +41,17 @@ namespace RugWash.Cleaning
         [Range(0f, 2f)] public float brushSoap;
         [Tooltip("Retrait direct par le jet d'eau, sans brossage préalable.")]
         [Range(0f, 2f)] public float rinse;
+        [Tooltip("Balayage (débris secs non fixés : poils, poussière).")]
+        [Range(0f, 2f)] public float sweep;
 
-        public DirtResponse(float vacuum, float brushDry, float brushWet, float brushSoap, float rinse)
+        public DirtResponse(float vacuum, float brushDry, float brushWet, float brushSoap, float rinse, float sweep = 0f)
         {
             this.vacuum = vacuum;
             this.brushDry = brushDry;
             this.brushWet = brushWet;
             this.brushSoap = brushSoap;
             this.rinse = rinse;
+            this.sweep = sweep;
         }
     }
 }

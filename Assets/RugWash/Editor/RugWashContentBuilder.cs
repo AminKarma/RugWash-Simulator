@@ -19,6 +19,12 @@ namespace RugWash.Editor
         public const string VacuumToolPath = RugWashPaths.ToolDefinitions + "/Tool_Vacuum.asset";
         public const string SoapToolPath = RugWashPaths.ToolDefinitions + "/Tool_Soap.asset";
         public const string ExtractorToolPath = RugWashPaths.ToolDefinitions + "/Tool_Extractor.asset";
+        public const string FoamCannonToolPath = RugWashPaths.ToolDefinitions + "/Tool_FoamCannon.asset";
+        public const string BroomToolPath = RugWashPaths.ToolDefinitions + "/Tool_Broom.asset";
+        public const string DetailBrushToolPath = RugWashPaths.ToolDefinitions + "/Tool_DetailBrush.asset";
+        public const string WorkSurfacePath = RugWashPaths.RugDefinitions + "/Surface_WorkSurface.asset";
+        public const string FloorSurfacePath = RugWashPaths.RugDefinitions + "/Surface_Floor.asset";
+        public const string TuningPath = RugWashPaths.Root + "/ScriptableObjects/CleaningTuning.asset";
         public const string OrientalRugPath = RugWashPaths.RugDefinitions + "/Rug_Oriental.asset";
         public const string ClassicRugPath = RugWashPaths.RugDefinitions + "/Rug_Classic.asset";
         public const string ShagRugPath = RugWashPaths.RugDefinitions + "/Rug_Shag.asset";
@@ -29,7 +35,11 @@ namespace RugWash.Editor
             public ToolDefinition Brush;
             public ToolDefinition Rinse;
             public ToolDefinition Vacuum, Soap, Extractor;
+            public ToolDefinition FoamCannon, Broom, DetailBrush;
             public RugDefinition Oriental, Classic, Shag;
+            /// <summary>Plan de travail de l'aire de lavage et sol de l'atelier (surfaces nettoyables).</summary>
+            public RugDefinition WorkSurface, Floor;
+            public CleaningTuning Tuning;
             public readonly List<OrderDefinition> Orders = new List<OrderDefinition>();
             public readonly List<UpgradeDefinition> Upgrades = new List<UpgradeDefinition>();
             public readonly Dictionary<string, Material> Materials = new Dictionary<string, Material>();
@@ -64,7 +74,23 @@ namespace RugWash.Editor
                 Extractor = EnsureTool(ExtractorToolPath, "extractor", "Extracteur", 5,
                     "Aspire l'eau des fibres avec la saleté et le produit qu'elle contient. Remplit la cuve de récupération.",
                     range: 2.2f, radius: 0.16f, hardness: 5f, power: 0.9f, wetting: 0f, ToolResource.Recovery, 0f),
+                FoamCannon = EnsureTool(FoamCannonToolPath, "foam_cannon", "Canon à mousse", 6,
+                    "Projette en éventail une mousse épaisse sur une grande zone. Laissée en place, elle détache peu à peu graisse, " +
+                    "boissons et boue ; à brosser puis rincer. Consomme du détergent (moins de résidus que le détergent pur).",
+                    range: 3.5f, radius: 0.3f, hardness: 2.5f, power: 2.4f, wetting: 0.08f, ToolResource.Soap, 0.22f),
+                Broom = EnsureTool(BroomToolPath, "broom", "Balai", 7,
+                    "Chasse les poils et les débris d'un tapis sec : à passer avant le produit. Sur l'aire de lavage, pousse l'eau sale, " +
+                    "la boue et la mousse vers le caniveau.",
+                    range: 2.4f, radius: 0.26f, hardness: 3f, power: 0.9f, wetting: 0f, ToolResource.None, 0f),
+                DetailBrush = EnsureTool(DetailBrushToolPath, "detail_brush", "Brosse de détail", 8,
+                    "Petite brosse dure : bien plus efficace sur la graisse et les taches incrustées, sur une petite zone.",
+                    range: 2.1f, radius: 0.07f, hardness: 4f, power: 0.9f, wetting: 0f, ToolResource.None, 0f),
             };
+            EnsureToolBehaviour(content.FoamCannon, aspect: 2.6f);
+            EnsureToolBehaviour(content.Broom, aspect: 2.2f, runoffDirt: 0.9f, dry: true);
+            EnsureToolBehaviour(content.DetailBrush, requiresUnlock: true);
+            EnsureToolBehaviour(content.Rinse, runoffDirt: 0.6f, runoffFoam: 0.7f, runoffWater: 0.35f);
+            content.Tuning = LoadOrCreate<CleaningTuning>(TuningPath, out _);
 
             EnsureMaterials(content);
             content.Oriental = EnsureRug(OrientalRugPath, "oriental", "Tapis oriental à médaillon", RugPileType.Oriental,
@@ -89,6 +115,14 @@ namespace RugWash.Editor
                 new DirtLayer(DirtType.HairDebris, DirtPattern.Uniform, 0.5f, 0.35f, 0.2f),
                 new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.25f, 0.8f, 0.3f),
                 new DirtLayer(DirtType.Embedded, DirtPattern.Spots, 0.1f, 0.7f, 0.08f));
+
+            content.WorkSurface = EnsureSurface(WorkSurfacePath, "work_surface", "Plan de travail de l'aire de lavage", SurfaceKind.WorkSurface,
+                new Vector2(4.6f, 3.6f), 20, drying: 0.012f, fiberTiles: 0.7f, seed: 5);
+            content.Floor = EnsureSurface(FloorSurfacePath, "floor", "Sol de l'atelier", SurfaceKind.Floor,
+                new Vector2(RugWashSceneBuilder.RoomHalfX * 2f, RugWashSceneBuilder.RoomHalfZ * 2f), 16, drying: 0.02f, fiberTiles: 0.5f, seed: 9,
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.8f, 0.35f, 0.6f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Edges, 0.6f, 0.5f, 0.5f),
+                new DirtLayer(DirtType.HairDebris, DirtPattern.Blotches, 0.15f, 0.35f, 0.35f));
 
             EnsureOrders(content);
             EnsureUpgrades(content);
@@ -197,6 +231,12 @@ namespace RugWash.Editor
                 240, UpgradeEffect.ToolPower, 1.3f, "rinse", null));
             c.Upgrades.Add(EnsureUpgrade("up_extractor", "Extracteur haute dépression", "Sèche les fibres 40 % plus vite.",
                 260, UpgradeEffect.ToolPower, 1.4f, "extractor", null));
+            c.Upgrades.Add(EnsureUpgrade("up_detail_brush", "Brosse de détail", "Petite brosse dure pour les taches tenaces (graisse, taches incrustées).",
+                140, UpgradeEffect.UnlockTool, 1f, "detail_brush", null));
+            c.Upgrades.Add(EnsureUpgrade("up_broom_wide", "Balai large", "Balaie une bande 35 % plus large.",
+                90, UpgradeEffect.ToolRadius, 1.35f, "broom", null));
+            c.Upgrades.Add(EnsureUpgrade("up_foam_wide", "Buse à mousse large", "Le canon à mousse couvre une zone 30 % plus large.",
+                120, UpgradeEffect.ToolRadius, 1.3f, "foam_cannon", null));
         }
 
         static UpgradeDefinition EnsureUpgrade(string id, string name, string description, int price, UpgradeEffect effect, float value,
@@ -239,6 +279,12 @@ namespace RugWash.Editor
                     definition.response = DirtTypeTable.DefaultResponse(pair.Key);
                     EditorUtility.SetDirty(definition);
                 }
+                else if (definition.response.sweep <= 0f && DirtTypeTable.DefaultResponse(pair.Key).sweep > 0f)
+                {
+                    // Champ ajouté avec le balai : les définitions existantes reçoivent la valeur de référence.
+                    definition.response.sweep = DirtTypeTable.DefaultResponse(pair.Key).sweep;
+                    EditorUtility.SetDirty(definition);
+                }
                 if (!library.definitions.Contains(definition))
                 {
                     library.definitions.Add(definition);
@@ -266,6 +312,50 @@ namespace RugWash.Editor
             tool.resourcePerSecond = perSecond;
             EditorUtility.SetDirty(tool);
             return tool;
+        }
+
+        /// <summary>
+        /// Réglages ajoutés après la création des premiers outils (éventail, ruissellement, déblocage) : appliqués aux
+        /// outils existants seulement s'ils sont encore à leur valeur neutre, pour conserver les réglages faits à la main.
+        /// </summary>
+        static void EnsureToolBehaviour(ToolDefinition tool, float aspect = 1f, float runoffDirt = 0f, float runoffFoam = 0f,
+            float runoffWater = 0f, bool dry = false, bool requiresUnlock = false)
+        {
+            bool changed = false;
+            if (aspect > 1f && Mathf.Approximately(tool.spreadAspect, 1f)) { tool.spreadAspect = aspect; changed = true; }
+            if (tool.runoffDirt <= 0f && tool.runoffFoam <= 0f && tool.runoffWater <= 0f && (runoffDirt > 0f || runoffFoam > 0f || runoffWater > 0f))
+            {
+                tool.runoffDirt = runoffDirt;
+                tool.runoffFoam = runoffFoam;
+                tool.runoffWater = runoffWater;
+                tool.runoffIsDry = dry;
+                changed = true;
+            }
+            if (requiresUnlock && !tool.requiresUnlock) { tool.requiresUnlock = true; changed = true; }
+            if (changed) EditorUtility.SetDirty(tool);
+        }
+
+        static RugDefinition EnsureSurface(string path, string id, string displayName, SurfaceKind kind, Vector2 size, int cellsPerMeter,
+            float drying, float fiberTiles, int seed, params DirtLayer[] dirt)
+        {
+            var surface = LoadOrCreate<RugDefinition>(path, out bool created);
+            if (!created && surface.patternTexture != null) return surface;
+            surface.id = id;
+            surface.displayName = displayName;
+            surface.surfaceKind = kind;
+            surface.sizeMeters = size;
+            surface.thickness = 0.004f;
+            surface.cellsPerMeter = cellsPerMeter;
+            surface.patternTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(RugWashTextureGenerator.ConcreteAlbedo);
+            surface.fiberNormal = AssetDatabase.LoadAssetAtPath<Texture2D>(RugWashTextureGenerator.ConcreteNormal);
+            surface.fiberTilesPerMeter = fiberTiles;
+            surface.fiberNormalStrength = 0.6f;
+            surface.hasFringe = false;
+            surface.dryingPerSecond = drying;
+            surface.dirtSeed = seed;
+            surface.defaultDirt = new List<DirtLayer>(dirt);
+            EditorUtility.SetDirty(surface);
+            return surface;
         }
 
         static RugDefinition EnsureRug(string path, string id, string displayName, RugPileType pile, Vector2 size, float thickness,
@@ -305,6 +395,11 @@ namespace RugWash.Editor
                 EditorUtility.SetDirty(rugSurface);
             }
             content.Materials["RugSurface"] = rugSurface;
+            rugSurface.SetFloat("_ScanResponse", 1f);
+            content.Materials["WorkSurface"] = EnsureSurfaceMaterial("M_WorkSurface", new Color(0.78f, 0.8f, 0.82f), new Vector2(3.2f, 2.5f),
+                drySmoothness: 0.42f, wetSmoothness: 0.78f, wetDarkening: 0.28f, scanResponse: 1f, Tex);
+            content.Materials["FloorSurface"] = EnsureSurfaceMaterial("M_FloorSurface", Color.white, new Vector2(6f, 5f),
+                drySmoothness: 0.2f, wetSmoothness: 0.68f, wetDarkening: 0.3f, scanResponse: 0f, Tex);
 
             var fringe = EnsureLit("M_RugFringe", new Color(0.9f, 0.86f, 0.75f), 0.15f);
             fringe.SetFloat("_Cull", 0f);
@@ -343,6 +438,10 @@ namespace RugWash.Editor
             content.Materials["Chrome"] = EnsureLit("M_Chrome", new Color(0.8f, 0.82f, 0.85f), 0.85f, metallic: 1f);
             content.Materials["Glass"] = EnsureLit("M_Glass", new Color(0.55f, 0.7f, 0.78f), 0.92f, metallic: 0.2f);
             content.Materials["GreyHose"] = EnsureLit("M_GreyHose", new Color(0.32f, 0.34f, 0.36f), 0.35f);
+            content.Materials["RobotShell"] = EnsureLit("M_RobotShell", new Color(0.9f, 0.91f, 0.92f), 0.62f);
+            content.Materials["RobotDark"] = EnsureLit("M_RobotDark", new Color(0.07f, 0.075f, 0.08f), 0.5f);
+            content.Materials["RobotLed"] = EnsureEmissive("M_RobotLed", Color.white, 2f);
+            content.Materials["FoamCanister"] = EnsureLit("M_FoamCanister", new Color(0.82f, 0.9f, 0.95f), 0.85f);
             content.Materials["Hazard"] = EnsureLit("M_Hazard", Color.white, 0.3f, Tex(RugWashTextureGenerator.Hazard), null, tiling: 2f);
             content.Materials["Paper"] = EnsureLit("M_Paper", Color.white, 0.05f, Tex(RugWashTextureGenerator.Paper), null, tiling: 1f);
             content.Materials["ClockFace"] = EnsureLit("M_ClockFace", Color.white, 0.3f, Tex(RugWashTextureGenerator.ClockFace), null, tiling: 1f);
@@ -411,6 +510,25 @@ namespace RugWash.Editor
                 material.SetFloat("_BumpScale", 0.6f);
                 material.EnableKeyword("_NORMALMAP");
             }
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>Matériau de surface nettoyable (shader du tapis) : valeurs réappliquées à chaque génération.</summary>
+        static Material EnsureSurfaceMaterial(string name, Color color, Vector2 tiling, float drySmoothness, float wetSmoothness,
+            float wetDarkening, float scanResponse, System.Func<string, Texture2D> tex)
+        {
+            var material = EnsureMaterial(name, "RugWash/Rug Surface", out _);
+            material.SetTexture("_DirtDetail", tex(RugWashTextureGenerator.DirtDetail));
+            material.SetTexture("_FiberNormal", tex(RugWashTextureGenerator.ConcreteNormal));
+            material.SetTexture("_BaseMap", tex(RugWashTextureGenerator.ConcreteAlbedo));
+            material.SetTextureScale("_BaseMap", tiling);
+            material.SetColor("_BaseColor", color);
+            material.SetFloat("_DrySmoothness", drySmoothness);
+            material.SetFloat("_WetSmoothness", wetSmoothness);
+            material.SetFloat("_WetDarkening", wetDarkening);
+            material.SetFloat("_CleanBoost", 0f);
+            material.SetFloat("_ScanResponse", scanResponse);
             EditorUtility.SetDirty(material);
             return material;
         }

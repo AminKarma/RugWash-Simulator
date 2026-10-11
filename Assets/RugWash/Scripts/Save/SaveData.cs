@@ -28,6 +28,23 @@ namespace RugWash.Save
         public SettingsData Clone() => (SettingsData)MemberwiseClone();
     }
 
+    /// <summary>État de l'atelier : robot aspirateur, plan de travail et sol (grilles compressées, voir SurfaceStateCodec).</summary>
+    [Serializable]
+    public sealed class WorkshopSaveData
+    {
+        public bool hasRobot;
+        public int robotMode;
+        public float robotBattery = 1f;
+        public bool robotResume;
+        public float robotX;
+        public float robotZ;
+        public float robotYaw;
+        /// <summary>Grille du plan de travail encodée (vide = propre).</summary>
+        public string workSurface = string.Empty;
+        /// <summary>Grille du sol encodée (vide = état initial).</summary>
+        public string floor = string.Empty;
+    }
+
     /// <summary>
     /// Données persistantes, au format JSON versionné. Aucune donnée visuelle ou de scène :
     /// uniquement la progression du joueur et ses paramètres.
@@ -47,6 +64,7 @@ namespace RugWash.Save
         public int totalEarned;
 
         public SettingsData settings = new SettingsData();
+        public WorkshopSaveData workshop = new WorkshopSaveData();
 
         /// <summary>Vrai si le joueur a commencé à progresser (sert à « Continuer » et à confirmer « Nouvelle partie »).</summary>
         public bool HasProgress => money > 0 || reputation > 0 || ordersDelivered > 0 || upgrades.Count > 0 || completedOrders.Count > 0;

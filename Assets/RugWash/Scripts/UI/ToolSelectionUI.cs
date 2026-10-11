@@ -6,7 +6,10 @@ using UnityEngine.UI;
 
 namespace RugWash.UI
 {
-    /// <summary>Barre d'outils : un emplacement par outil disponible, l'outil actif est mis en évidence.</summary>
+    /// <summary>
+    /// Barre d'outils : un emplacement par outil, l'outil actif est mis en évidence, les outils pas encore achetés
+    /// sont grisés avec la mention « boutique ».
+    /// </summary>
     [DisallowMultipleComponent]
     public sealed class ToolSelectionUI : MonoBehaviour
     {
@@ -14,6 +17,8 @@ namespace RugWash.UI
         [SerializeField] List<Text> slotLabels = new List<Text>();
         [SerializeField] Color normalColor = new Color(0.08f, 0.1f, 0.12f, 0.72f);
         [SerializeField] Color activeColor = new Color(0.16f, 0.55f, 0.72f, 0.92f);
+        [SerializeField] Color lockedColor = new Color(0.05f, 0.05f, 0.06f, 0.5f);
+        [SerializeField] Color lockedTextColor = new Color(1f, 1f, 1f, 0.45f);
 
         PlayerToolController tools;
 
@@ -38,6 +43,9 @@ namespace RugWash.UI
 
         void OnActiveToolChanged(CleaningToolBase _) => Rebuild();
 
+        /// <summary>À appeler après un achat (outil débloqué).</summary>
+        public void Refresh() => Rebuild();
+
         void Rebuild()
         {
             var list = tools.Tools;
@@ -47,8 +55,11 @@ namespace RugWash.UI
                 slotBackgrounds[i].gameObject.SetActive(used);
                 if (!used) continue;
                 var tool = list[i];
-                slotLabels[i].text = $"{tool.Definition.slot}  {tool.Definition.displayName}";
-                slotBackgrounds[i].color = tool == tools.ActiveTool ? activeColor : normalColor;
+                slotLabels[i].text = tool.IsUnlocked
+                    ? $"{tool.Definition.slot}  {tool.Definition.displayName}"
+                    : $"{tool.Definition.slot}  {tool.Definition.displayName} (boutique)";
+                slotLabels[i].color = tool.IsUnlocked ? Color.white : lockedTextColor;
+                slotBackgrounds[i].color = !tool.IsUnlocked ? lockedColor : tool == tools.ActiveTool ? activeColor : normalColor;
             }
         }
     }

@@ -142,6 +142,18 @@ Rapport : [AUDIT_V2.md](AUDIT_V2.md) — état réel du projet, cause du bug d'a
 | Qualité d'écoute des nouveaux sons | À vérifier à la main | Les tests vérifient qu'ils jouent et s'arrêtent, pas leur qualité |
 | Ressenti du balancement et de l'alignement en jeu réel | À vérifier à la main | Jugement humain |
 
+## Roadmap V2 — Jalon 2 (outils et atelier)
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 2.1 Canon à mousse (touche 6) : sélectionnable, consomme le détergent, éventail large, mousse diluée, réglages dans sa définition, sons propres | Testé | `FoamCannon_SpraysAWideFan_AndConsumesDetergent`, `SoapOperation_ResiduePerFoam_…`, capture `30` |
+| 2.2 Mousse : dépôt précis (grille, surface visée uniquement), répartition selon l'outil (disque / éventail, cercle de visée elliptique), action au repos sur les taches réactives au savon, retombée progressive en eau, montée au brossage, évacuation par rinçage et extraction, bulles animées dans le shader (aucun objet ajouté) | Testé | `Foam_LeftInPlace_…` (EditMode et PlayMode), `Brushing_WhipsFoam_…`, `Ellipse_…`, captures `30`, `31` |
+| 2.3 Balai (touche 7) et brosse de détail (touche 8) : comportements distincts (débris secs / sol dur ; graisse et taches incrustées), sons et effets au contact, boutique (déblocage, largeur) | Testé | `Sweep_…` (2), `Brushing_…StubbornStains`, `DetailBrush_IsLockedUntilBought_ThenSelectable`, `DetailBrush_BeatsTheRegularBrushOnGrease`, `Upgrades_UnlockTool_AndWidenIt`, captures `33`, `37` |
+| 2.4 Aire de lavage : ruissellement réel du tapis (eau sale, mousse, débris) du côté traité, nettoyage avec les outils, état « propre » mesuré, HUD et comptoir informés, jamais bloquant (bordures du tapis suivant recontaminées), traces de pas | Testé | `RinsingNearAnEdge_…`, `Broom_ClearsTheWashArea_…`, `DirtyWashArea_NeverBlocksANewOrder_…`, `CleanWashArea_DoesNotTouchTheNextRug`, `WalkingThroughMud_LeavesFootprintsOnTheFloor`, `WorkSurface_…`, `Runoff_…`, `Contamination_…`, captures `32`, `34`, `38` |
+| 2.5 Robot aspirateur : modèle et base, déplacement autonome sur grille d'occupation (murs, meubles, objets au sol) avec chemin A*, jamais dans une case bloquée, arrêt devant le joueur, nettoyage réel du sol, voyant d'état, sons, E pour démarrer / arrêter, retour en charge et reprise, état sauvegardé | Testé | `Pathfinder_…` (2), `Robot_…` (EditMode 2, PlayMode 3), `RobotAndWashArea_AreSavedAndRestored`, captures `35`, `36`, `36b` |
+| Ancien effet global « sol mouillé » remplacé par les vraies données de l'aire de lavage | Testé | `WashArea_GetsWet_WhenRinsing_ThenDries` (remplace `FloorGetsWet_WhenRinsing_ThenDries`) |
+| Ressenti des nouveaux outils, lisibilité des empreintes, crédibilité du robot sur une longue session | À vérifier à la main | Jugement humain |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

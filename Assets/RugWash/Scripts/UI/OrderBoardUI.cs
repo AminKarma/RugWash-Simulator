@@ -37,6 +37,10 @@ namespace RugWash.UI
         GameStateManager gameState;
         OrderManager orders;
         WalletManager wallet;
+        Cleaning.WorkSurface workSurface;
+
+        /// <summary>Avertit, sans bloquer, qu'un nouveau tapis serait posé sur une aire de lavage sale.</summary>
+        public void SetWorkSurface(Cleaning.WorkSurface surface) => workSurface = surface;
 
         public bool IsOpen { get; private set; }
         public IReadOnlyList<ListRowView> Rows => rows;
@@ -104,6 +108,8 @@ namespace RugWash.UI
         void Refresh()
         {
             headerLabel.text = $"Solde : {WalletManager.Format(wallet.Balance)}     Réputation : {orders.Reputation}";
+            if (workSurface != null && !workSurface.Status.IsClean)
+                headerLabel.text += $"     ⚠ Aire de lavage sale ({workSurface.Status.SoiledPercent} %) : le prochain tapis aura les bords recontaminés";
             var list = orders.Book.Orders;
             while (rows.Count < list.Count)
             {

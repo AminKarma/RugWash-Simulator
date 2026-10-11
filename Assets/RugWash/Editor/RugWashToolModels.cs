@@ -6,7 +6,7 @@ using static RugWash.Editor.RugWashProceduralMeshes;
 namespace RugWash.Editor
 {
     /// <summary>
-    /// Modèles tenus en main des cinq outils, construits à partir de maillages procéduraux
+    /// Modèles tenus en main des huit outils, construits à partir de maillages procéduraux
     /// (repère caméra : X droite, Y haut, Z avant). Retourne la racine et les points utiles (buse, sortie du jet).
     /// </summary>
     public static class RugWashToolModels
@@ -172,6 +172,66 @@ namespace RugWash.Editor
                     new Vector3(0f, 0.01f, -0.04f), new Vector3(0.02f, 0.0f, -0.14f), new Vector3(0.09f, -0.28f, -0.2f), new Vector3(0.16f, -0.8f, -0.05f),
                 }, 10), 0.022f, 12)), c["GreyHose"], Vector3.zero, Quaternion.identity);
             return new Model { Root = root, Tip = head.transform };
+        }
+
+        // ------------------------------------------------------------------ Canon à mousse
+
+        public static Model FoamCannon(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var root = Root(camera, "FoamCannon", new Vector3(0.25f, -0.25f, 0.4f), new Vector3(4f, -8f, 0f));
+            Part("Grip", root, store.Add("Tool_GunGrip", () => RoundedBox(new Vector3(0.036f, 0.12f, 0.052f), 0.014f)), c["Rubber"],
+                new Vector3(0f, -0.075f, -0.03f), Quaternion.Euler(-18f, 0f, 0f));
+            Part("Body", root, store.Add("Tool_CannonBody", () => RoundedBox(new Vector3(0.06f, 0.07f, 0.2f), 0.022f)), c["BluePlastic"],
+                new Vector3(0f, 0f, 0.05f), Quaternion.identity);
+            Part("Trigger", root, store.Add("Tool_GunTrigger", () => RoundedBox(new Vector3(0.012f, 0.048f, 0.022f), 0.005f)), c["DarkMetal"],
+                new Vector3(0f, -0.05f, 0.04f), Quaternion.Euler(-12f, 0f, 0f));
+            // Bouteille de mousse translucide sous le corps, avec sa bague.
+            Part("Canister", root, store.Add("Tool_CannonCanister", () => Lathe(new[]
+                {
+                    new Vector2(0f, -0.17f), new Vector2(0.042f, -0.17f), new Vector2(0.048f, -0.155f), new Vector2(0.048f, -0.04f),
+                    new Vector2(0.03f, -0.015f), new Vector2(0.018f, 0f),
+                }, 24, capTop: false)), c["FoamCanister"], new Vector3(0f, -0.04f, 0.13f), Quaternion.identity);
+            Part("Canister_Ring", root, store.Add("Tool_CannonRing", () => Cylinder(0.026f, 0.02f, 18)), c["DarkMetal"],
+                new Vector3(0f, -0.045f, 0.13f), Quaternion.identity);
+            Part("Lance", root, StraightTube(store, "Tool_CannonLance", 0.012f, 0.2f), c["Steel"], new Vector3(0f, 0.01f, 0.15f), AlongZ);
+            // Buse plate en éventail.
+            Part("Nozzle", root, store.Add("Tool_CannonNozzle", () => RoundedBox(new Vector3(0.07f, 0.022f, 0.06f), 0.008f)), c["DarkMetal"],
+                new Vector3(0f, 0.01f, 0.37f), Quaternion.identity);
+            Part("Hose", root, store.Add("Tool_GunHose", () => Tube(Smooth(new[]
+                {
+                    new Vector3(0f, -0.13f, -0.06f), new Vector3(0.01f, -0.25f, -0.12f), new Vector3(0.05f, -0.45f, -0.1f), new Vector3(0.1f, -0.8f, 0.05f),
+                }, 10), 0.013f, 10)), c["Rubber"], Vector3.zero, Quaternion.identity);
+            return new Model { Root = root, Tip = Tip(root, new Vector3(0f, 0.01f, 0.4f)) };
+        }
+
+        // ------------------------------------------------------------------ Balai
+
+        public static Model Broom(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var root = Root(camera, "Broom", new Vector3(0.2f, -0.3f, 0.42f), new Vector3(10f, -9f, 0f));
+            Part("Handle", root, store.Add("Tool_BroomHandle", () => Tube(new[] { new Vector3(0f, 0.12f, -0.25f), new Vector3(0f, -0.17f, 0.56f) }, 0.014f, 12)),
+                c["Wood"], Vector3.zero, Quaternion.identity);
+            Part("Grip", root, store.Add("Tool_BroomGrip", () => Tube(new[] { new Vector3(0f, 0.1f, -0.2f), new Vector3(0f, 0.06f, -0.08f) }, 0.017f, 12)),
+                c["Rubber"], Vector3.zero, Quaternion.identity);
+            Part("Head", root, store.Add("Tool_BroomHead", () => RoundedBox(new Vector3(0.44f, 0.04f, 0.065f), 0.012f)), c["SafetyYellow"],
+                new Vector3(0f, -0.19f, 0.6f), Quaternion.Euler(18f, 0f, 0f));
+            Part("Bristles", root, store.Add("Tool_BroomBristles", () => BristleBlock(new Vector2(0.42f, 0.05f), 0.08f, 28, 3, 0.012f)), c["Bristle"],
+                new Vector3(0f, -0.215f, 0.608f), Quaternion.Euler(18f, 0f, 0f));
+            return new Model { Root = root, Tip = Tip(root, new Vector3(0f, -0.29f, 0.63f)) };
+        }
+
+        // ------------------------------------------------------------------ Brosse de détail
+
+        public static Model DetailBrush(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var root = Root(camera, "DetailBrush", new Vector3(0.22f, -0.22f, 0.36f), new Vector3(22f, -12f, 0f));
+            Part("Body", root, store.Add("Tool_DetailBody", () => RoundedBox(new Vector3(0.05f, 0.03f, 0.16f), 0.012f)), c["Wood"],
+                new Vector3(0f, 0f, 0.02f), Quaternion.identity);
+            Part("Grip", root, store.Add("Tool_DetailGrip", () => RoundedBox(new Vector3(0.04f, 0.018f, 0.07f), 0.008f)), c["RedPlastic"],
+                new Vector3(0f, 0.018f, -0.02f), Quaternion.identity);
+            Part("Bristles", root, store.Add("Tool_DetailBristles", () => BristleBlock(new Vector2(0.044f, 0.12f), 0.03f, 4, 10, 0.006f)), c["Bristle"],
+                new Vector3(0f, -0.015f, 0.03f), Quaternion.identity);
+            return new Model { Root = root, Tip = Tip(root, new Vector3(0f, -0.05f, 0.05f)) };
         }
 
         /// <summary>Couche « Player », sans ombres, sans collisions (le modèle traverse les murs sans gêner).</summary>

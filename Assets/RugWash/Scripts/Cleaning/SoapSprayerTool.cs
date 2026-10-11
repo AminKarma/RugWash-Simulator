@@ -35,7 +35,7 @@ namespace RugWash.Cleaning
                 WettingPerSecond = definition.wettingPerSecond * supply,
                 DeltaTime = deltaTime,
             };
-            rug.ApplyOperation(aim.Point, definition.radius, definition.falloffHardness, ref operation);
+            ApplyArea(rug, aim, ref operation);
             return 0;
         }
 

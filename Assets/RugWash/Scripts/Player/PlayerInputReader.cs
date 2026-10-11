@@ -13,7 +13,7 @@ namespace RugWash.Player
     {
         public const string GameplayMap = "Gameplay";
         public const string SystemMap = "System";
-        public const int ToolSlotCount = 5;
+        public const int ToolSlotCount = 8;
 
         public static InputActionAsset Create()
         {

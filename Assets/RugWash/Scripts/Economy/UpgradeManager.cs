@@ -64,7 +64,10 @@ namespace RugWash.Economy
             {
                 tool.PowerMultiplier = Stats.PowerMultiplier(tool.Definition.id);
                 tool.ConsumptionMultiplier = Stats.ConsumptionMultiplier(tool.Definition.id);
+                tool.RadiusMultiplier = Stats.RadiusMultiplier(tool.Definition.id);
+                tool.IsUnlocked = !tool.Definition.requiresUnlock || Stats.IsUnlocked(tool.Definition.id);
             }
+            tools.EnsureUsableToolSelected();
             Changed?.Invoke();
         }
 
@@ -100,6 +103,17 @@ namespace RugWash.Economy
                     float current = stats.ConsumptionMultiplier(upgrade.targetToolId);
                     return $"Consommation {ToolName(upgrade.targetToolId)} : ×{current:0.##} → ×{current * upgrade.value:0.##}";
                 }
+                case UpgradeEffect.ToolRadius:
+                {
+                    float current = stats.RadiusMultiplier(upgrade.targetToolId);
+                    return $"Largeur {ToolName(upgrade.targetToolId)} : ×{current:0.##} → ×{current * upgrade.value:0.##}";
+                }
+                case UpgradeEffect.UnlockTool:
+                {
+                    var tool = FindTool(upgrade.targetToolId);
+                    return tool == null ? "Nouvel outil"
+                        : $"Nouvel outil : {tool.Definition.displayName} (touche {tool.Definition.slot})";
+                }
                 default:
                     return string.Empty;
             }
@@ -107,9 +121,15 @@ namespace RugWash.Economy
 
         string ToolName(string toolId)
         {
+            var tool = FindTool(toolId);
+            return tool != null ? tool.Definition.displayName.ToLowerInvariant() : toolId;
+        }
+
+        Cleaning.CleaningToolBase FindTool(string toolId)
+        {
             foreach (var tool in tools.Tools)
-                if (tool.Definition.id == toolId) return tool.Definition.displayName.ToLowerInvariant();
-            return toolId;
+                if (tool.Definition.id == toolId) return tool;
+            return null;
         }
     }
 }

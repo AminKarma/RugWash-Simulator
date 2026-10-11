@@ -7,9 +7,47 @@ using UnityEngine;
 namespace RugWash.Cleaning
 {
     /// <summary>
-    /// Tapis nettoyable présent dans la scène. Possède sa grille (aucun état global),
-    /// convertit les impacts monde → UV et délègue le visuel à <see cref="RugDirtRenderer"/>.
-    /// Plusieurs tapis peuvent coexister (préparation d'un atelier multi-postes / coop).
+    /// Ce qui ruisselle hors de la surface lors d'une opération : parts de la saleté et de la mousse retirées
+    /// (réglages de l'outil) et eau ruisselante en « unités × m² » (calculée par l'outil à partir de l'eau projetée).
+    /// </summary>
+    public readonly struct RunoffProfile
+    {
+        public readonly float Dirt;
+        public readonly float Foam;
+        public readonly float Water;
+        public readonly bool DirtIsDry;
+
+        public RunoffProfile(float dirt, float foam, float water, bool dirtIsDry)
+        {
+            Dirt = dirt;
+            Foam = foam;
+            Water = water;
+            DirtIsDry = dirtIsDry;
+        }
+
+        public bool IsNone => Dirt <= 0f && Foam <= 0f && Water <= 0f;
+    }
+
+    /// <summary>
+    /// Ruissellement produit par une opération : quantités en « unités × m² » (quantité par cellule multipliée par la
+    /// surface de la cellule), donc indépendantes de la résolution de la grille.
+    /// </summary>
+    public struct RunoffEvent
+    {
+        public Vector3 Point;
+        public float Radius;
+        public float Dirt;
+        public float Foam;
+        public float Water;
+        public bool DirtIsDry;
+        public DirtType Type;
+    }
+
+    /// <summary>
+    /// Surface nettoyable présente dans la scène (tapis, plan de travail, sol). Possède sa grille (aucun état global),
+    /// convertit les impacts monde → UV, fait évoluer lentement la surface (mousse qui travaille puis retombe, séchage),
+    /// signale le ruissellement des opérations et délègue le visuel à <see cref="RugDirtRenderer"/>.
+    /// Plusieurs surfaces coexistent : les outils agissent sur celle qui est visée.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class RugCleaningController : MonoBehaviour
@@ -19,17 +57,30 @@ namespace RugWash.Cleaning
         [SerializeField] RugDirtRenderer dirtRenderer;
         [SerializeField] MeshFilter meshFilter;
         [SerializeField] BoxCollider surfaceCollider;
+        [Tooltip("Réglages de la mousse et du séchage (valeurs par défaut si absent).")]
+        [SerializeField] CleaningTuning tuning;
 
         Mesh generatedMesh;
+        float agingTimer;
 
         public RugCleaningGrid Grid { get; private set; }
         public RugDefinition Definition => definition;
         public DirtTypeTable DirtTable { get; private set; }
         public RugDirtRenderer DirtRenderer => dirtRenderer;
         public float Cleanliness01 => Grid != null ? Grid.Cleanliness01 : 0f;
+        public SurfaceKind Kind => definition != null ? definition.surfaceKind : SurfaceKind.Rug;
+        public CleaningTuning Tuning => tuning;
+        /// <summary>Taille de la surface en mètres (X, Z locaux).</summary>
+        public Vector2 SizeMeters => definition != null ? definition.sizeMeters : Vector2.zero;
 
         /// <summary>Déclenché après chaque chargement ou réinitialisation de tapis.</summary>
         public event Action<RugCleaningController> RugLoaded;
+
+        /// <summary>Ce qu'une opération a fait ruisseler hors de la surface (eau sale, mousse, débris).</summary>
+        public event Action<RugCleaningController, RunoffEvent> Runoff;
+
+        /// <summary>Saleté fixée détachée par la mousse au repos depuis le chargement.</summary>
+        public float FoamDwellLoosened { get; private set; }
 
         public bool IsConfigured(out string missing)
         {
@@ -43,7 +94,43 @@ namespace RugWash.Cleaning
 
         void Awake()
         {
+            if (tuning == null) tuning = CleaningTuning.CreateDefault();
             if (Grid == null && definition != null) LoadRug(definition);
+        }
+
+        void Update()
+        {
+            if (Grid == null || Time.deltaTime <= 0f) return;
+            agingTimer += Time.deltaTime;
+            if (agingTimer < tuning.agingInterval) return;
+            Age(agingTimer);
+            agingTimer = 0f;
+        }
+
+        /// <summary>
+        /// Simulation lente sur <paramref name="seconds"/> : la mousse détache les taches réactives au savon puis retombe ;
+        /// l'humidité s'évapore si la surface sèche seule. Rien n'est calculé sur une surface sans mousse ni eau.
+        /// </summary>
+        public void Age(float seconds)
+        {
+            if (Grid == null || seconds <= 0f) return;
+            if (tuning == null) tuning = CleaningTuning.CreateDefault();
+            float drying = definition != null ? definition.dryingPerSecond : 0f;
+            bool hasFoam = Grid.TotalFoam > 1e-4f;
+            bool dries = drying > 0f && Grid.TotalMoisture > 1e-4f;
+            if (!hasFoam && !dries) return;
+            var operation = new SurfaceAgingOperation
+            {
+                Table = DirtTable,
+                DeltaTime = seconds,
+                FoamDecayPerSecond = tuning.foamDecayPerSecond,
+                FoamDecayFloor = tuning.foamDecayFloor,
+                FoamDwellPower = tuning.foamDwellPower,
+                FoamToMoisture = tuning.foamToMoisture,
+                DryingPerSecond = drying,
+            };
+            Grid.ApplyAllTracked(ref operation);
+            FoamDwellLoosened += operation.Loosened;
         }
 
         /// <summary>Charge un tapis avec sa saleté par défaut ou une configuration fournie (commande).</summary>
@@ -73,6 +160,8 @@ namespace RugWash.Cleaning
             surfaceCollider.size = new Vector3(rug.sizeMeters.x, colliderHeight, rug.sizeMeters.y);
 
             dirtRenderer.Bind(Grid, DirtTable, rug);
+            FoamDwellLoosened = 0f;
+            agingTimer = 0f;
             RugLoaded?.Invoke(this);
         }
 
@@ -116,6 +205,49 @@ namespace RugWash.Cleaning
             TryWorldToUV(worldPoint, out Vector2 uv);
             // Un impact juste au bord touche encore les cellules du bord ; au-delà du rayon, rien.
             return Grid.ApplyCircle(uv, radiusMeters, hardness, ref operation);
+        }
+
+        /// <summary>
+        /// Applique une opération sur un disque (<paramref name="aspect"/> = 1) ou un éventail elliptique de même surface dont
+        /// le grand axe suit <paramref name="spreadAxisWorld"/>, puis signale ce qui ruisselle selon <paramref name="runoff"/>.
+        /// </summary>
+        public int ApplyOperation<T>(Vector3 worldPoint, float radiusMeters, float hardness, float aspect, Vector3 spreadAxisWorld,
+            in RunoffProfile runoff, ref T operation) where T : struct, ICellOperation
+        {
+            if (Grid == null) return 0;
+            TryWorldToUV(worldPoint, out Vector2 uv);
+            DirtType type = DirtType.None;
+            bool tracksRunoff = !runoff.IsNone && Runoff != null;
+            if (tracksRunoff && TrySampleCell(worldPoint, out RugCell sampled))
+                type = sampled.StainType != DirtType.None ? sampled.StainType : sampled.DustType;
+            float dirtBefore = Grid.TotalDirt, foamBefore = Grid.TotalFoam;
+
+            int touched;
+            if (aspect <= 1.001f) touched = Grid.ApplyCircle(uv, radiusMeters, hardness, ref operation);
+            else
+            {
+                Vector3 local = transform.InverseTransformDirection(spreadAxisWorld);
+                float angle = Mathf.Atan2(local.z, local.x);
+                float stretch = Mathf.Sqrt(aspect);
+                touched = Grid.ApplyEllipse(uv, radiusMeters * stretch, radiusMeters / stretch, angle, hardness, ref operation);
+            }
+
+            if (touched > 0 && tracksRunoff)
+            {
+                float area = Grid.CellAreaM2;
+                var runoffEvent = new RunoffEvent
+                {
+                    Point = worldPoint,
+                    Radius = radiusMeters,
+                    Dirt = Mathf.Max(0f, dirtBefore - Grid.TotalDirt) * runoff.Dirt * area,
+                    Foam = Mathf.Max(0f, foamBefore - Grid.TotalFoam) * runoff.Foam * area,
+                    Water = runoff.Water,
+                    DirtIsDry = runoff.DirtIsDry,
+                    Type = type,
+                };
+                if (runoffEvent.Dirt > 0f || runoffEvent.Foam > 0f || runoffEvent.Water > 0f) Runoff(this, runoffEvent);
+            }
+            return touched;
         }
 
         void OnDestroy()

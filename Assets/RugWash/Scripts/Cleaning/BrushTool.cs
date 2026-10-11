@@ -4,7 +4,8 @@ namespace RugWash.Cleaning
 {
     /// <summary>
     /// Brosse : détache la saleté fixée et la poussière (elles deviennent « saleté détachée », à rincer).
-    /// Plus efficace sur fibres humides ou savonneuses selon le type de saleté.
+    /// Plus efficace sur fibres humides ou savonneuses selon le type de saleté ; brosser une zone savonneuse
+    /// fait monter la mousse. Sert aussi pour la brosse de détail (petite zone, bonus sur graisse et taches incrustées).
     /// </summary>
     public sealed class BrushTool : CleaningToolBase
     {
@@ -15,6 +16,12 @@ namespace RugWash.Cleaning
         [SerializeField] float maxDebrisRate = 90f;
         [SerializeField] float scrubFrequency = 11f;
         [SerializeField] float scrubAmplitude = 0.035f;
+
+        [Header("Comportement")]
+        [Tooltip("Multiplicateur sur la graisse et les taches incrustées (1 = brosse ordinaire).")]
+        [SerializeField, Range(1f, 4f)] float stubbornBonus = 1f;
+        [Tooltip("Mousse montée par seconde en brossant une zone savonneuse.")]
+        [SerializeField, Range(0f, 2f)] float latherPerSecond = 0.5f;
 
         float loosenedPerSecond;
         Color? debrisDefaultColor;
@@ -33,8 +40,10 @@ namespace RugWash.Cleaning
                 Table = rug.DirtTable,
                 Power = EffectivePower * supply,
                 DeltaTime = deltaTime,
+                StubbornBonus = stubbornBonus,
+                LatherPerSecond = latherPerSecond,
             };
-            rug.ApplyOperation(aim.Point, definition.radius, definition.falloffHardness, ref operation);
+            ApplyArea(rug, aim, ref operation);
             loosenedPerSecond = operation.Loosened / deltaTime;
             return 0;
         }

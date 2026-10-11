@@ -36,9 +36,26 @@ namespace RugWash.Cleaning
         [Tooltip("Humidité ajoutée par seconde (outils à eau).")]
         public float wettingPerSecond;
 
+        [Tooltip("Forme de la zone traitée : 1 = disque, > 1 = éventail élargi perpendiculairement à la visée.")]
+        [Range(1f, 4f)] public float spreadAspect = 1f;
+
         [Header("Consommation")]
         public ToolResource resource = ToolResource.None;
         [Tooltip("Unités de ressource consommées par seconde d'utilisation.")]
         public float resourcePerSecond;
+
+        [Header("Ruissellement vers l'aire de lavage")]
+        [Tooltip("Part de la saleté retirée du tapis qui finit sur le plan de travail autour du tapis.")]
+        [Range(0f, 1f)] public float runoffDirt;
+        [Tooltip("Part de la mousse retirée qui ruisselle sur le plan de travail.")]
+        [Range(0f, 1f)] public float runoffFoam;
+        [Tooltip("Part de l'eau consommée (litres) qui ruisselle sur le plan de travail.")]
+        [Range(0f, 1f)] public float runoffWater;
+        [Tooltip("La saleté évacuée est sèche (débris balayés) plutôt que de l'eau sale.")]
+        public bool runoffIsDry;
+
+        [Header("Boutique")]
+        [Tooltip("L'outil doit être acheté (amélioration « déblocage ») avant d'être utilisable.")]
+        public bool requiresUnlock;
     }
 }

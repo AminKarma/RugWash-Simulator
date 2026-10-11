@@ -26,7 +26,7 @@ namespace RugWash.Cleaning
         protected override int ApplyToRug(RugCleaningController rug, in ToolAim aim, float deltaTime, float supply)
         {
             var operation = new VacuumOperation { Table = rug.DirtTable, Power = EffectivePower * supply, DeltaTime = deltaTime };
-            rug.ApplyOperation(aim.Point, definition.radius, definition.falloffHardness, ref operation);
+            ApplyArea(rug, aim, ref operation);
             removedPerSecond = operation.Removed / deltaTime;
             return operation.CellsCleaned;
         }

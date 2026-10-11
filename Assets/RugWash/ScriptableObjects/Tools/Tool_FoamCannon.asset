@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a56e950a7c9d1a347aaa213b9612f7e2, type: 3}
+  m_Name: Tool_FoamCannon
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.ToolDefinition
+  id: foam_cannon
+  displayName: "Canon \xE0 mousse"
+  description: "Projette en \xE9ventail une mousse \xE9paisse sur une grande zone.
+    Laiss\xE9e en place, elle d\xE9tache peu \xE0 peu graisse, boissons et boue ;
+    \xE0 brosser puis rincer. Consomme du d\xE9tergent (moins de r\xE9sidus que le
+    d\xE9tergent pur)."
+  slot: 6
+  range: 3.5
+  radius: 0.3
+  falloffHardness: 2.5
+  power: 2.4
+  wettingPerSecond: 0.08
+  spreadAspect: 2.6
+  resource: 2
+  resourcePerSecond: 0.22
+  runoffDirt: 0
+  runoffFoam: 0
+  runoffWater: 0
+  runoffIsDry: 0
+  requiresUnlock: 0
