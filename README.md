@@ -4,9 +4,8 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : fin de la PHASE 3 (boucle de jeu : commandes, évaluation, économie, boutique).**
-> Sauvegarde, menu principal et écran de paramètres ne sont **pas encore implémentés** (phase 4) :
-> l'argent, la réputation et les achats sont **perdus en quittant le jeu**.
+> **État actuel : fin de la PHASE 4 (menu principal, paramètres, sauvegarde locale).**
+> Restent : qualité visuelle (phase 5) puis validation et build Windows (phase 6).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
 > Voir [Assets/RugWash/Documentation/PRODUCTION.md](Assets/RugWash/Documentation/PRODUCTION.md) pour le suivi détaillé.
 
@@ -29,11 +28,11 @@ procéduralement** par `RugWashTextureGenerator` et sont des créations original
 ## 2. Ouvrir et lancer le projet
 
 1. Unity Hub → *Add project from disk* → ce dossier → éditeur **6000.5.7f1**.
-2. Ouvrir `Assets/RugWash/Scenes/Workshop.unity`.
-3. Lancer **Play**.
+2. Ouvrir `Assets/RugWash/Scenes/MainMenu.unity` (scène de démarrage du build), puis **Play**.
+   `Workshop.unity` peut aussi être lancée directement : elle charge la sauvegarde existante.
 
-Si la scène est absente ou cassée : menu **RugWash → Setup → Générer la Scène Atelier Complète**
-(la scène est entièrement reconstruite et câblée par code).
+Si une scène est absente ou cassée : menu **RugWash → Setup → Générer la Scène Atelier Complète** /
+**Générer le Menu Principal** (scènes entièrement reconstruites et câblées par code).
 
 > Le tapis réel (maillage, saleté) est créé au lancement ; en mode édition, un aperçu propre est affiché.
 
@@ -51,10 +50,11 @@ Si la scène est absente ou cassée : menu **RugWash → Setup → Générer la 
 | Pause | Échap |
 | Diagnostic (éditeur / build de développement) | F3 |
 
-La sensibilité de la souris est exposée sur `FirstPersonController` (`LookSensitivity`) ; l'écran
-de paramètres qui la rendra réglable en jeu arrive en phase 4. La reconfiguration des touches n'est pas
-encore proposée (les actions sont construites en code dans `RugWashInputActions`, prêtes pour le
-`PerformInteractiveRebinding` du package Input System).
+**Paramètres** (menu principal ou pause → « Paramètres ») — chaque option est réellement appliquée :
+volumes général / effets / interface, sensibilité et inversion de la souris, résolution, mode d'affichage
+(plein écran, plein écran fenêtré, fenêtré), niveau de qualité, et **reconfiguration des touches**
+(avancer, reculer, gauche, droite, courir, interagir, inspecter ; Échap annule la saisie ; « Touches par défaut »).
+Résolution et mode d'affichage n'ont d'effet visible que dans un build (l'éditeur les ignore).
 
 ## 4. Outils et boucle de nettoyage
 
@@ -123,6 +123,8 @@ Assets/RugWash/
     Orders/      OrderDefinition, OrderBook (états), OrderEvaluator (note), OrderManager (cycle de commande)
     Economy/     Wallet, WalletManager, ReputationManager, UpgradeDefinition, EquipmentStats, ShopRules,
                  UpgradeManager (applique les effets), ShopManager
+    Save/        SaveData (format versionné), SaveMigration, SaveFileStore (écriture atomique, secours),
+                 SaveManager (chargement / sauvegarde), SettingsManager (application des paramètres)
     Diagnostics/ Overlay F3, mesure des temps de frame
   Editor/                  (assembly RugWash.Editor) bootstrap projet, génération de textures/contenu/scène, CI
   Shaders/                 RugSurface (URP PBR), TargetRing, ParticleSoft
@@ -179,9 +181,34 @@ couverture, intensité, échelle, graine). L'ajouter à la liste `availableRugs`
 
 ## 8. Sauvegarde
 
-Non implémentée (phase 4). Rien n'est écrit sur le disque par le jeu à ce stade. Les points d'entrée de
-restauration sont déjà prévus (`Wallet.Restore`, `ReputationManager.Restore`, `UpgradeManager.Restore`,
-`OrderBook.MarkCompleted`).
+Fichier JSON local : `%USERPROFILE%\AppData\LocalLow\RugWash Studio\RugWash Simulator\rugwash_save.json`
+(`Application.persistentDataPath`).
+
+```json
+{
+  "version": 1, "profileId": "profile0", "savedAtUtc": "2026-10-11T04:10:00Z",
+  "money": 418, "reputation": 3,
+  "upgrades": ["up_water_1"], "completedOrders": ["order_salon"],
+  "ordersDelivered": 1, "totalEarned": 168,
+  "settings": { "masterVolume": 0.9, "effectsVolume": 0.8, "interfaceVolume": 0.7, "mouseSensitivity": 0.1,
+                "invertY": false, "qualityLevel": -1, "resolutionWidth": 0, "resolutionHeight": 0,
+                "fullScreenMode": -1, "bindingOverrides": "" }
+}
+```
+
+- **Quand** : après une livraison, après un achat, à la fermeture de la fenêtre des paramètres, au retour au menu
+  principal et à la fermeture du jeu. Jamais à chaque frame.
+- **Écriture sûre** : fichier temporaire écrit, relu et validé avant de remplacer la sauvegarde ; la sauvegarde
+  précédente devient `rugwash_save.json.bak`. Des données invalides (solde négatif, identifiant vide…) ne sont
+  jamais écrites.
+- **Récupération** : fichier illisible → copie de secours restaurée ; les deux illisibles → nouvelle partie,
+  sans blocage. Les fichiers endommagés sont conservés (`*.corrupt-<date>`).
+- **Versions** : `SaveMigration` convertit les anciens formats (v0 → v1) ; une sauvegarde d'une version plus
+  récente du jeu n'est ni chargée ni écrasée.
+- **Pas de double récompense** : le paiement et le passage de la commande à « Terminée » sont sauvegardés ensemble ;
+  au chargement, le solde est restauré tel quel et la commande ne peut pas être refaite.
+- **Commande en cours non sauvegardée** : quitter ou revenir au menu pendant une commande l'abandonne (elle reste disponible).
+- Pas de sauvegarde cloud, de synchronisation ni de protection contre la modification du fichier.
 
 ## 9. Tests
 
@@ -189,8 +216,9 @@ restauration sont déjà prévus (`Wallet.Restore`, `ReputationManager.Restore`,
 powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 ```
 
-Étapes : `compile`, `bootstrap`, `scene`, `test` (EditMode, sans GPU), `playmode` (avec GPU,
-produit des captures dans `Logs/ci/screens`). Résultats NUnit XML dans `Logs/ci/`.
+Étapes : `compile`, `bootstrap`, `scene` (atelier + menu principal), `test` (EditMode, sans GPU),
+`playmode` (avec GPU, produit des captures dans `Logs/ci/screens`). Les tests utilisent un dossier de
+sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 
 Dans l'éditeur : *Window → General → Test Runner*.
@@ -198,7 +226,7 @@ Dans l'éditeur : *Window → General → Test Runner*.
 ## 10. Build Windows
 
 Non encore produit ni vérifié. Procédure prévue : *File → Build Profiles → Windows* (scènes déjà
-enregistrées : MainMenu, Workshop, Results), ou en ligne de commande en phase 6.
+enregistrées : MainMenu puis Workshop), ou en ligne de commande en phase 6.
 
 ## 11. Limites connues
 

@@ -84,7 +84,7 @@ if ($Step -in 'bootstrap', 'all') {
 }
 if ($Step -in 'scene', 'all') {
     # Processus séparé : le changement de backend d'entrée nécessite un redémarrage de l'éditeur.
-    Invoke-Unity 'scene' @('-quit', '-executeMethod', 'RugWash.Editor.RugWashCI.BuildWorkshopScene')
+    Invoke-Unity 'scene' @('-quit', '-executeMethod', 'RugWash.Editor.RugWashCI.BuildAllScenes')
 }
 if ($Step -in 'test', 'all') {
     $results = Join-Path $LogDir 'editmode-results.xml'

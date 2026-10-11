@@ -6,6 +6,7 @@ using RugWash.Economy;
 using RugWash.Effects;
 using RugWash.Orders;
 using RugWash.Player;
+using RugWash.Save;
 using RugWash.UI;
 using UnityEngine;
 
@@ -23,6 +24,8 @@ namespace RugWash.Core
         [Header("Noyau")]
         [SerializeField] GameStateManager gameState;
         [SerializeField] AudioManager audioManager;
+        [SerializeField] SaveManager saveManager;
+        [SerializeField] SettingsManager settingsManager;
 
         [Header("Joueur")]
         [SerializeField] PlayerInputReader input;
@@ -50,6 +53,7 @@ namespace RugWash.Core
         [SerializeField] OrderBoardUI orderBoard;
         [SerializeField] ShopUI shopUI;
         [SerializeField] ResultsUI results;
+        [SerializeField] SettingsUI settingsUI;
         [SerializeField] DebugOverlay debugOverlay;
 
         IModalPanel[] modalPanels;
@@ -67,6 +71,10 @@ namespace RugWash.Core
         public OrderBoardUI OrderBoard => orderBoard;
         public ShopUI ShopUI => shopUI;
         public ResultsUI Results => results;
+        public SettingsUI SettingsUI => settingsUI;
+        public SaveManager SaveSystem => saveManager;
+        public SettingsManager Settings => settingsManager;
+        public HUDController Hud => hud;
         public bool IsReady { get; private set; }
 
         /// <summary>Vérifie toutes les références, y compris celles des composants enfants.</summary>
@@ -80,6 +88,9 @@ namespace RugWash.Core
 
             Require(gameState, nameof(gameState));
             Require(audioManager, nameof(audioManager));
+            Require(saveManager, nameof(saveManager));
+            Require(settingsManager, nameof(settingsManager));
+            Require(settingsUI, nameof(settingsUI));
             Require(input, nameof(input));
             Require(playerController, nameof(playerController));
             Require(toolController, nameof(toolController));
@@ -118,6 +129,8 @@ namespace RugWash.Core
             if (orderBoard != null && !orderBoard.IsConfigured(out detail)) problems.Add($"orderBoard.{detail}");
             if (shopUI != null && !shopUI.IsConfigured(out detail)) problems.Add($"shopUI.{detail}");
             if (results != null && !results.IsConfigured(out detail)) problems.Add($"results.{detail}");
+            if (settingsUI != null && !settingsUI.IsConfigured(out detail)) problems.Add($"settingsUI.{detail}");
+            if (saveManager != null && !saveManager.IsConfigured(out detail)) problems.Add($"saveManager.{detail}");
             if (debugOverlay != null && !debugOverlay.IsConfigured(out detail)) problems.Add($"debugOverlay.{detail}");
 
             missing = string.Join(", ", problems);
@@ -133,7 +146,8 @@ namespace RugWash.Core
                 enabled = false;
                 return;
             }
-            modalPanels = new IModalPanel[] { inspection, orderBoard, shopUI };
+            // Ordre = priorité de fermeture par Échap (les paramètres s'ouvrent par-dessus la pause).
+            modalPanels = new IModalPanel[] { settingsUI, inspection, orderBoard, shopUI };
             IsReady = true;
         }
 
@@ -144,7 +158,9 @@ namespace RugWash.Core
             hud.Bind(toolController, interactor, input, rug, gameState);
             hud.BindEconomy(wallet, reputation, orders);
             toolbar.Bind(toolController);
-            pauseMenu.Bind(gameState, rug, orders, availableRugs);
+            pauseMenu.Bind(gameState, rug, orders, availableRugs, settingsUI, saveManager);
+            settingsUI.Bind(settingsManager, saveManager, gameState);
+            saveManager.Saved += OnSaved;
             inspection.Bind(gameState, rug, snapshots);
             orderBoard.Bind(gameState, orders, wallet);
             shopUI.Bind(gameState, shop);
@@ -155,14 +171,18 @@ namespace RugWash.Core
             audioManager.RegisterButtons(orderBoard);
             audioManager.RegisterButtons(shopUI);
             audioManager.RegisterButtons(results);
+            audioManager.RegisterButtons(settingsUI);
 
             gameState.StateChanged += OnGameStateChanged;
             gameState.ModalsChanged += SyncGameplayInput;
             SyncGameplayInput();
         }
 
+        void OnSaved(bool success, string message) => hud.ShowToast(message);
+
         void OnDestroy()
         {
+            if (saveManager != null) saveManager.Saved -= OnSaved;
             if (gameState == null) return;
             gameState.StateChanged -= OnGameStateChanged;
             gameState.ModalsChanged -= SyncGameplayInput;
@@ -171,6 +191,7 @@ namespace RugWash.Core
         void Update()
         {
             if (!IsReady) return;
+            if (settingsUI.IsRebinding) return;
 
             if (input.PausePressed)
             {

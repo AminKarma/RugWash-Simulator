@@ -25,7 +25,6 @@ namespace RugWash.Editor
 
         public const string MainMenuScene = Scenes + "/MainMenu.unity";
         public const string WorkshopScene = Scenes + "/Workshop.unity";
-        public const string ResultsScene = Scenes + "/Results.unity";
 
         public const string UrpAsset = RenderingSettings + "/RugWash_URP.asset";
         public const string UrpRendererData = RenderingSettings + "/RugWash_URP_Renderer.asset";
@@ -63,6 +62,7 @@ namespace RugWash.Editor
             Root + "/Scripts/Orders",
             Root + "/Scripts/Effects",
             Root + "/Scripts/Player",
+            Root + "/Scripts/Save",
             Root + "/Scripts/UI",
             Root + "/Settings",
             Root + "/Settings/Rendering",
@@ -75,7 +75,8 @@ namespace RugWash.Editor
         };
 
         /// <summary>Ordre des scènes dans les Build Settings.</summary>
-        public static readonly string[] BuildScenes = { MainMenuScene, WorkshopScene, ResultsScene };
+        /// <summary>Les résultats s'affichent dans l'atelier (fenêtre) : pas de scène dédiée.</summary>
+        public static readonly string[] BuildScenes = { MainMenuScene, WorkshopScene };
     }
 
     public static class RugWashProjectBootstrapper
@@ -116,7 +117,6 @@ namespace RugWash.Editor
             EnsureLayers();
             bool restartRequired = ConfigurePlayerSettings();
             EnsureUniversalRenderPipeline();
-            EnsurePlaceholderScenes();
             SyncBuildScenes();
             AssetDatabase.SaveAssets();
             Debug.Log("[RugWash] Initialisation du projet terminée." +
@@ -277,33 +277,12 @@ namespace RugWash.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        /// <summary>Crée MainMenu/Results vides s'ils n'existent pas, pour réserver leur place dans le build.</summary>
-        public static void EnsurePlaceholderScenes()
-        {
-            string previousScene = EditorSceneManager.GetActiveScene().path;
-            bool created = false;
-
-            if (!File.Exists(RugWashPaths.MainMenuScene))
-            {
-                RugWashSceneBuilder.CreatePlaceholderScene(RugWashPaths.MainMenuScene, "RugWash Simulator");
-                created = true;
-            }
-            if (!File.Exists(RugWashPaths.ResultsScene))
-            {
-                RugWashSceneBuilder.CreatePlaceholderScene(RugWashPaths.ResultsScene, "Résultats");
-                created = true;
-            }
-
-            if (created && !string.IsNullOrEmpty(previousScene) && File.Exists(previousScene))
-                EditorSceneManager.OpenScene(previousScene, OpenSceneMode.Single);
-        }
-
-        /// <summary>Place MainMenu → Workshop → Results en tête des Build Settings (scènes existantes uniquement).</summary>
+        /// <summary>Place MainMenu → Workshop en tête des Build Settings (scènes existantes uniquement).</summary>
         public static void SyncBuildScenes()
         {
             var ordered = RugWashPaths.BuildScenes.Where(File.Exists).ToList();
             var scenes = ordered.Select(path => new EditorBuildSettingsScene(path, true)).ToList();
-            scenes.AddRange(EditorBuildSettings.scenes.Where(s => !ordered.Contains(s.path)));
+            scenes.AddRange(EditorBuildSettings.scenes.Where(s => !ordered.Contains(s.path) && File.Exists(s.path)));
             EditorBuildSettings.scenes = scenes.ToArray();
         }
     }

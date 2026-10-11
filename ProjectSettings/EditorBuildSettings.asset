@@ -11,7 +11,4 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/RugWash/Scenes/Workshop.unity
     guid: d06afb147d2af044ca015a3e9268e3b0
-  - enabled: 1
-    path: Assets/RugWash/Scenes/Results.unity
-    guid: 02bafd3eb4e69d04ab7d536dc79d7452
   m_configObjects: {}

@@ -341,6 +341,31 @@ namespace RugWash.Editor
             return button;
         }
 
+        public static Slider CreateSlider(string name, Transform parent, Sprite rounded, Sprite white, Vector2 size, Color fill)
+        {
+            var root = CreateRect(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size);
+
+            var background = CreateRect("Background", root, new Vector2(0f, 0.35f), new Vector2(1f, 0.65f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            AddImage(background, rounded, new Color(0f, 0f, 0f, 0.55f));
+
+            var fillArea = CreateRect("Fill Area", root, new Vector2(0f, 0.35f), new Vector2(1f, 0.65f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(-20f, 0f));
+            var fillRect = CreateRect("Fill", fillArea, Vector2.zero, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10f, 0f));
+            AddImage(fillRect, white, fill, sliced: false);
+
+            var handleArea = CreateRect("Handle Slide Area", root, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(-20f, 0f));
+            var handle = CreateRect("Handle", handleArea, Vector2.zero, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(22f, 0f));
+            var handleImage = AddImage(handle, rounded, Color.white, raycast: true);
+
+            var slider = root.gameObject.AddComponent<Slider>();
+            slider.fillRect = fillRect;
+            slider.handleRect = handle;
+            slider.targetGraphic = handleImage;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            return slider;
+        }
+
         public static VerticalLayoutGroup AddVerticalLayout(GameObject go, int spacing, RectOffset padding, TextAnchor alignment)
         {
             var layout = go.AddComponent<VerticalLayoutGroup>();

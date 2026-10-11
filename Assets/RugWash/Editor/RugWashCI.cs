@@ -21,6 +21,13 @@ namespace RugWash.Editor
 
         public static void BuildWorkshopScene() => Run("BuildWorkshopScene", () => RugWashSceneBuilder.BuildWorkshopScene());
 
+        /// <summary>Génère l'atelier puis le menu principal.</summary>
+        public static void BuildAllScenes() => Run("BuildAllScenes", () =>
+        {
+            RugWashSceneBuilder.BuildWorkshopScene();
+            RugWashSceneBuilder.BuildMainMenuScene();
+        });
+
         static void Run(string step, Action action)
         {
             try
