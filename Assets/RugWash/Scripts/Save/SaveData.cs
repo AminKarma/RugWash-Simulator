@@ -13,6 +13,8 @@ namespace RugWash.Save
         public float interfaceVolume = 0.7f;
         public float mouseSensitivity = 0.1f;
         public bool invertY;
+        /// <summary>Intensité du balancement caméra/outils (0 = désactivé).</summary>
+        public float motionIntensity = 1f;
         /// <summary>-1 = niveau de qualité par défaut du projet.</summary>
         public int qualityLevel = -1;
         /// <summary>0 = résolution actuelle de l'écran.</summary>
@@ -79,6 +81,7 @@ namespace RugWash.Save
             s.effectsVolume = Mathf.Clamp01(s.effectsVolume);
             s.interfaceVolume = Mathf.Clamp01(s.interfaceVolume);
             s.mouseSensitivity = Mathf.Clamp(s.mouseSensitivity, 0.01f, 0.5f);
+            s.motionIntensity = Mathf.Clamp01(s.motionIntensity);
             if (s.bindingOverrides == null) s.bindingOverrides = string.Empty;
         }
     }

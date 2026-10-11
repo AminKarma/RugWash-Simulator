@@ -120,11 +120,21 @@ namespace RugWash.Editor
             Wire(shop, ("wallet", wallet), ("upgrades", upgrades), ("audioManager", audio));
             var orders = game.AddComponent<OrderManager>();
             Wire(orders, ("practiceRug", content.Oriental), ("rug", rug), ("snapshots", snapshots), ("gameState", gameState),
-                ("wallet", wallet), ("reputation", reputation), ("audioManager", audio));
+                ("wallet", wallet), ("reputation", reputation), ("audioManager", audio), ("rewardClip", Clip(RugWashAudioGenerator.Reward)));
+
+            // Retours de nettoyage : scan de saleté (touche R) et paliers de propreté.
+            var scanner = game.AddComponent<DirtScanner>();
+            Wire(scanner, ("input", input), ("gameState", gameState), ("rug", rug),
+                ("origin", player.GetComponentInChildren<Camera>(true).transform), ("audioManager", audio),
+                ("scanClip", Clip(RugWashAudioGenerator.ScanPulse)), ("deniedClip", Clip(RugWashAudioGenerator.ScanDenied)));
+            var progressFeedback = game.AddComponent<CleaningProgressFeedback>();
+            Wire(progressFeedback, ("rug", rug), ("orders", orders), ("audioManager", audio),
+                ("milestoneClip", Clip(RugWashAudioGenerator.Milestone)), ("celebrationPool", cleanPool));
             WireList(orders, "orders", content.Orders);
 
             var settings = game.AddComponent<SettingsManager>();
-            Wire(settings, ("audioManager", audio), ("player", fps), ("input", input));
+            Wire(settings, ("audioManager", audio), ("player", fps), ("input", input),
+                ("viewModelRig", player.GetComponentInChildren<ViewModelRig>(true)), ("cameraMotion", player.GetComponentInChildren<CameraMotion>(true)));
             var save = game.AddComponent<SaveManager>();
             Wire(save, ("settings", settings), ("wallet", wallet), ("reputation", reputation), ("upgrades", upgrades),
                 ("orders", orders), ("shop", shop));
@@ -147,6 +157,8 @@ namespace RugWash.Editor
                 ("interactor", interactor),
                 ("rug", rug),
                 ("snapshots", snapshots),
+                ("dirtScanner", scanner),
+                ("progressFeedback", progressFeedback),
                 ("hud", ui.Hud),
                 ("toolbar", ui.Toolbar),
                 ("pauseMenu", ui.Pause),
@@ -652,7 +664,9 @@ namespace RugWash.Editor
             int aimMask = ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5));
             SetInt(toolController, "aimMask", aimMask);
 
-            Wire(rig.gameObject.AddComponent<ViewModelRig>(), ("input", input), ("controller", fps), ("tools", toolController));
+            Wire(rig.gameObject.AddComponent<ViewModelRig>(), ("input", input), ("controller", fps), ("tools", toolController),
+                ("audioManager", audio), ("equipClip", Clip(RugWashAudioGenerator.ToolEquip)));
+            Wire(cameraGo.AddComponent<CameraMotion>(), ("controller", fps));
             var footsteps = player.AddComponent<FootstepAudio>();
             Wire(footsteps, ("controller", fps), ("audioManager", audio));
             var stepClips = new List<AudioClip>();
@@ -677,23 +691,25 @@ namespace RugWash.Editor
         static AudioClip Clip(string path) => AssetDatabase.LoadAssetAtPath<AudioClip>(path);
 
         /// <summary>Crée l'objet logique de l'outil avec sa source audio en boucle.</summary>
-        static T CreateTool<T>(ToolBuildContext ctx, string name, ToolDefinition definition, Transform model, string loopClip,
-            float baseVolume, float contactBoost, float contactPitch) where T : CleaningToolBase
+        static T CreateTool<T>(ToolBuildContext ctx, string name, ToolDefinition definition, RugWashToolModels.Model model, string loopClip,
+            float baseVolume, float contactBoost, float contactPitch, string contactClip, float contactVolume) where T : CleaningToolBase
         {
             var go = new GameObject(name);
             go.transform.SetParent(ctx.Root, false);
             var source = go.AddComponent<AudioSource>();
             source.playOnAwake = false;
             var toolAudio = go.AddComponent<CleaningAudioController>();
-            Wire(toolAudio, ("audioManager", ctx.Audio), ("loop", Clip(loopClip)));
+            Wire(toolAudio, ("audioManager", ctx.Audio), ("loop", Clip(loopClip)), ("contactLoop", Clip(contactClip)));
             var serialized = new SerializedObject(toolAudio);
             serialized.FindProperty("baseVolume").floatValue = baseVolume;
             serialized.FindProperty("contactVolumeBoost").floatValue = contactBoost;
             serialized.FindProperty("contactPitchShift").floatValue = contactPitch;
+            serialized.FindProperty("contactLoopVolume").floatValue = contactVolume;
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             var tool = go.AddComponent<T>();
-            Wire(tool, ("definition", definition), ("viewModel", model), ("toolAudio", toolAudio), ("cleanFeedback", ctx.CleanPool));
+            Wire(tool, ("definition", definition), ("viewModel", model.Root), ("aimTip", model.Tip), ("toolAudio", toolAudio),
+                ("cleanFeedback", ctx.CleanPool));
             return tool;
         }
 
@@ -708,7 +724,8 @@ namespace RugWash.Editor
                 Gravity = 0f, MaxParticles = 160, Shape = ParticleSystemShapeType.Cone, Angle = 25f, Radius = 0.12f, Rate = 0f,
                 Loop = true, PlayOnAwake = true,
             });
-            var tool = CreateTool<VacuumTool>(ctx, "Vacuum", c.Vacuum, model.Root, RugWashAudioGenerator.VacuumLoop, 0.45f, 0.2f, -0.06f);
+            var tool = CreateTool<VacuumTool>(ctx, "Vacuum", c.Vacuum, model, RugWashAudioGenerator.VacuumLoop, 0.45f, 0.1f, -0.06f,
+                RugWashAudioGenerator.VacuumContactLoop, 0.35f);
             Wire(tool, ("suctionParticles", suction), ("nozzle", model.Tip));
             return tool;
         }
@@ -729,7 +746,8 @@ namespace RugWash.Editor
                 Lifetime = new Vector2(0.5f, 0.9f), Speed = new Vector2(0.05f, 0.25f), Size = new Vector2(0.03f, 0.07f), Color = Color.white,
                 Gravity = 0f, MaxParticles = 80, Shape = ParticleSystemShapeType.Circle, Radius = 0.15f, Rate = 0f, Loop = true, PlayOnAwake = true,
             });
-            var tool = CreateTool<SoapSprayerTool>(ctx, "Soap", c.Soap, model.Root, RugWashAudioGenerator.SoapLoop, 0.4f, 0.1f, 0f);
+            var tool = CreateTool<SoapSprayerTool>(ctx, "Soap", c.Soap, model, RugWashAudioGenerator.SoapLoop, 0.4f, 0.1f, 0f,
+                RugWashAudioGenerator.FoamContactLoop, 0.4f);
             Wire(tool, ("sprayParticles", spray), ("foamPuffs", puffs));
             return tool;
         }
@@ -742,10 +760,11 @@ namespace RugWash.Editor
             var debris = CreateParticles("BrushDebris", ctx.Effects, c["Debris"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.35f, 0.7f), Speed = new Vector2(0.3f, 1.1f), Size = new Vector2(0.008f, 0.02f),
-                Color = Color.white, Gravity = 1f, MaxParticles = 160, Shape = ParticleSystemShapeType.Cone, Angle = 55f,
+                Color = new Color(0.36f, 0.27f, 0.18f, 1f), Gravity = 1f, MaxParticles = 160, Shape = ParticleSystemShapeType.Cone, Angle = 55f,
                 Radius = 0.08f, Rate = 0f, Loop = true, PlayOnAwake = true,
             });
-            var tool = CreateTool<BrushTool>(ctx, "Brush", c.Brush, model.Root, RugWashAudioGenerator.BrushLoop, 0.25f, 0.35f, 0.05f);
+            var tool = CreateTool<BrushTool>(ctx, "Brush", c.Brush, model, RugWashAudioGenerator.BrushLoop, 0.25f, 0.15f, 0.05f,
+                RugWashAudioGenerator.BrushContactLoop, 0.45f);
             Wire(tool, ("debrisParticles", debris));
             return tool;
         }
@@ -767,7 +786,8 @@ namespace RugWash.Editor
                 Color = Color.white, Gravity = 1.3f, MaxParticles = 300, Shape = ParticleSystemShapeType.Hemisphere,
                 Radius = 0.05f, Rate = 0f, Loop = true, PlayOnAwake = true, Stretch = 0.02f,
             });
-            var tool = CreateTool<WaterRinseTool>(ctx, "Rinse", c.Rinse, model.Root, RugWashAudioGenerator.RinseLoop, 0.45f, 0.15f, -0.05f);
+            var tool = CreateTool<WaterRinseTool>(ctx, "Rinse", c.Rinse, model, RugWashAudioGenerator.RinseLoop, 0.45f, 0.1f, -0.05f,
+                RugWashAudioGenerator.RinseContactLoop, 0.4f);
             Wire(tool, ("jetParticles", jet), ("splashParticles", splash));
             SetFloat(tool, "jetRate", 520f);
             return tool;
@@ -784,7 +804,8 @@ namespace RugWash.Editor
                 Gravity = 0f, MaxParticles = 180, Shape = ParticleSystemShapeType.Cone, Angle = 20f, Radius = 0.1f, Rate = 0f,
                 Loop = true, PlayOnAwake = true, Stretch = 0.02f,
             });
-            var tool = CreateTool<WaterExtractorTool>(ctx, "Extractor", c.Extractor, model.Root, RugWashAudioGenerator.ExtractorLoop, 0.45f, 0.25f, -0.1f);
+            var tool = CreateTool<WaterExtractorTool>(ctx, "Extractor", c.Extractor, model, RugWashAudioGenerator.ExtractorLoop, 0.45f, 0.12f, -0.1f,
+                RugWashAudioGenerator.ExtractorContactLoop, 0.45f);
             Wire(tool, ("suctionDroplets", droplets), ("nozzle", model.Tip));
             return tool;
         }
@@ -849,6 +870,16 @@ namespace RugWash.Editor
             var cleanFill = CreateFillBar("Bar", cleanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(520f, 18f),
                 sprites.Rounded, sprites.White, new Color(0f, 0f, 0f, 0.5f), Accent, out _);
 
+            var scanPanel = CreateRect("ScanPanel", hudRoot, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), new Vector2(330f, 64f));
+            AddImage(scanPanel, sprites.Rounded, PanelColor);
+            var scanLabel = AddText(CreateRect("Label", scanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(306f, 30f)),
+                "Scanner la saleté", 21, TextAnchor.MiddleLeft, Color.white);
+            scanLabel.resizeTextForBestFit = true;
+            scanLabel.resizeTextMinSize = 14;
+            scanLabel.resizeTextMaxSize = 21;
+            var scanFill = CreateFillBar("Bar", scanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(306f, 10f),
+                sprites.Rounded, sprites.White, new Color(0f, 0f, 0f, 0.5f), new Color(1f, 0.62f, 0.2f), out _);
+
             var toast = AddText(CreateRect("Toast", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(900f, 36f)),
                 string.Empty, 24, TextAnchor.MiddleCenter, new Color(0.75f, 1f, 0.8f));
 
@@ -876,7 +907,8 @@ namespace RugWash.Editor
             built.Hud = hudRoot.gameObject.AddComponent<HUDController>();
             Wire(built.Hud, ("root", hudGroup), ("toolNameLabel", toolName), ("toolStatusLabel", toolStatus), ("resourceFill", resourceFill),
                 ("resourceBar", resourceBar.gameObject), ("cleanlinessLabel", cleanLabel), ("cleanlinessFill", cleanFill),
-                ("promptLabel", prompt), ("hintLabel", hint), ("toastLabel", toast), ("economyLabel", economy), ("orderLabel", orderInfo));
+                ("promptLabel", prompt), ("hintLabel", hint), ("toastLabel", toast), ("economyLabel", economy), ("orderLabel", orderInfo),
+                ("cleanlinessPanel", cleanPanel), ("scanLabel", scanLabel), ("scanFill", scanFill));
 
             // ---- Barre d'outils
             var bar = CreateRect("ToolBar", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(900f, 52f));
@@ -1140,9 +1172,10 @@ namespace RugWash.Editor
             var master = SliderRow(left, "Volume général", sprites, out var masterValue);
             var effects = SliderRow(left, "Effets", sprites, out var effectsValue);
             var interfaceSlider = SliderRow(left, "Interface", sprites, out var interfaceValue);
-            SectionTitle(left, "Souris");
+            SectionTitle(left, "Contrôles");
             var sensitivity = SliderRow(left, "Sensibilité", sprites, out var sensitivityValue);
             var invert = StepperRow(left, "Inverser l'axe vertical", sprites);
+            var motion = SliderRow(left, "Balancement", sprites, out var motionValue);
             SectionTitle(left, "Affichage");
             var resolution = StepperRow(left, "Résolution", sprites);
             var display = StepperRow(left, "Mode d'affichage", sprites);
@@ -1151,8 +1184,8 @@ namespace RugWash.Editor
             var right = CreateRect("Right", window, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-50f, -100f), new Vector2(580f, 700f));
             AddVerticalLayout(right.gameObject, 6, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
             SectionTitle(right, "Touches (disposition physique du clavier)");
-            var list = CreateRect("Bindings", right, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(580f, 420f));
-            list.gameObject.AddComponent<LayoutElement>().preferredHeight = 430f;
+            var list = CreateRect("Bindings", right, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(580f, 480f));
+            list.gameObject.AddComponent<LayoutElement>().preferredHeight = 490f;
             AddVerticalLayout(list.gameObject, 6, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
 
             var template = CreateRect("RebindTemplate", list, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(580f, 54f));
@@ -1178,7 +1211,7 @@ namespace RugWash.Editor
             var ui = window.parent.parent.gameObject.AddComponent<SettingsUI>();
             Wire(ui, ("panel", panel), ("masterSlider", master), ("effectsSlider", effects), ("interfaceSlider", interfaceSlider),
                 ("sensitivitySlider", sensitivity), ("masterValue", masterValue), ("effectsValue", effectsValue), ("interfaceValue", interfaceValue),
-                ("sensitivityValue", sensitivityValue), ("invertYStepper", invert), ("resolutionStepper", resolution),
+                ("sensitivityValue", sensitivityValue), ("motionSlider", motion), ("motionValue", motionValue), ("invertYStepper", invert), ("resolutionStepper", resolution),
                 ("displayModeStepper", display), ("qualityStepper", quality), ("rebindRoot", list), ("rebindTemplate", rebindRow),
                 ("resetBindingsButton", reset), ("closeButton", close), ("messageLabel", message));
             panel.SetActive(false);

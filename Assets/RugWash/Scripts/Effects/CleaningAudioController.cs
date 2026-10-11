@@ -4,8 +4,10 @@ using UnityEngine;
 namespace RugWash.Effects
 {
     /// <summary>
-    /// Son en boucle d'un outil : fondu à l'activation, hauteur/volume modulés par l'intensité réelle
-    /// (contact avec le tapis), arrêt immédiat au changement d'outil, en pause ou à la destruction.
+    /// Sons en boucle d'un outil : boucle de fonctionnement (moteur, jet…) et boucle de contact optionnelle
+    /// (eau sur les fibres, poils qui frottent…) dosée par l'intensité réelle du contact avec le tapis.
+    /// Fondu à l'activation, fondu très court au rangement (pas de clic audible), arrêt immédiat en pause
+    /// ou à la désactivation. Volumes soumis à la catégorie « Effets ».
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
     [DisallowMultipleComponent]
@@ -19,40 +21,100 @@ namespace RugWash.Effects
         [SerializeField] float contactPitchShift = -0.08f;
         [SerializeField] float fadeSpeed = 6f;
 
-        AudioSource source;
-        float level;
+        [Header("Contact avec le tapis (optionnel)")]
+        [SerializeField] AudioClip contactLoop;
+        [SerializeField, Range(0f, 1f)] float contactLoopVolume = 0.5f;
+        [SerializeField] float contactFadeSpeed = 10f;
 
-        public bool IsAudible => source != null && source.isPlaying && source.volume > 0.001f;
+        [Tooltip("Durée du fondu de sortie au rangement de l'outil (s).")]
+        [SerializeField, Range(0.01f, 0.3f)] float releaseTime = 0.06f;
+
+        AudioSource source;
+        AudioSource contactSource;
+        float level;
+        float contactLevel;
+        bool released;
+
+        public bool IsAudible => (source != null && source.isPlaying && source.volume > 0.001f) || IsContactAudible;
+        public bool IsContactAudible => contactSource != null && contactSource.isPlaying && contactSource.volume > 0.001f;
 
         void Awake()
         {
             source = GetComponent<AudioSource>();
-            source.playOnAwake = false;
-            source.loop = true;
-            source.spatialBlend = 0f;
-            source.clip = loop;
-            source.volume = 0f;
+            Configure(source, loop);
+            if (contactLoop != null)
+            {
+                contactSource = gameObject.AddComponent<AudioSource>();
+                Configure(contactSource, contactLoop);
+            }
+        }
+
+        static void Configure(AudioSource audioSource, AudioClip clip)
+        {
+            audioSource.playOnAwake = false;
+            audioSource.loop = true;
+            audioSource.spatialBlend = 0f;
+            audioSource.clip = clip;
+            audioSource.volume = 0f;
         }
 
         /// <summary>Appelé chaque frame par l'outil actif.</summary>
-        public void Drive(bool active, float contact01, float deltaTime)
+        /// <param name="contact01">Intensité de travail (module la boucle principale).</param>
+        /// <param name="surfaceContact01">Contact réel avec le tapis (dose la boucle de contact ; 0 hors du tapis).</param>
+        public void Drive(bool active, float contact01, float surfaceContact01, float deltaTime)
         {
-            if (loop == null) return;
+            released = false;
             level = Mathf.MoveTowards(level, active ? 1f : 0f, fadeSpeed * deltaTime);
-            float categoryVolume = audioManager != null ? audioManager.VolumeFor(AudioCategory.Effects) : 1f;
-            source.volume = level * (baseVolume + contactVolumeBoost * contact01) * categoryVolume;
-            source.pitch = basePitch + contactPitchShift * contact01;
+            contactLevel = Mathf.MoveTowards(contactLevel, active ? Mathf.Clamp01(surfaceContact01) : 0f, contactFadeSpeed * deltaTime);
+            Apply(contact01);
+        }
 
-            if (level > 0f && !source.isPlaying) source.Play();
-            else if (level <= 0f && source.isPlaying) source.Stop();
+        /// <summary>Outil rangé : fondu de sortie très court géré par ce composant (l'outil n'appelle plus Drive).</summary>
+        public void Release() => released = true;
+
+        void Update()
+        {
+            if (!released || (level <= 0f && contactLevel <= 0f)) return;
+            // Temps non mis à l'échelle : le fondu se termine même si le jeu vient d'être mis en pause.
+            float step = Time.unscaledDeltaTime / releaseTime;
+            level = Mathf.MoveTowards(level, 0f, step);
+            contactLevel = Mathf.MoveTowards(contactLevel, 0f, step);
+            Apply(0f);
+        }
+
+        void Apply(float contact01)
+        {
+            float categoryVolume = audioManager != null ? audioManager.VolumeFor(AudioCategory.Effects) : 1f;
+            if (loop != null)
+            {
+                source.volume = level * (baseVolume + contactVolumeBoost * contact01) * categoryVolume;
+                source.pitch = basePitch + contactPitchShift * contact01;
+                Toggle(source, level > 0f);
+            }
+            if (contactSource != null)
+            {
+                contactSource.volume = contactLevel * contactLoopVolume * categoryVolume;
+                Toggle(contactSource, contactLevel > 0f);
+            }
+        }
+
+        static void Toggle(AudioSource audioSource, bool play)
+        {
+            if (play && !audioSource.isPlaying) audioSource.Play();
+            else if (!play && audioSource.isPlaying) audioSource.Stop();
         }
 
         public void StopImmediate()
         {
             level = 0f;
-            if (source == null) return;
-            source.volume = 0f;
-            if (source.isPlaying) source.Stop();
+            contactLevel = 0f;
+            released = false;
+            foreach (var audioSource in new[] { source, contactSource })
+            {
+                if (audioSource == null) continue;
+                audioSource.volume = 0f;
+                if (audioSource.isPlaying) audioSource.Stop();
+            }
         }
 
         void OnDisable() => StopImmediate();

@@ -85,6 +85,7 @@ namespace RugWash.Save
             new RebindableAction("Aller à droite", "Move", "right"),
             new RebindableAction("Courir", "Sprint"),
             new RebindableAction("Interagir", "Interact"),
+            new RebindableAction("Scanner la saleté", "Scan"),
             new RebindableAction("Inspecter", "Inspect"),
         };
 
@@ -95,6 +96,9 @@ namespace RugWash.Save
         [SerializeField] FirstPersonController player;
         [Tooltip("Optionnel (atelier) : reçoit les liaisons de touches.")]
         [SerializeField] PlayerInputReader input;
+        [Tooltip("Optionnel (atelier) : reçoivent l'intensité du balancement.")]
+        [SerializeField] ViewModelRig viewModelRig;
+        [SerializeField] CameraMotion cameraMotion;
 
         InputActionAsset ownAsset;
 
@@ -122,6 +126,7 @@ namespace RugWash.Save
             SaveValidator.ClampSettings(Current);
             ApplyAudio();
             ApplyMouse();
+            ApplyMotion();
             ApplyQuality();
             ApplyDisplay();
             ApplyBindings();
@@ -141,6 +146,8 @@ namespace RugWash.Save
         }
 
         public void SetInvertY(bool value) { Current.invertY = value; ApplyMouse(); Changed?.Invoke(); }
+
+        public void SetMotionIntensity(float value) { Current.motionIntensity = Mathf.Clamp01(value); ApplyMotion(); Changed?.Invoke(); }
 
         public void SetQualityLevel(int level)
         {
@@ -245,6 +252,12 @@ namespace RugWash.Save
             if (player == null) return;
             player.LookSensitivity = Current.mouseSensitivity;
             player.InvertY = Current.invertY;
+        }
+
+        void ApplyMotion()
+        {
+            if (viewModelRig != null) viewModelRig.Intensity = Current.motionIntensity;
+            if (cameraMotion != null) cameraMotion.Intensity = Current.motionIntensity;
         }
 
         void ApplyQuality()

@@ -67,6 +67,10 @@ namespace RugWash.Cleaning
                 emission.rateOverTimeMultiplier = splashing ? splashRate : 0f;
                 if (splashing)
                 {
+                    // Eau trouble tant qu'elle emporte de la saleté détachée, claire sur une zone propre.
+                    var main = splashParticles.main;
+                    float muddy = TrySampleDirt(aim, out Color dirt, out RugCell cell) ? Mathf.Clamp01(cell.Loosened * 3f + cell.Stain) : 0f;
+                    main.startColor = Color.Lerp(Color.white, dirt * 1.35f, muddy * 0.8f);
                     splashParticles.transform.SetPositionAndRotation(aim.Point + aim.Normal * 0.01f, Quaternion.LookRotation(aim.Normal));
                     if (!splashParticles.isPlaying) splashParticles.Play();
                 }

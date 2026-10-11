@@ -119,6 +119,29 @@ Dernière mise à jour : fin de la phase 6 — Unity 6000.5.7f1. Tests exécuté
 | Rapport de validation, instructions de build, limites | Implémenté | `VALIDATION.md`, README |
 | Performance sur matériel plus modeste | À faire | Une seule machine disponible |
 
+## Roadmap V2 — Jalon 0 (audit)
+
+Rapport : [AUDIT_V2.md](AUDIT_V2.md) — état réel du projet, cause du bug d'alignement, hypothèses « un seul joueur »
+à lever pour la coopération, architecture réseau envisagée, risques.
+
+## Roadmap V2 — Jalon 1 (corrections et game feel)
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 1.1 Alignement : chaque outil pointe son extrémité active vers le point visé (cause traitée : pose fixe jamais orientée) | Testé | `EveryTool_PointsAtTheReticleTarget_FromAllAnglesAndDistances` (5 outils × 7 poses : écart ≤ 0,05°, contre 7° à 35° avant) ; `ToolAlignment_IsStable_NoJitterWhenStill` ; captures `19_*` (avant) / `20_*` (après) |
+| 1.1 Le point nettoyé reste exactement sous le réticule, y compris de côté | Testé | `Brush_CleansUnderTheReticle_FromASideAngle`, contrôle de projection dans le test d'alignement |
+| 1.2 Balancement caméra (balancier, inclinaison en pas chassé) et outils (souris, marche, inertie aux changements de direction) | Testé | `Walking_MovesCameraAndTool_ButReticleStillMatchesCleaningPoint` (clavier virtuel) |
+| 1.2 Réglage « Balancement » (0 % = désactivé), appliqué immédiatement, sauvegardé | Testé | `MotionIntensityZero_DisablesCameraAndToolSway`, `MotionIntensity_SetInSettings_IsAppliedSavedAndRestored`, `MotionIntensity_DefaultsToOne_IsClamped_AndOldSavesKeepDefault` |
+| 1.3 Changement d'outil : montée + son de prise en main | Testé | `ToolSwitch_PlaysEquipSound_AndRaisesTool` |
+| 1.3 Contact avec le tapis : choc de l'outil, impulsion du cercle, couche sonore de contact (uniquement en contact) | Testé | `ContactWithRug_PlaysContactLayer_PulsesRing_AndOnlyWhileTouching` |
+| 1.3 Cercle vert sur une zone déjà propre (lecture de la grille) | Testé | `TargetRing_TurnsCleanColor_OverACleanZone` |
+| 1.3 Débris teintés par la saleté réelle, eau trouble puis claire | Testé (visuel) | Captures `21_brush_debris`, `22_rinse_muddy` |
+| 1.3 Paliers de propreté 25/50/75/90 % (son, message, panneau qui pulse), barres lissées, pluie d'éclats à l'objectif, son de paiement | Testé | `Milestones_…` (EditMode), `CleanlinessMilestone_PlaysSound_PulsesHud_AndShowsToast`, `ObjectiveReached_PlaysCelebration` |
+| 1.4 Scan de saleté (R, reconfigurable) : onde depuis le joueur, données réelles, zones propres jamais signalées, résidus en bleu, durée 6 s / recharge 10 s configurables, refus signalé (son + message) | Testé | `DirtScan_…`, `ScanTimer_…` (EditMode), `Scan_KeyR_HighlightsRealDirt_ThenRechargesAndRefusesMeanwhile`, `Scan_OnSpotlessRug_FlagsNothing_AndIsBlockedInPause`, captures `22b`–`24` |
+| 1.5 Sons distincts : contact propre à chaque outil (5), prise en main, scan, refus, palier, paiement ; anti-empilement ; fondu anti-clic au rangement ; catégories respectées | Testé (lecture) | `ToolSound_Plays_ThenStopsOnToolChangeAndPause`, tests ci-dessus ; inventaire et licences : [AUDIO.md](AUDIO.md) |
+| Qualité d'écoute des nouveaux sons | À vérifier à la main | Les tests vérifient qu'ils jouent et s'arrêtent, pas leur qualité |
+| Ressenti du balancement et de l'alignement en jeu réel | À vérifier à la main | Jugement humain |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

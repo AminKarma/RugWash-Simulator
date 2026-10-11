@@ -25,6 +25,8 @@ namespace RugWash.Orders
         [SerializeField] WalletManager wallet;
         [SerializeField] ReputationManager reputation;
         [SerializeField] AudioManager audioManager;
+        [Tooltip("Son joué à la livraison d'une commande acceptée (sinon le son de confirmation).")]
+        [SerializeField] AudioClip rewardClip;
 
         public OrderBook Book { get; private set; }
         public OrderDefinition ActiveOrder => Book?.Active;
@@ -110,7 +112,7 @@ namespace RugWash.Orders
             if (result.Accepted) wallet.Wallet.Add(result.Reward);
             reputation.Add(result.ReputationDelta);
             LastResult = result;
-            if (audioManager != null && result.Accepted) audioManager.PlayInterface(audioManager.ConfirmClip);
+            if (audioManager != null && result.Accepted) audioManager.PlayInterface(rewardClip != null ? rewardClip : audioManager.ConfirmClip);
 
             gameState.SetState(GameState.Results);
             OrderFinished?.Invoke(result);

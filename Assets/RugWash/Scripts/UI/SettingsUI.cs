@@ -9,7 +9,7 @@ namespace RugWash.UI
 {
     /// <summary>
     /// Fenêtre des paramètres (menu principal et pause). Seules des options réellement appliquées
-    /// sont proposées : volumes, souris, résolution, mode d'affichage, qualité, touches.
+    /// sont proposées : volumes, souris, balancement caméra/outils, résolution, mode d'affichage, qualité, touches.
     /// Les modifications s'appliquent immédiatement et sont sauvegardées à la fermeture.
     /// </summary>
     [DisallowMultipleComponent]
@@ -20,10 +20,12 @@ namespace RugWash.UI
         [SerializeField] Slider effectsSlider;
         [SerializeField] Slider interfaceSlider;
         [SerializeField] Slider sensitivitySlider;
+        [SerializeField] Slider motionSlider;
         [SerializeField] Text masterValue;
         [SerializeField] Text effectsValue;
         [SerializeField] Text interfaceValue;
         [SerializeField] Text sensitivityValue;
+        [SerializeField] Text motionValue;
         [SerializeField] StepperView invertYStepper;
         [SerializeField] StepperView resolutionStepper;
         [SerializeField] StepperView displayModeStepper;
@@ -50,6 +52,7 @@ namespace RugWash.UI
         public IReadOnlyList<RebindRowView> RebindRows => rows;
         public Slider MasterSlider => masterSlider;
         public Slider SensitivitySlider => sensitivitySlider;
+        public Slider MotionSlider => motionSlider;
         public StepperView InvertYStepper => invertYStepper;
         public StepperView QualityStepper => qualityStepper;
         public Button CloseButton => closeButton;
@@ -58,7 +61,8 @@ namespace RugWash.UI
         {
             missing = panel == null ? nameof(panel) : masterSlider == null ? nameof(masterSlider) : effectsSlider == null ? nameof(effectsSlider)
                 : interfaceSlider == null ? nameof(interfaceSlider) : sensitivitySlider == null ? nameof(sensitivitySlider)
-                : masterValue == null || effectsValue == null || interfaceValue == null || sensitivityValue == null ? "valueLabels"
+                : motionSlider == null ? nameof(motionSlider)
+                : masterValue == null || effectsValue == null || interfaceValue == null || sensitivityValue == null || motionValue == null ? "valueLabels"
                 : invertYStepper == null || !invertYStepper.IsConfigured ? nameof(invertYStepper)
                 : resolutionStepper == null || !resolutionStepper.IsConfigured ? nameof(resolutionStepper)
                 : displayModeStepper == null || !displayModeStepper.IsConfigured ? nameof(displayModeStepper)
@@ -82,6 +86,7 @@ namespace RugWash.UI
             sensitivitySlider.minValue = 0.02f;
             sensitivitySlider.maxValue = 0.4f;
             sensitivitySlider.onValueChanged.AddListener(v => { settings.SetMouseSensitivity(v); RefreshLabels(); });
+            motionSlider.onValueChanged.AddListener(v => { settings.SetMotionIntensity(v); RefreshLabels(); });
 
             invertYStepper.Stepped += _ => { settings.SetInvertY(!settings.Current.invertY); RefreshValues(); };
             resolutionStepper.Stepped += StepResolution;
@@ -133,6 +138,7 @@ namespace RugWash.UI
             effectsSlider.SetValueWithoutNotify(s.effectsVolume);
             interfaceSlider.SetValueWithoutNotify(s.interfaceVolume);
             sensitivitySlider.SetValueWithoutNotify(s.mouseSensitivity);
+            motionSlider.SetValueWithoutNotify(s.motionIntensity);
             invertYStepper.SetValue(s.invertY ? "Oui" : "Non");
             var resolution = settings.EffectiveResolution;
             resolutionStepper.SetValue($"{resolution.x} × {resolution.y}");
@@ -150,6 +156,8 @@ namespace RugWash.UI
             effectsValue.text = $"{settings.Current.effectsVolume * 100f:0} %";
             interfaceValue.text = $"{settings.Current.interfaceVolume * 100f:0} %";
             sensitivityValue.text = $"{settings.Current.mouseSensitivity * 10f:0.0}";
+            float motion = settings.Current.motionIntensity;
+            motionValue.text = motion <= 0.001f ? "Désactivé" : $"{motion * 100f:0} %";
         }
 
         void RefreshBindings()

@@ -33,6 +33,7 @@ namespace RugWash.Player
             gameplay.AddAction("Sprint", InputActionType.Button, "<Keyboard>/leftShift");
             gameplay.AddAction("Use", InputActionType.Button, "<Mouse>/leftButton");
             gameplay.AddAction("Interact", InputActionType.Button, "<Keyboard>/e");
+            gameplay.AddAction("Scan", InputActionType.Button, "<Keyboard>/r");
             gameplay.AddAction("ToolScroll", InputActionType.Value, "<Mouse>/scroll/y", expectedControlLayout: "Axis");
             for (int i = 1; i <= ToolSlotCount; i++)
             {
@@ -54,7 +55,7 @@ namespace RugWash.Player
     {
         InputActionAsset asset;
         InputActionMap gameplay;
-        InputAction move, look, sprint, use, interact, toolScroll, pause, inspect, debugOverlay;
+        InputAction move, look, sprint, use, interact, scan, toolScroll, pause, inspect, debugOverlay;
         readonly InputAction[] toolSlots = new InputAction[RugWashInputActions.ToolSlotCount];
 
         public InputActionAsset Asset => asset;
@@ -70,6 +71,7 @@ namespace RugWash.Player
             sprint = gameplay.FindAction("Sprint", true);
             use = gameplay.FindAction("Use", true);
             interact = gameplay.FindAction("Interact", true);
+            scan = gameplay.FindAction("Scan", true);
             toolScroll = gameplay.FindAction("ToolScroll", true);
             for (int i = 0; i < toolSlots.Length; i++)
                 toolSlots[i] = gameplay.FindAction($"Tool{i + 1}", true);
@@ -95,6 +97,7 @@ namespace RugWash.Player
         public bool SprintHeld => GameplayEnabled && sprint.IsPressed();
         public bool UseHeld => GameplayEnabled && use.IsPressed();
         public bool InteractPressed => GameplayEnabled && interact.WasPressedThisFrame();
+        public bool ScanPressed => GameplayEnabled && scan.WasPressedThisFrame();
         public bool PausePressed => pause != null && pause.WasPressedThisFrame();
         public bool InspectPressed => inspect != null && inspect.WasPressedThisFrame();
         public bool DebugOverlayPressed => debugOverlay != null && debugOverlay.WasPressedThisFrame();

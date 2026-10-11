@@ -100,3 +100,27 @@ Scénarios détaillés : [PRODUCTION.md](PRODUCTION.md), section « Scénarios d
 Aucune erreur bloquante connue. La démo est **prête à être présentée comme démo en développement** sur PC Windows,
 avec les réserves documentées : sons temporaires, modèles procéduraux, 6 commandes non renouvelables, performance
 mesurée sur une seule machine. Le jeu est solo ; aucun mode multijoueur n'est développé.
+
+## 8. Revalidation après le jalon 1 de la roadmap V2 (corrections et game feel)
+
+Exécutions réelles du 11/10/2026, même machine, même chaîne (`Tools/RugWash-CI.ps1`).
+
+| Vérification | Résultat |
+|---|---|
+| Compilation | ✅ 0 erreur, 0 avertissement |
+| Tests EditMode | ✅ **91 / 91** (84 existants + 7 : scan, minuterie, paliers, réglage du balancement) |
+| Tests PlayMode | ✅ **50 / 50** (36 existants + 14 : alignement, balancement, retours, scan, sons, captures) |
+| Build Windows 64 bits | ✅ 119,5 Mo, 0 erreur, 0 avertissement |
+| Jeu compilé : 11 contrôles automatiques | ✅ 11 / 11 |
+| Performance 1920 × 1080 (4 scénarios) | ✅ moyenne 444,6 à 496,1 FPS ; 1 % le plus lent ≥ 264 FPS ; pire image 10,8 ms |
+
+Alignement des outils mesuré (5 outils × 7 poses : face, côtés, dos, distances 0,9 à 2 m) : écart sans correction
+de 7° (détergent) à 35° (brosse), toujours sous la cible ; **≤ 0,05° après correction**, sans tremblement à l'arrêt
+(< 0,6° entre deux images). Le point nettoyé reste sous le réticule à 0,002 près (coordonnées d'écran) en marchant.
+
+Un test existant a été ajusté : `ToolSound_Plays_ThenStopsOnToolChangeAndPause` attend désormais 0,1 s (au lieu d'une
+image) avant de vérifier l'arrêt du son de l'outil rangé, car ce son s'éteint maintenant par un fondu de 0,06 s pour
+éviter un clic audible. L'arrêt immédiat en pause est inchangé et toujours vérifié.
+
+À vérifier à la main (non automatisable) : ressenti du balancement et de l'alignement, qualité d'écoute des nouveaux
+sons, lisibilité du scan selon les goûts du joueur.

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RugWash.Core;
 using UnityEngine;
 using UnityEngine.UI;
@@ -28,8 +29,12 @@ namespace RugWash.Audio
         [SerializeField, Range(0f, 1f)] float effectsVolume = 0.8f;
         [SerializeField, Range(0f, 1f)] float interfaceVolume = 0.7f;
         [SerializeField, Range(1, 16)] int oneShotVoices = 8;
+        [Tooltip("Un même son ponctuel n'est pas rejoué plus souvent que cet intervalle (évite les empilements).")]
+        [SerializeField, Range(0f, 0.3f)] float minRepeatInterval = 0.06f;
 
+        readonly Dictionary<AudioClip, float> lastPlayed = new Dictionary<AudioClip, float>();
         AudioSource uiSource;
+        AudioSource effectSource;
         AudioSource[] voices;
         int nextVoice;
         GameStateManager gameState;
@@ -53,6 +58,10 @@ namespace RugWash.Audio
         }
 
         public AudioClip ConfirmClip => uiConfirm;
+        /// <summary>Dernier son ponctuel réellement joué (diagnostic et tests).</summary>
+        public AudioClip LastPlayedClip { get; private set; }
+        /// <summary>Nombre de demandes ignorées car trop rapprochées.</summary>
+        public int ThrottledCount { get; private set; }
         public AudioClip ObjectiveClip => objectiveClip;
 
         public float VolumeFor(AudioCategory category) => category == AudioCategory.Interface ? interfaceVolume : effectsVolume;
@@ -64,6 +73,10 @@ namespace RugWash.Audio
             uiSource.playOnAwake = false;
             uiSource.ignoreListenerPause = true;
             uiSource.spatialBlend = 0f;
+
+            effectSource = gameObject.AddComponent<AudioSource>();
+            effectSource.playOnAwake = false;
+            effectSource.spatialBlend = 0f;
 
             voices = new AudioSource[oneShotVoices];
             for (int i = 0; i < voices.Length; i++)
@@ -101,16 +114,38 @@ namespace RugWash.Audio
 
         public void PlayClick() => PlayInterface(uiClick);
 
-        public void PlayInterface(AudioClip clip)
+        public void PlayInterface(AudioClip clip, float volume = 1f)
         {
-            if (clip == null) return;
-            uiSource.PlayOneShot(clip, interfaceVolume);
+            if (!Accept(clip)) return;
+            uiSource.PlayOneShot(clip, volume * interfaceVolume);
+        }
+
+        /// <summary>Son d'action du joueur non spatialisé (catégorie Effets, coupé en pause).</summary>
+        public void PlayEffect(AudioClip clip, float volume = 1f)
+        {
+            if (!Accept(clip)) return;
+            effectSource.pitch = Random.Range(0.97f, 1.03f);
+            effectSource.PlayOneShot(clip, volume * effectsVolume);
+        }
+
+        bool Accept(AudioClip clip)
+        {
+            if (clip == null) return false;
+            float now = Time.unscaledTime;
+            if (lastPlayed.TryGetValue(clip, out float last) && now - last < minRepeatInterval)
+            {
+                ThrottledCount++;
+                return false;
+            }
+            lastPlayed[clip] = now;
+            LastPlayedClip = clip;
+            return true;
         }
 
         /// <summary>Son ponctuel positionné ; vole la voix la plus ancienne si toutes sont occupées (nombre borné).</summary>
         public void PlayAt(AudioClip clip, Vector3 position, float volume = 1f)
         {
-            if (clip == null) return;
+            if (!Accept(clip)) return;
             var voice = voices[nextVoice];
             nextVoice = (nextVoice + 1) % voices.Length;
             voice.transform.position = position;

@@ -27,6 +27,16 @@ namespace RugWash.Editor
         public const string CleanSparkle = Folder + "/tmp_clean_sparkle.wav";
         public const string Ambient = Folder + "/tmp_workshop_ambient_loop.wav";
         public const string Objective = Folder + "/tmp_objective_reached.wav";
+        public const string VacuumContactLoop = Folder + "/tmp_vacuum_contact_loop.wav";
+        public const string FoamContactLoop = Folder + "/tmp_foam_contact_loop.wav";
+        public const string BrushContactLoop = Folder + "/tmp_brush_contact_loop.wav";
+        public const string RinseContactLoop = Folder + "/tmp_rinse_contact_loop.wav";
+        public const string ExtractorContactLoop = Folder + "/tmp_extractor_contact_loop.wav";
+        public const string ToolEquip = Folder + "/tmp_tool_equip.wav";
+        public const string ScanPulse = Folder + "/tmp_scan_pulse.wav";
+        public const string ScanDenied = Folder + "/tmp_scan_denied.wav";
+        public const string Milestone = Folder + "/tmp_milestone.wav";
+        public const string Reward = Folder + "/tmp_reward.wav";
         public static readonly string[] Footsteps =
         {
             Folder + "/tmp_footstep_1.wav", Folder + "/tmp_footstep_2.wav", Folder + "/tmp_footstep_3.wav",
@@ -50,6 +60,16 @@ namespace RugWash.Editor
             Write(CleanSparkle, force, false, 0.35f, Sparkle);
             Write(Ambient, force, true, 8f, AmbientRoom);
             Write(Objective, force, false, 0.9f, ObjectiveChime);
+            Write(VacuumContactLoop, force, true, 2f, VacuumContact);
+            Write(FoamContactLoop, force, true, 2f, FoamFizz);
+            Write(BrushContactLoop, force, true, 1f, BrushScrub);
+            Write(RinseContactLoop, force, true, 2f, WaterOnFabric);
+            Write(ExtractorContactLoop, force, true, 2f, Slurp);
+            Write(ToolEquip, force, false, 0.2f, EquipClack);
+            Write(ScanPulse, force, false, 0.8f, ScanSweep);
+            Write(ScanDenied, force, false, 0.26f, DeniedBeep);
+            Write(Milestone, force, false, 0.55f, MilestoneChime);
+            Write(Reward, force, false, 0.9f, RewardBell);
             for (int i = 0; i < Footsteps.Length; i++)
             {
                 float pitch = 0.85f + i * 0.12f;
@@ -187,6 +207,101 @@ namespace RugWash.Editor
             float b = t > 0.06f ? Sine(t, 2093f) * Mathf.Exp(-(t - 0.06f) * 16f) : 0f;
             float c = t > 0.12f ? Sine(t, 2637f) * Mathf.Exp(-(t - 0.12f) * 14f) : 0f;
             return (a + b + c) * 0.25f;
+        }
+
+        // ---- Sons de contact avec le tapis (superposés à la boucle de l'outil, dosés par le contact réel)
+
+        static float VacuumContact(float t, float d, ref State s)
+        {
+            // Aspiration étouffée par les fibres : souffle grave qui « flotte » lentement.
+            float flutter = 0.7f + 0.3f * Sine(t, 2f) * Sine(t, 0.5f);
+            return LowPass(ref s.Lp2, LowPass(ref s.Lp1, s.Noise(), 700f), 500f) * flutter * 1.4f;
+        }
+
+        static float FoamFizz(float t, float d, ref State s)
+        {
+            // Bulles qui éclatent : crépitements aigus épars sur un léger souffle.
+            if (s.Random.NextDouble() < 0.004) s.Env = 0.4f + 0.6f * (float)s.Random.NextDouble();
+            s.Env *= 0.985f;
+            float pop = HighPass(ref s, s.Noise(), 3500f) * s.Env;
+            float hiss = LowPass(ref s.Lp1, s.Noise(), 6000f) * 0.06f;
+            return pop * 0.9f + hiss;
+        }
+
+        static float BrushScrub(float t, float d, ref State s)
+        {
+            // Frottement des poils dans les fibres, rythmé par les allers-retours (6 par seconde).
+            float friction = LowPass(ref s.Lp1, HighPass(ref s, s.Noise(), 500f), 2800f);
+            float stroke = 0.3f + 0.7f * Mathf.Pow(Mathf.Abs(Sine(t, 3f)), 0.8f);
+            float grit = s.Random.NextDouble() < 0.002 ? 0.8f : 0f;
+            s.Env = Mathf.Max(grit, s.Env * 0.97f);
+            return friction * stroke * 0.9f + s.Env * s.Noise() * 0.3f;
+        }
+
+        static float WaterOnFabric(float t, float d, ref State s)
+        {
+            // Eau qui frappe le tissu : éclaboussures sourdes et gouttes.
+            float splat = LowPass(ref s.Lp1, s.Noise(), 1100f) * (0.75f + 0.25f * Sine(t, 13f));
+            if (s.Random.NextDouble() < 0.003) s.Env = 0.5f + 0.5f * (float)s.Random.NextDouble();
+            s.Env *= 0.996f;
+            float drop = s.Env * Sine(t, 500f + 900f * s.Env) * 0.25f;
+            return splat * 0.8f + drop;
+        }
+
+        static float Slurp(float t, float d, ref State s)
+        {
+            // Eau aspirée hors des fibres : gargouillis irrégulier.
+            float water = LowPass(ref s.Lp1, s.Noise(), 800f);
+            if (s.Random.NextDouble() < 0.0015) s.Env = 1f;
+            s.Env *= 0.9994f;
+            float bubble = s.Env * Sine(t, 140f + 200f * s.Env + 30f * Sine(t, 7f)) * 0.5f;
+            return water * (0.6f + 0.4f * Sine(t, 4f)) * 0.8f + bubble;
+        }
+
+        // ---- Sons ponctuels
+
+        static float EquipClack(float t, float d, ref State s)
+        {
+            // Prise en main : petit choc plastique puis cliquet.
+            float thump = Sine(t, 140f) * Mathf.Exp(-t * 40f) * 0.7f;
+            float click = LowPass(ref s.Lp1, s.Noise(), 4000f) * Mathf.Exp(-t * 120f);
+            float latch = t > 0.07f ? HighPass(ref s, s.Noise(), 2000f) * Mathf.Exp(-(t - 0.07f) * 150f) * 0.8f : 0f;
+            return thump + click * 0.8f + latch;
+        }
+
+        static float ScanSweep(float t, float d, ref State s)
+        {
+            // Balayage montant puis tintement : l'onde du scan se propage.
+            float k = t / d;
+            float phaseFrequency = 380f + 1400f * k * k;
+            s.Lp2 += 2f * Mathf.PI * phaseFrequency / SampleRate;
+            float sweep = Mathf.Sin(s.Lp2) * Mathf.Clamp01(t * 20f) * (1f - k) * 0.5f;
+            float air = LowPass(ref s.Lp1, s.Noise(), 1500f + 3000f * k) * Mathf.Sin(Mathf.PI * k) * 0.35f;
+            float ping = t > 0.18f ? Sine(t, 1760f) * Mathf.Exp(-(t - 0.18f) * 9f) * 0.35f : 0f;
+            return sweep + air + ping;
+        }
+
+        static float DeniedBeep(float t, float d, ref State s)
+        {
+            float first = t < 0.1f ? Sine(t, 330f) * Mathf.Clamp01((0.1f - t) * 60f) : 0f;
+            float second = t > 0.13f && t < 0.24f ? Sine(t, 262f) * Mathf.Clamp01((0.24f - t) * 60f) : 0f;
+            return (first + second) * Mathf.Clamp01(t * 300f) * 0.4f;
+        }
+
+        static float MilestoneChime(float t, float d, ref State s)
+        {
+            float a = Sine(t, 880f) * Mathf.Exp(-t * 7f);
+            float b = t > 0.1f ? Sine(t, 1318.5f) * Mathf.Exp(-(t - 0.1f) * 6f) : 0f;
+            return (a * 0.7f + b) * 0.25f;
+        }
+
+        static float RewardBell(float t, float d, ref State s)
+        {
+            // Tiroir-caisse stylisé : cliquetis métallique puis cloche brillante.
+            float rattle = t < 0.12f ? HighPass(ref s, s.Noise(), 3000f) * Mathf.Exp(-t * 30f) * 0.5f : 0f;
+            float bellT = Mathf.Max(0f, t - 0.1f);
+            float bell = t > 0.1f ? (Sine(bellT, 2093f) + 0.6f * Sine(bellT, 3136f) + 0.3f * Sine(bellT, 4186f)) * Mathf.Exp(-bellT * 4.5f) : 0f;
+            return rattle + bell * 0.22f;
         }
 
         // ------------------------------------------------------------------ Écriture

@@ -91,6 +91,16 @@ namespace RugWash.Cleaning
             return uv.x >= 0f && uv.x <= 1f && uv.y >= 0f && uv.y <= 1f;
         }
 
+        /// <summary>Lit la cellule située sous un point du monde (faux hors du tapis).</summary>
+        public bool TrySampleCell(Vector3 worldPoint, out RugCell cell)
+        {
+            cell = default;
+            if (Grid == null || !TryWorldToUV(worldPoint, out Vector2 uv)) return false;
+            Vector2Int index = Grid.UVToCell(uv);
+            cell = Grid.GetCell(index.x, index.y);
+            return true;
+        }
+
         public Vector3 UVToWorld(Vector2 uv)
         {
             float top = definition != null ? definition.thickness : 0f;

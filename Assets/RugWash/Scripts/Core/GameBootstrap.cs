@@ -36,6 +36,8 @@ namespace RugWash.Core
         [Header("Tapis")]
         [SerializeField] RugCleaningController rug;
         [SerializeField] RugSnapshotService snapshots;
+        [SerializeField] DirtScanner dirtScanner;
+        [SerializeField] CleaningProgressFeedback progressFeedback;
         [SerializeField] List<RugDefinition> availableRugs = new List<RugDefinition>();
 
         [Header("Commandes et économie")]
@@ -75,6 +77,8 @@ namespace RugWash.Core
         public SaveManager SaveSystem => saveManager;
         public SettingsManager Settings => settingsManager;
         public HUDController Hud => hud;
+        public DirtScanner DirtScanner => dirtScanner;
+        public CleaningProgressFeedback ProgressFeedback => progressFeedback;
         public bool IsReady { get; private set; }
 
         /// <summary>Vérifie toutes les références, y compris celles des composants enfants.</summary>
@@ -97,6 +101,8 @@ namespace RugWash.Core
             Require(interactor, nameof(interactor));
             Require(rug, nameof(rug));
             Require(snapshots, nameof(snapshots));
+            Require(dirtScanner, nameof(dirtScanner));
+            Require(progressFeedback, nameof(progressFeedback));
             Require(orders, nameof(orders));
             Require(wallet, nameof(wallet));
             Require(reputation, nameof(reputation));
@@ -119,6 +125,8 @@ namespace RugWash.Core
             if (rug != null && !rug.IsConfigured(out detail)) problems.Add($"rug.{detail}");
             if (rug != null && rug.DirtRenderer != null && !rug.DirtRenderer.IsConfigured(out detail)) problems.Add($"rug.dirtRenderer.{detail}");
             if (snapshots != null && !snapshots.IsConfigured(out detail)) problems.Add($"snapshots.{detail}");
+            if (dirtScanner != null && !dirtScanner.IsConfigured(out detail)) problems.Add($"dirtScanner.{detail}");
+            if (progressFeedback != null && !progressFeedback.IsConfigured(out detail)) problems.Add($"progressFeedback.{detail}");
             if (orders != null && !orders.IsConfigured(out detail)) problems.Add($"orders.{detail}");
             if (upgrades != null && !upgrades.IsConfigured(out detail)) problems.Add($"upgrades.{detail}");
             if (shop != null && !shop.IsConfigured(out detail)) problems.Add($"shop.{detail}");
@@ -157,6 +165,7 @@ namespace RugWash.Core
             audioManager.Bind(gameState);
             hud.Bind(toolController, interactor, input, rug, gameState);
             hud.BindEconomy(wallet, reputation, orders);
+            hud.BindFeedback(dirtScanner, progressFeedback);
             toolbar.Bind(toolController);
             pauseMenu.Bind(gameState, rug, orders, availableRugs, settingsUI, saveManager);
             settingsUI.Bind(settingsManager, saveManager, gameState);

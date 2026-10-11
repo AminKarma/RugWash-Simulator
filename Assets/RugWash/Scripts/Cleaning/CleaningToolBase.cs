@@ -41,6 +41,18 @@ namespace RugWash.Cleaning
         [Tooltip("Effet joué quand une zone devient propre (optionnel).")]
         [SerializeField] protected CleaningVFXPool cleanFeedback;
 
+        [Header("Alignement sur la cible")]
+        [Tooltip("Extrémité active du modèle (buse, tête) : l'outil est orienté pour qu'elle pointe vers le point visé.")]
+        [SerializeField] protected Transform aimTip;
+        [Tooltip("Rotation maximale appliquée pour viser (évite les torsions extrêmes en regardant ses pieds).")]
+        [SerializeField, Range(5f, 80f)] float aimMaxAngle = 50f;
+        [Tooltip("Rapidité du suivi de la cible (plus élevé = plus vif, plus bas = plus doux).")]
+        [SerializeField, Range(2f, 40f)] float aimSharpness = 16f;
+
+        Quaternion aimLocal = Quaternion.identity;
+        bool snapAim;
+        float contactKick;
+
         Vector3 viewModelRestPosition;
         Quaternion viewModelRestRotation;
 
@@ -68,6 +80,16 @@ namespace RugWash.Cleaning
         public float Range => definition != null ? definition.range : 0f;
         public float Radius => definition != null ? definition.radius : 0f;
         public CleaningAudioController ToolAudio => toolAudio;
+        public Transform AimTip => aimTip;
+
+        /// <summary>Écart (degrés) entre l'axe de l'outil et la direction du point visé, après alignement.</summary>
+        public float AimErrorDegrees { get; private set; }
+
+        /// <summary>Écart qu'aurait l'outil sans alignement (pose de repos), pour le diagnostic.</summary>
+        public float UnalignedErrorDegrees { get; private set; }
+
+        /// <summary>Événement déclenché quand l'outil commence réellement à traiter le tapis (retours sonores/visuels).</summary>
+        public event System.Action<CleaningToolBase> ContactStarted;
 
         /// <summary>Intensité [0..1] de l'action réelle de la dernière frame (son, effets).</summary>
         protected virtual float ContactIntensity => IsAffectingRug ? 1f : 0f;
@@ -94,14 +116,17 @@ namespace RugWash.Cleaning
         public void Equip()
         {
             IsEquipped = true;
+            snapAim = true;
             if (viewModel != null) viewModel.gameObject.SetActive(true);
         }
 
         public void Unequip()
         {
-            StopUsing();
+            StopUsing(immediateAudio: false);
+            contactKick = 0f;
             IsTargetOutOfRange = false;
             IsEquipped = false;
+            aimLocal = Quaternion.identity;
             if (viewModel != null)
             {
                 viewModel.localPosition = viewModelRestPosition;
@@ -116,6 +141,7 @@ namespace RugWash.Cleaning
             SetUsing(wantsUse && CanOperate());
 
             IsTargetOutOfRange = aim.HasRug && aim.Distance > Range;
+            bool wasAffecting = IsAffectingRug;
             IsAffectingRug = false;
             if (IsUsing && deltaTime > 0f)
             {
@@ -132,18 +158,81 @@ namespace RugWash.Cleaning
                 }
             }
 
+            if (IsAffectingRug && !wasAffecting)
+            {
+                contactKick = 1f;
+                ContactStarted?.Invoke(this);
+            }
+            contactKick = Mathf.MoveTowards(contactKick, 0f, deltaTime * 6f);
+
+            if (viewModel != null)
+            {
+                // L'alignement est calculé sur la pose de repos, puis appliqué par-dessus l'animation propre à l'outil
+                // (brossage, recul…) : l'animation reste visible et l'outil reste orienté vers le point visé.
+                viewModel.localPosition = viewModelRestPosition;
+                viewModel.localRotation = viewModelRestRotation;
+                UpdateAimAlignment(aim, deltaTime);
+                AnimateViewModel(viewModel, viewModelRestPosition, viewModelRestRotation, deltaTime);
+                // Petit choc au premier contact avec le tapis (aller-retour en ~0,17 s).
+                viewModel.localPosition += new Vector3(0f, -0.008f, -0.025f) * Mathf.Sin((1f - contactKick) * Mathf.PI) * (contactKick > 0f ? 1f : 0f);
+                viewModel.localPosition = viewModelRestPosition + aimLocal * (viewModel.localPosition - viewModelRestPosition);
+                viewModel.localRotation = aimLocal * viewModel.localRotation;
+            }
             UpdateEffects(aim, deltaTime);
-            if (toolAudio != null) toolAudio.Drive(IsUsing, ContactIntensity, deltaTime);
-            AnimateViewModel(viewModel, viewModelRestPosition, viewModelRestRotation, deltaTime);
+            if (toolAudio != null) toolAudio.Drive(IsUsing, ContactIntensity, IsAffectingRug ? ContactIntensity : 0f, deltaTime);
+        }
+
+        /// <summary>
+        /// Calcule la rotation qui amène l'axe pivot (main) → extrémité active sur la direction du point visé par le réticule.
+        /// Le modèle doit être en pose de repos. La rotation est exprimée dans le repère du support (elle suit la caméra
+        /// sans retard), lissée (pas de tremblement) et bornée (pas de torsion extrême en regardant ses pieds).
+        /// </summary>
+        void UpdateAimAlignment(in ToolAim aim, float deltaTime)
+        {
+            if (aimTip == null || viewModel.parent == null) return;
+            Transform parent = viewModel.parent;
+            Vector3 pivot = parent.TransformPoint(viewModelRestPosition);
+            Vector3 target = aim.HasHit ? aim.Point : aim.Ray.GetPoint(Range + 2f);
+            Vector3 axis = aimTip.position - pivot;
+            Vector3 desired = target - pivot;
+            if (axis.sqrMagnitude < 1e-8f || desired.sqrMagnitude < 1e-8f) return;
+            UnalignedErrorDegrees = Vector3.Angle(axis, desired);
+
+            Quaternion world = Quaternion.FromToRotation(axis, desired);
+            Quaternion local = Quaternion.Inverse(parent.rotation) * world * parent.rotation;
+            float angle = Quaternion.Angle(Quaternion.identity, local);
+            if (angle > aimMaxAngle) local = Quaternion.Slerp(Quaternion.identity, local, aimMaxAngle / angle);
+
+            // Juste après l'équipement, l'outil prend directement la bonne orientation (pas de balayage visible).
+            aimLocal = deltaTime > 0f && !snapAim ? Quaternion.Slerp(aimLocal, local, 1f - Mathf.Exp(-aimSharpness * deltaTime)) : local;
+            snapAim = false;
+            Quaternion applied = parent.rotation * aimLocal * Quaternion.Inverse(parent.rotation);
+            AimErrorDegrees = Vector3.Angle(applied * axis, desired);
         }
 
         /// <summary>Arrête l'utilisation, les effets et le son (pause, menu, changement d'outil).</summary>
-        public void StopUsing()
+        public void StopUsing() => StopUsing(immediateAudio: true);
+
+        /// <param name="immediateAudio">Faux au rangement : le son s'éteint par un fondu très court (évite le clic).</param>
+        void StopUsing(bool immediateAudio)
         {
             SetUsing(false);
             IsAffectingRug = false;
             UpdateEffects(default, 0f);
-            if (toolAudio != null) toolAudio.StopImmediate();
+            if (toolAudio == null) return;
+            if (immediateAudio) toolAudio.StopImmediate();
+            else toolAudio.Release();
+        }
+
+        /// <summary>Couleur et quantité de saleté de la cellule visée (pour teinter débris et éclaboussures).</summary>
+        protected static bool TrySampleDirt(in ToolAim aim, out Color color, out RugCell cell)
+        {
+            color = default;
+            cell = default;
+            if (!aim.HasRug || !aim.Rug.TrySampleCell(aim.Point, out cell)) return false;
+            DirtType type = cell.Stain + cell.Loosened >= cell.Dust ? cell.StainType : cell.DustType;
+            color = aim.Rug.DirtTable != null ? aim.Rug.DirtTable.GetColor(type) : Color.gray;
+            return true;
         }
 
         void SetUsing(bool value)

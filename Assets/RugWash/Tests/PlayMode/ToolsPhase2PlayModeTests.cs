@@ -157,7 +157,8 @@ namespace RugWash.Tests
             Assert.IsTrue(vacuumAudio.IsAudible, "L'aspirateur doit produire un son en fonctionnement.");
 
             tools.SelectSlot(3);
-            yield return null;
+            // Fondu de sortie très court (anti-clic, 0,06 s) : le son doit être coupé en moins de 0,1 s.
+            yield return new WaitForSecondsRealtime(0.1f);
             Assert.IsFalse(vacuumAudio.IsAudible, "Le son de l'outil rangé doit s'arrêter.");
 
             yield return new WaitForSeconds(0.3f);

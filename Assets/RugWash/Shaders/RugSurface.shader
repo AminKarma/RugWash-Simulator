@@ -5,6 +5,8 @@
 //   _ControlB : RGB couleur de la saleté (linéaire), A humidité
 //   _ControlC : R résidus de produit, G usure des fibres
 // Un bruit de détail découpe les seuils pour que la frontière propre/sale soit organique.
+// Scan de saleté (DirtScanner, variables globales) : surligne les cellules réellement sales — même seuil
+// que la grille — et les résidus de produit, derrière une onde partie du joueur. Le motif reste visible.
 Shader "RugWash/Rug Surface"
 {
     Properties
@@ -84,6 +86,13 @@ Shader "RugWash/Rug Surface"
             TEXTURE2D(_ControlA);     SAMPLER(sampler_ControlA);
             TEXTURE2D(_ControlB);     SAMPLER(sampler_ControlB);
             TEXTURE2D(_ControlC);     SAMPLER(sampler_ControlC);
+
+            // Globales du scan (hors CBUFFER matériau : partagées, compatibles SRP Batcher).
+            float4 _RugScanParams;      // x intensité 0..1, y rayon de l'onde (m), z largeur du front (m), w temps
+            float4 _RugScanOrigin;      // xyz origine de l'onde (monde)
+            float4 _RugScanThresholds;  // x seuil de saleté (cellule propre), y seuil de résidus
+            half4 _RugScanDirtColor;
+            half4 _RugScanResidueColor;
 
             struct Attributes
             {
@@ -208,6 +217,27 @@ Shader "RugWash/Rug Surface"
                 surface.alpha = 1;
 
                 half4 lit = UniversalFragmentPBR(inputData, surface);
+
+                // Scan de saleté : teinte multipliée (le motif reste lisible), plus marquée là où il reste beaucoup de saleté,
+                // hachures animées, contour des zones signalées et front d'onde plus lumineux. Rien sur les cellules propres.
+                half dirtAmount = a.r + a.g + a.b;
+                half dirtFlag = smoothstep(_RugScanThresholds.x * 0.8, _RugScanThresholds.x * 1.6, dirtAmount);
+                half residueFlag = smoothstep(_RugScanThresholds.y * 0.8, _RugScanThresholds.y * 1.4, cc.r) * (1.0 - dirtFlag);
+                half dirtWeight = dirtFlag * lerp(0.3, 1.0, saturate((dirtAmount - _RugScanThresholds.x) * 2.5));
+                half flags = max(dirtFlag, residueFlag);
+                half weight = max(dirtWeight, residueFlag * 0.7);
+                float scanDistance = distance(input.positionWS.xz, _RugScanOrigin.xz);
+                half halfWidth = max(_RugScanParams.z, 0.01) * 0.5;
+                half revealed = smoothstep(_RugScanParams.y + halfWidth, _RugScanParams.y - halfWidth, scanDistance);
+                half front = saturate(1.0 - abs(scanDistance - _RugScanParams.y) / (halfWidth * 2.0));
+                half stripe = smoothstep(0.3, 0.5, frac((meters.x + meters.y) * 6.0 - _RugScanParams.w * 0.8));
+                half edge = saturate(fwidth(flags) * 6.0);
+                half3 scanHue = dirtFlag >= residueFlag ? _RugScanDirtColor.rgb : _RugScanResidueColor.rgb;
+                half reveal = weight * revealed;
+                half3 scanned = lit.rgb * (1.0 + scanHue * reveal * (0.45 + 0.55 * stripe))
+                              + scanHue * (reveal * 0.015 + weight * front * 0.18 + edge * revealed * 0.2);
+                lit.rgb = lerp(lit.rgb, scanned, _RugScanParams.x);
+
                 lit.rgb = MixFog(lit.rgb, inputData.fogCoord);
                 return half4(lit.rgb, 1);
             }

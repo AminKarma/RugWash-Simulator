@@ -1,6 +1,7 @@
 using RugWash.Cleaning;
 using RugWash.Core;
 using RugWash.Economy;
+using RugWash.Effects;
 using RugWash.Orders;
 using RugWash.Player;
 using UnityEngine;
@@ -10,7 +11,8 @@ namespace RugWash.UI
 {
     /// <summary>
     /// HUD discret : outil actif, ressource, propreté (lue dans la grille), invite d'interaction,
-    /// aide contextuelle et messages courts. Les textes sont rafraîchis à fréquence limitée.
+    /// aide contextuelle, messages courts, état du scan de saleté. Les jauges suivent leur valeur réelle
+    /// avec un léger lissage ; les paliers de propreté font « pulser » le panneau. Textes rafraîchis à fréquence limitée.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class HUDController : MonoBehaviour
@@ -27,6 +29,11 @@ namespace RugWash.UI
         [SerializeField] Text toastLabel;
         [SerializeField] Text economyLabel;
         [SerializeField] Text orderLabel;
+        [SerializeField] RectTransform cleanlinessPanel;
+        [SerializeField] Text scanLabel;
+        [SerializeField] Image scanFill;
+        [SerializeField] Color gainColor = new Color(0.75f, 1f, 0.85f, 1f);
+        [SerializeField] float barSmoothing = 10f;
         [SerializeField] float refreshInterval = 0.1f;
         [SerializeField] float toastDuration = 2.5f;
 
@@ -38,6 +45,14 @@ namespace RugWash.UI
         WalletManager wallet;
         ReputationManager reputation;
         OrderManager orders;
+        DirtScanner scanner;
+        CleaningProgressFeedback progress;
+        Color cleanlinessBaseColor;
+        float displayedCleanliness;
+        float displayedResource = -1f;
+        float gainFlash;
+        float pulse;
+        string lastScan;
 
         float nextRefresh;
         float toastUntil;
@@ -58,7 +73,10 @@ namespace RugWash.UI
                 : hintLabel == null ? nameof(hintLabel)
                 : toastLabel == null ? nameof(toastLabel)
                 : economyLabel == null ? nameof(economyLabel)
-                : orderLabel == null ? nameof(orderLabel) : null;
+                : orderLabel == null ? nameof(orderLabel)
+                : cleanlinessPanel == null ? nameof(cleanlinessPanel)
+                : scanLabel == null ? nameof(scanLabel)
+                : scanFill == null ? nameof(scanFill) : null;
             return missing == null;
         }
 
@@ -75,6 +93,8 @@ namespace RugWash.UI
             gameState.StateChanged += OnStateChanged;
             gameState.ModalsChanged += RefreshVisibility;
             toastLabel.text = string.Empty;
+            cleanlinessBaseColor = cleanlinessFill.color;
+            displayedCleanliness = rug != null ? rug.Cleanliness01 : 0f;
             RefreshVisibility();
             RefreshAll(force: true);
         }
@@ -89,6 +109,31 @@ namespace RugWash.UI
             reputation.Changed += OnReputationChanged;
             RefreshEconomy();
         }
+
+        /// <summary>Scan de saleté et paliers de propreté.</summary>
+        public void BindFeedback(DirtScanner dirtScanner, CleaningProgressFeedback cleaningProgress)
+        {
+            scanner = dirtScanner;
+            progress = cleaningProgress;
+            scanner.Scanned += OnScanned;
+            scanner.Denied += OnScanDenied;
+            progress.MilestoneReached += OnMilestone;
+        }
+
+        void OnScanned(DirtScanResult result) => ShowToast(DirtScan.Describe(result));
+
+        void OnScanDenied(float remaining) =>
+            ShowToast(remaining > 0f ? $"Scan en recharge — encore {Mathf.CeilToInt(remaining)} s" : "Scan déjà en cours");
+
+        void OnMilestone(float reached)
+        {
+            pulse = 1f;
+            gainFlash = 1f;
+            ShowToast(reached >= 0.9f ? $"Propreté {reached * 100f:0} % — presque parfait !" : $"Propreté {reached * 100f:0} % — continuez !");
+        }
+
+        /// <summary>Intensité de l'animation de palier (1 au déclenchement, 0 au repos).</summary>
+        public float MilestonePulse => pulse;
 
         void OnWalletChanged(int balance, int delta) => RefreshEconomy();
         void OnReputationChanged(int points) => RefreshEconomy();
@@ -109,6 +154,12 @@ namespace RugWash.UI
             if (interactor != null) interactor.Interacted -= ShowToast;
             if (wallet != null && wallet.Wallet != null) wallet.Wallet.Changed -= OnWalletChanged;
             if (reputation != null) reputation.Changed -= OnReputationChanged;
+            if (scanner != null)
+            {
+                scanner.Scanned -= OnScanned;
+                scanner.Denied -= OnScanDenied;
+            }
+            if (progress != null) progress.MilestoneReached -= OnMilestone;
             if (gameState != null)
             {
                 gameState.StateChanged -= OnStateChanged;
@@ -134,12 +185,31 @@ namespace RugWash.UI
         {
             if (tools == null) return;
 
-            // Barres : mises à jour chaque frame (pas d'allocation).
+            // Barres : mises à jour chaque frame (pas d'allocation), lissées vers la valeur réelle.
+            float dt = Time.unscaledDeltaTime;
+            float smoothing = 1f - Mathf.Exp(-barSmoothing * dt);
             float cleanliness = rug != null ? rug.Cleanliness01 : 0f;
-            cleanlinessFill.fillAmount = cleanliness;
+            if (cleanliness > displayedCleanliness + 0.0005f) gainFlash = Mathf.Max(gainFlash, 0.45f);
+            displayedCleanliness = cleanliness < displayedCleanliness ? cleanliness : Mathf.Lerp(displayedCleanliness, cleanliness, smoothing);
+            cleanlinessFill.fillAmount = displayedCleanliness;
+            gainFlash = Mathf.MoveTowards(gainFlash, 0f, dt * 1.5f);
+            cleanlinessFill.color = Color.Lerp(cleanlinessBaseColor, gainColor, gainFlash);
+
+            pulse = Mathf.MoveTowards(pulse, 0f, dt / 0.4f);
+            cleanlinessPanel.localScale = Vector3.one * (1f + 0.07f * Mathf.Sin(pulse * Mathf.PI));
+
             var tool = tools.ActiveTool;
             float fraction = tool != null ? tool.GetResourceFraction() : -1f;
-            if (fraction >= 0f) resourceFill.fillAmount = fraction;
+            if (fraction >= 0f)
+            {
+                displayedResource = tool != lastTool || displayedResource < 0f ? fraction : Mathf.Lerp(displayedResource, fraction, smoothing);
+                resourceFill.fillAmount = displayedResource;
+            }
+
+            if (scanner != null)
+            {
+                scanFill.fillAmount = scanner.IsActive ? scanner.ActiveRemaining / scanner.Duration : scanner.Readiness01;
+            }
 
             if (toastLabel.text.Length > 0 && Time.unscaledTime > toastUntil) toastLabel.text = string.Empty;
 
@@ -166,6 +236,18 @@ namespace RugWash.UI
                 toolNameLabel.text = tool != null ? tool.Definition.displayName : "Aucun outil";
                 resourceBar.SetActive(tool != null && tool.GetResourceFraction() >= 0f);
                 hintLabel.text = BuildHint(tool);
+            }
+
+            if (scanner != null)
+            {
+                string key = input.GetBindingLabel("Scan");
+                string scan = scanner.IsActive ? $"Scan actif · {Mathf.CeilToInt(scanner.ActiveRemaining)} s"
+                    : scanner.IsReady ? $"[{key}] Scanner la saleté" : $"Scan : recharge {Mathf.CeilToInt(scanner.CooldownRemaining)} s";
+                if (force || scan != lastScan)
+                {
+                    lastScan = scan;
+                    scanLabel.text = scan;
+                }
             }
 
             string status = tool?.GetStatusLine() ?? string.Empty;
@@ -198,7 +280,8 @@ namespace RugWash.UI
         {
             string verb = tool != null ? tool.ActionVerb : "utiliser";
             return $"Clic gauche : {verb}   ·   1-5 / molette : outils   ·   " +
-                   $"{input.GetBindingLabel("Interact")} : interagir   ·   {input.GetBindingLabel("Inspect")} : inspecter   ·   Échap : pause";
+                   $"{input.GetBindingLabel("Interact")} : interagir   ·   {input.GetBindingLabel("Scan")} : scanner   ·   " +
+                   $"{input.GetBindingLabel("Inspect")} : inspecter   ·   Échap : pause";
         }
     }
 }

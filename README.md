@@ -48,14 +48,16 @@ Si une scène est absente ou cassée : menu **RugWash → Setup → Générer la
 | Utiliser l'outil | Clic gauche (maintenu) |
 | Choisir un outil | 1–5 (rangée du haut ou pavé numérique) / molette |
 | Interagir (postes, caniveau, comptoir des commandes, boutique) | E |
+| Scanner la saleté (surligne les zones encore sales, puis recharge) | R |
 | Inspecter le tapis (avant/après) | F |
 | Pause | Échap |
 | Diagnostic (éditeur / build de développement) | F3 |
 
 **Paramètres** (menu principal ou pause → « Paramètres ») — chaque option est réellement appliquée :
-volumes général / effets / interface, sensibilité et inversion de la souris, résolution, mode d'affichage
-(plein écran, plein écran fenêtré, fenêtré), niveau de qualité, et **reconfiguration des touches**
-(avancer, reculer, gauche, droite, courir, interagir, inspecter ; Échap annule la saisie ; « Touches par défaut »).
+volumes général / effets / interface, sensibilité et inversion de la souris, **balancement** de la caméra et des
+outils (0 % = désactivé), résolution, mode d'affichage (plein écran, plein écran fenêtré, fenêtré), niveau de qualité,
+et **reconfiguration des touches** (avancer, reculer, gauche, droite, courir, interagir, scanner, inspecter ;
+Échap annule la saisie ; « Touches par défaut »).
 Résolution et mode d'affichage n'ont d'effet visible que dans un build (l'éditeur les ignore).
 
 ## 4. Outils et boucle de nettoyage
@@ -75,6 +77,13 @@ Séquence type : **aspirer → savonner → brosser → rincer → extraire**.
 - L'extracteur est une **abstraction** : l'humidité retirée est convertie en litres
   (3 L par m² de tapis saturé) et versée dans la cuve.
 - **F** : comparaison avant/maintenant et statistiques (saleté retirée, surface propre, humidité, mousse, résidus).
+- **R — scan de saleté** : une onde part du joueur et teinte pendant 6 s les zones **réellement** sales (orange, plus
+  marqué là où il reste beaucoup de saleté) et les zones propres mais chargées de **résidus** (bleu) ; les zones
+  propres ne sont jamais signalées (même seuil que le calcul de propreté). Recharge de 10 s, indiquée en bas à droite.
+  Durée, recharge, vitesse de l'onde et couleurs : composant `DirtScanner` sur `[Game]`.
+- **Cercle de visée** : vert quand la zone visée est déjà propre, bleu pendant l'utilisation, rouge hors de portée ;
+  il « pulse » au premier contact avec le tapis. Les paliers de propreté (25, 50, 75, 90 %) sont annoncés
+  (son, message, panneau qui pulse) et l'objectif atteint déclenche une pluie d'éclats sur le tapis.
 
 ## 4 ter. Commandes, économie et boutique
 
@@ -104,19 +113,27 @@ difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste
 
 ## 4 bis. Audio
 
-Les sons (outils en boucle, interface, remplissage, vidange, éclat de zone propre, ambiance d'atelier,
-pas, annonce « objectif atteint ») sont **générés par
-synthèse** (`RugWashAudioGenerator`) dans `Assets/RugWash/Audio/Generated/tmp_*.wav`. Ce sont des
-**substituts temporaires** clairement préfixés `tmp_`, à remplacer par des enregistrements : il suffit de
-changer le clip assigné (`CleaningAudioController`, `AudioManager`, postes). `AudioManager` gère les volumes
-général / effets / interface (exposés pour l'écran de paramètres de la phase 4) et coupe tout en pause.
+Les 25 sons (outils et **contact avec le tapis** propres à chaque outil, prise en main, interface, remplissage,
+vidange, éclat de zone propre, scan, paliers, objectif, paiement, ambiance, pas) sont **générés par synthèse**
+(`RugWashAudioGenerator`) dans `Assets/RugWash/Audio/Generated/tmp_*.wav` : aucune licence tierce. Ce sont des
+**substituts temporaires** clairement préfixés `tmp_`, à remplacer en changeant le clip assigné.
+Inventaire complet, règles de lecture (catégories, pause, anti-empilement) et licences :
+[`Documentation/AUDIO.md`](Assets/RugWash/Documentation/AUDIO.md).
 
 ## 4 quater. Rendu et présentation
 
 - URP Forward+, **SSAO** (occlusion ambiante), ombres douces du projecteur principal, sonde de réflexion,
   étalonnage (ACES, balance des blancs chaude, saturation, bloom, vignette).
-- Outils tenus en main animés : balancement à la souris, balancier de marche, montée de l'outil à chaque changement
-  (`ViewModelRig`), plus l'animation propre à chaque outil (brossage, vibration, recul).
+- Outils tenus en main animés : balancement à la souris, balancier de marche, inertie lors des changements de
+  direction, montée de l'outil (avec son) à chaque changement (`ViewModelRig`), plus l'animation propre à chaque outil
+  (brossage, vibration, recul) et un petit choc au premier contact avec le tapis.
+- **Alignement sur la cible** : chaque outil est orienté pour que son extrémité active (tête, buse) pointe vers le
+  point visé par le réticule (`CleaningToolBase.aimTip`, rotation lissée et bornée). Sans cette correction, les
+  outils visaient de 7° (détergent) à 35° (brosse) sous la cible ; l'écart mesuré est désormais ≤ 0,05°.
+- **Caméra** : léger balancier de marche et inclinaison en pas chassé (`CameraMotion`), réglables avec le
+  balancement des outils ; le rayon de visée part toujours du centre de la caméra (testé pendant la marche).
+- Débris de brossage teintés par la couleur réelle de la saleté détachée ; eau d'éclaboussure trouble tant qu'elle
+  emporte de la saleté, claire sur une zone propre.
 - Atelier habillé : tapis à sécher, tapis roulés en attente, poste d'eau avec flexible enroulé, fût de détergent,
   étagères, établi à tiroirs, panneau d'outils, comptoir avec écran, poutres, conduits, horloge à l'heure réelle,
   affiche « Les 5 étapes » (aide en jeu), marquage au sol.
@@ -231,7 +248,8 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 
 Étapes : `compile`, `bootstrap`, `scene` (atelier + menu principal), `test` (EditMode, sans GPU),
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows) et
-`benchmark` (lance le jeu compilé en mode vérification). `all` enchaîne les cinq premières étapes. Les tests utilisent un dossier de
+`benchmark` (lance le jeu compilé en mode vérification). `all` enchaîne les cinq premières étapes.
+État actuel : 91 tests EditMode et 50 tests PlayMode, tous réussis (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

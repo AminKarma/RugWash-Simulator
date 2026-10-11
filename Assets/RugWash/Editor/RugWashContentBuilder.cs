@@ -315,7 +315,7 @@ namespace RugWash.Editor
             content.Materials["TargetRing"] = EnsureMaterial("M_TargetRing", "RugWash/Target Ring", out _);
             content.Materials["WaterJet"] = EnsureParticle("M_Particle_Water", new Color(0.72f, 0.88f, 1f, 0.55f), 0.7f);
             content.Materials["Splash"] = EnsureParticle("M_Particle_Splash", new Color(0.9f, 0.96f, 1f, 0.7f), 0.5f);
-            content.Materials["Debris"] = EnsureParticle("M_Particle_Debris", new Color(0.36f, 0.27f, 0.18f, 0.9f), 0.35f);
+            content.Materials["Debris"] = EnsureParticle("M_Particle_Debris", new Color(1f, 1f, 1f, 0.9f), 0.35f);
             content.Materials["Dust"] = EnsureParticle("M_Particle_Dust", new Color(0.66f, 0.62f, 0.55f, 0.55f), 0.8f);
             content.Materials["SoapMist"] = EnsureParticle("M_Particle_SoapMist", new Color(0.9f, 0.97f, 1f, 0.35f), 0.9f);
             content.Materials["Foam"] = EnsureParticle("M_Particle_Foam", new Color(1f, 1f, 1f, 0.9f), 0.25f);
@@ -428,7 +428,8 @@ namespace RugWash.Editor
         static Material EnsureParticle(string name, Color color, float softness)
         {
             var material = EnsureMaterial(name, "RugWash/Particle Soft", out bool created);
-            if (created)
+            // Valeurs de référence réappliquées à chaque génération (les matériaux de particules sont générés).
+            if (created || material.GetColor("_Color") != color || !Mathf.Approximately(material.GetFloat("_Softness"), softness))
             {
                 material.SetColor("_Color", color);
                 material.SetFloat("_Softness", softness);

@@ -17,6 +17,7 @@ namespace RugWash.Cleaning
         [SerializeField] float scrubAmplitude = 0.035f;
 
         float loosenedPerSecond;
+        Color? debrisDefaultColor;
         float scrubPhase;
         float scrubBlend;
 
@@ -44,8 +45,14 @@ namespace RugWash.Cleaning
             if (debrisParticles == null) return;
 
             if (IsAffectingRug)
+            {
+                // Les débris prennent la couleur de la saleté réellement détachée à cet endroit.
+                var main = debrisParticles.main;
+                debrisDefaultColor ??= main.startColor.color;
+                main.startColor = TrySampleDirt(aim, out Color dirt, out _) ? Color.Lerp(debrisDefaultColor.Value, dirt, 0.85f) : debrisDefaultColor.Value;
                 SetEmission(debrisParticles, Mathf.Min(maxDebrisRate, loosenedPerSecond * debrisPerLoosened),
                     aim.Point + aim.Normal * 0.01f, Quaternion.LookRotation(aim.Normal));
+            }
             else StopEmission(debrisParticles);
         }
 

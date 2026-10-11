@@ -11,6 +11,8 @@ namespace RugWash.Player
     /// Sélection et utilisation des outils : vise depuis le centre de la caméra, transmet l'intention
     /// d'utilisation à l'outil actif. L'outil ne nettoie que ce qui est réellement visé.
     /// </summary>
+    // Après le déplacement du joueur (ordre 0) : la visée utilise la position de caméra de cette image.
+    [DefaultExecutionOrder(50)]
     [DisallowMultipleComponent]
     public sealed class PlayerToolController : MonoBehaviour
     {
@@ -62,12 +64,21 @@ namespace RugWash.Player
                 return;
             }
             tools.Sort((a, b) => a.Definition.slot.CompareTo(b.Definition.slot));
-            foreach (var tool in tools) tool.Initialize(equipment);
+            foreach (var tool in tools)
+            {
+                tool.Initialize(equipment);
+                tool.ContactStarted += OnToolContact;
+            }
         }
 
         void Start()
         {
             if (activeIndex < 0) SelectIndex(0);
+        }
+
+        void OnToolContact(CleaningToolBase tool)
+        {
+            if (tool == ActiveTool && targetIndicator != null) targetIndicator.Pulse();
         }
 
         void OnDisable()
@@ -96,7 +107,12 @@ namespace RugWash.Player
             bool wantsUse = input.UseHeld || AutomationUseOverride;
             tool.Tick(wantsUse, aim, Time.deltaTime);
 
-            if (aim.HasRug) targetIndicator.Show(aim.Point, aim.Normal, tool.Radius, !tool.IsTargetOutOfRange, tool.IsUsing);
+            if (aim.HasRug)
+            {
+                bool clean = aim.Rug.TrySampleCell(aim.Point, out RugCell cell) && !DirtScan.IsDirty(cell)
+                             && cell.Residue < DirtScan.DefaultResidueThreshold;
+                targetIndicator.Show(aim.Point, aim.Normal, tool.Radius, !tool.IsTargetOutOfRange, tool.IsUsing, clean);
+            }
             else targetIndicator.Hide();
         }
 
