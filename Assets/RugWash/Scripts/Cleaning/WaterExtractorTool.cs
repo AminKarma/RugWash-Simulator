@@ -73,6 +73,6 @@ namespace RugWash.Cleaning
         }
 
         public override string GetBlockReason() =>
-            Resources != null && Resources.Recovery.IsFull ? "Cuve de récupération pleine — videz-la au caniveau (E)" : null;
+            Resources != null && Resources.Recovery.IsFull ? $"Cuve de récupération pleine — videz-la au caniveau ({KeyLabel("Interact", "E")})" : null;
     }
 }

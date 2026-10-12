@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Dirt_Embedded
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.DirtTypeDefinition
   type: 7
-  displayName: "Tache incrust\xE9e"
+  displayName: "Taches incrust\xE9es"
   color: {r: 0.2, g: 0.16, b: 0.12, a: 1}
   response:
     vacuum: 0
@@ -21,3 +21,6 @@ MonoBehaviour:
     brushWet: 0.2
     brushSoap: 0.45
     rinse: 0
+    sweep: 0
+  adhesion: 0.5
+  productSensitivity: 0.7

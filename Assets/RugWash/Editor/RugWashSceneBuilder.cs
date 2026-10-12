@@ -12,6 +12,7 @@ using RugWash.Player;
 using RugWash.Save;
 using RugWash.UI;
 using RugWash.Workshop;
+using RugWash.RugDex;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -146,8 +147,9 @@ namespace RugWash.Editor
             var upgrades = game.AddComponent<UpgradeManager>();
             Wire(upgrades, ("equipment", player.GetComponent<PlayerEquipment>()), ("tools", toolController));
             WireList(upgrades, "catalog", content.Upgrades);
+            var productInventory = player.GetComponent<ProductInventory>();
             var shop = game.AddComponent<ShopManager>();
-            Wire(shop, ("wallet", wallet), ("upgrades", upgrades), ("audioManager", audio));
+            Wire(shop, ("wallet", wallet), ("upgrades", upgrades), ("audioManager", audio), ("products", productInventory));
             var orders = game.AddComponent<OrderManager>();
             Wire(orders, ("practiceRug", content.Oriental), ("rug", rug), ("snapshots", snapshots), ("gameState", gameState),
                 ("wallet", wallet), ("reputation", reputation), ("audioManager", audio), ("rewardClip", Clip(RugWashAudioGenerator.Reward)));
@@ -161,15 +163,24 @@ namespace RugWash.Editor
             Wire(progressFeedback, ("rug", rug), ("orders", orders), ("audioManager", audio),
                 ("milestoneClip", Clip(RugWashAudioGenerator.Milestone)), ("celebrationPool", cleanPool));
             WireList(orders, "orders", content.Orders);
+            var rugDexService = game.AddComponent<RugDexService>();
+            Wire(rugDexService, ("catalog", content.Catalog), ("rug", rug), ("orders", orders));
 
             var settings = game.AddComponent<SettingsManager>();
             Wire(settings, ("audioManager", audio), ("player", fps), ("input", input),
                 ("viewModelRig", player.GetComponentInChildren<ViewModelRig>(true)), ("cameraMotion", player.GetComponentInChildren<CameraMotion>(true)));
             var save = game.AddComponent<SaveManager>();
             Wire(save, ("settings", settings), ("wallet", wallet), ("reputation", reputation), ("upgrades", upgrades),
-                ("orders", orders), ("shop", shop), ("workshop", workshopState));
+                ("orders", orders), ("shop", shop), ("workshop", workshopState), ("products", productInventory), ("rugDex", rugDexService));
 
             var ui = BuildUI(uiRoot, sprites, performance);
+
+            // Manette (jalon 4) : périphérique actif, curseur, libellés de touches, vibrations.
+            Wire(input, ("monitor", ui.Monitor));
+            Wire(gameState, ("inputMonitor", ui.Monitor));
+            var rumble = game.AddComponent<GamepadRumble>();
+            Wire(rumble, ("monitor", ui.Monitor), ("tools", toolController), ("gameState", gameState));
+            Wire(settings, ("rumble", rumble));
 
             var deskInteractable = orderCounter.AddComponent<PanelInteractable>();
             Wire(deskInteractable, ("orderBoard", ui.Board), ("orders", orders));
@@ -182,6 +193,9 @@ namespace RugWash.Editor
                 ("gameState", gameState),
                 ("audioManager", audio),
                 ("input", input),
+                ("inputMonitor", ui.Monitor),
+                ("navigator", ui.Navigator),
+                ("rumble", rumble),
                 ("playerController", fps),
                 ("toolController", toolController),
                 ("interactor", interactor),
@@ -192,6 +206,10 @@ namespace RugWash.Editor
                 ("workSurface", workSurface),
                 ("robot", robot),
                 ("workshopState", workshopState),
+                ("rugDex", rugDexService),
+                ("rugDexUI", ui.RugDex),
+                ("productInventory", productInventory),
+                ("dirtLibrary", content.DirtLibrary),
                 ("hud", ui.Hud),
                 ("toolbar", ui.Toolbar),
                 ("pauseMenu", ui.Pause),
@@ -284,7 +302,7 @@ namespace RugWash.Editor
 
             // Interface.
             var canvas = CreateCanvas("Menu Canvas", null);
-            CreateEventSystem(null);
+            var menuNavigator = CreateEventSystem(null);
             var shade = CreateRect("LeftShade", canvas.transform, Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(760f, 0f));
             AddImage(shade, sprites.White, new Color(0.03f, 0.04f, 0.05f, 0.86f), sliced: false);
             AddText(CreateRect("Title", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(90f, -110f), new Vector2(640f, 90f)),
@@ -292,15 +310,18 @@ namespace RugWash.Editor
             AddText(CreateRect("Subtitle", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(94f, -200f), new Vector2(640f, 40f)),
                 "Atelier de nettoyage de tapis", 28, TextAnchor.MiddleLeft, Accent);
 
-            var column = CreateRect("Buttons", canvas.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(90f, -40f), new Vector2(460f, 420f));
+            var column = CreateRect("Buttons", canvas.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(90f, -60f), new Vector2(460f, 510f));
             AddVerticalLayout(column.gameObject, 14, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
             var play = CreateButton("Play", column, "Nouvelle partie", sprites.Rounded, new Vector2(460f, 70f));
             var resume = CreateButton("Continue", column, "Continuer", sprites.Rounded, new Vector2(460f, 70f));
             var summary = AddText(CreateRect("ContinueSummary", column, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(460f, 30f)),
                 string.Empty, 20, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f));
             summary.gameObject.AddComponent<LayoutElement>().preferredHeight = 30f;
+            var rugDexMenuButton = CreateButton("RugDex", column, "RugDex", sprites.Rounded, new Vector2(460f, 70f));
             var settingsButton = CreateButton("Settings", column, "Paramètres", sprites.Rounded, new Vector2(460f, 70f));
             var quit = CreateButton("Quit", column, "Quitter", sprites.Rounded, new Vector2(460f, 70f));
+            // Navigation à la manette : la colonne de boutons est la fenêtre de base du menu.
+            column.gameObject.AddComponent<NavigationScope>().FirstSelected = play;
 
             var message = AddText(CreateRect("Message", canvas.transform, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(90f, 60f), new Vector2(640f, 80f)),
                 string.Empty, 20, TextAnchor.LowerLeft, new Color(1f, 0.75f, 0.45f));
@@ -319,14 +340,21 @@ namespace RugWash.Editor
             PlaceBottomLeft((RectTransform)yes.transform, new Vector2(60f, 32f));
             var no = CreateButton("No", confirmBox, "Annuler", sprites.Rounded, new Vector2(300f, 64f));
             PlaceBottomLeft((RectTransform)no.transform, new Vector2(400f, 32f));
+            confirm.gameObject.AddComponent<NavigationScope>().FirstSelected = no;
 
             var loading = Stretch("Loading", canvas.transform);
             AddImage(loading, sprites.White, new Color(0f, 0f, 0f, 0.8f), sliced: false, raycast: true);
             AddText(Stretch("Text", loading), "Chargement de l'atelier…", 40, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
 
+            var rugDexUI = BuildRugDexUI(canvas, sprites);
             var settingsUI = BuildSettingsUI(canvas, sprites);
 
             var controller = menu.AddComponent<MainMenuController>();
+            Wire(controller, ("rugDexUI", rugDexUI), ("rugDexButton", rugDexMenuButton), ("rugCatalog", content.Catalog),
+                ("dirtLibrary", content.DirtLibrary));
+            WireList(controller, "orders", content.Orders);
+            WireList(controller, "practiceRugs", new[] { content.Oriental, content.Classic, content.Shag });
+            Wire(controller, ("inputMonitor", menuNavigator.Monitor));
             Wire(controller, ("save", save), ("settings", settings), ("audioManager", audio), ("settingsUI", settingsUI),
                 ("playButton", play), ("continueButton", resume), ("settingsButton", settingsButton), ("quitButton", quit),
                 ("continueSummary", summary), ("messageLabel", message), ("confirmPanel", confirm.gameObject),
@@ -600,7 +628,7 @@ namespace RugWash.Editor
 
             Wire(dirtRenderer, ("targetRenderer", renderer), ("rugMaterialTemplate", c["RugSurface"]), ("fringeMaterialTemplate", c["RugFringe"]));
             Wire(rug, ("definition", definition), ("dirtLibrary", c.DirtLibrary), ("dirtRenderer", dirtRenderer),
-                ("meshFilter", filter), ("surfaceCollider", collider), ("tuning", c.Tuning));
+                ("meshFilter", filter), ("surfaceCollider", collider), ("tuning", c.Tuning), ("productLibrary", c.ProductLibrary));
             return rug;
         }
 
@@ -693,7 +721,10 @@ namespace RugWash.Editor
             cameraData.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
 
             input = player.AddComponent<PlayerInputReader>();
+            var productInventory = player.AddComponent<ProductInventory>();
+            Wire(productInventory, ("library", c.ProductLibrary));
             var equipment = player.AddComponent<PlayerEquipment>();
+            Wire(equipment, ("productInventory", productInventory), ("input", input));
             fps = player.AddComponent<FirstPersonController>();
             Wire(fps, ("input", input), ("cameraPivot", pivot));
 
@@ -930,6 +961,7 @@ namespace RugWash.Editor
                 RugWashAudioGenerator.BrushContactLoop, 0.4f);
             Wire(tool, ("debrisParticles", debris));
             SetFloat(tool, "stubbornBonus", 2.2f);
+            SetFloat(tool, "abrasiveness", 0.15f);
             SetFloat(tool, "scrubFrequency", 14f);
             SetFloat(tool, "scrubAmplitude", 0.02f);
             return tool;
@@ -968,7 +1000,13 @@ namespace RugWash.Editor
             public ResultsUI Results;
             public SettingsUI Settings;
             public DebugOverlay Debug;
+            public RugDexUI RugDex;
+            public InputDeviceMonitor Monitor;
+            public UINavigator Navigator;
         }
+
+        /// <summary>Moniteur de périphérique de l'interface en cours de construction (libellés « Fermer (Échap / B) »).</summary>
+        static InputDeviceMonitor uiMonitor;
 
         static readonly Color PanelColor = new Color(0.06f, 0.08f, 0.1f, 0.78f);
         static readonly Color Accent = new Color(0.33f, 0.78f, 0.92f, 1f);
@@ -978,7 +1016,8 @@ namespace RugWash.Editor
         {
             var built = new BuiltUI();
             var canvas = CreateCanvas("HUD Canvas", parent);
-            CreateEventSystem(parent);
+            built.Navigator = CreateEventSystem(parent);
+            built.Monitor = built.Navigator.Monitor;
 
             // ---- HUD
             var hudRoot = Stretch("HUD", canvas.transform);
@@ -1080,7 +1119,9 @@ namespace RugWash.Editor
             var afterImage = BuildSnapshotColumn(window, "After", "Maintenant", new Vector2(370f, 40f), sprites, out var afterAspect);
             var stats = AddText(CreateRect("Stats", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-150f, 26f), new Vector2(900f, 175f)),
                 string.Empty, 24, TextAnchor.MiddleLeft, Color.white);
-            var close = CreateButton("CloseButton", window, "Fermer (F)", sprites.Rounded, new Vector2(300f, 64f));
+            var close = CreateButton("CloseButton", window, "Fermer (Échap)", sprites.Rounded, new Vector2(300f, 64f));
+            AddPrompt(close, "Fermer ({back})");
+            inspectionPanel.gameObject.AddComponent<NavigationScope>().FirstSelected = close;
             var closeRect = (RectTransform)close.transform;
             closeRect.anchorMin = closeRect.anchorMax = new Vector2(1f, 0f);
             closeRect.pivot = new Vector2(1f, 0f);
@@ -1106,15 +1147,19 @@ namespace RugWash.Editor
             var reset = CreateButton("ResetRug", box, "Recommencer ce tapis", sprites.Rounded, new Vector2(460f, 64f));
             var next = CreateButton("NextRug", box, "Tapis d'entraînement suivant", sprites.Rounded, new Vector2(460f, 64f));
             var abandon = CreateButton("AbandonOrder", box, "Abandonner la commande", sprites.Rounded, new Vector2(460f, 64f));
+            var rugDexButton = CreateButton("RugDex", box, "RugDex (collection)", sprites.Rounded, new Vector2(460f, 64f));
             var settingsButton = CreateButton("Settings", box, "Paramètres", sprites.Rounded, new Vector2(460f, 64f));
             var mainMenu = CreateButton("MainMenu", box, "Menu principal", sprites.Rounded, new Vector2(460f, 64f));
             var quit = CreateButton("Quit", box, "Quitter le jeu", sprites.Rounded, new Vector2(460f, 64f));
+            pausePanel.gameObject.AddComponent<NavigationScope>().FirstSelected = resume;
             built.Pause = pauseRoot.gameObject.AddComponent<PauseMenuUI>();
             Wire(built.Pause, ("panel", pausePanel.gameObject), ("resumeButton", resume), ("resetRugButton", reset), ("nextRugButton", next),
                 ("quitButton", quit), ("subtitleLabel", subtitle), ("abandonOrderButton", abandon),
-                ("resetRugLabel", reset.GetComponentInChildren<Text>()), ("settingsButton", settingsButton), ("mainMenuButton", mainMenu));
+                ("resetRugLabel", reset.GetComponentInChildren<Text>()), ("settingsButton", settingsButton), ("mainMenuButton", mainMenu),
+                ("rugDexButton", rugDexButton));
 
             BuildGameLoopUI(canvas, sprites, built);
+            built.RugDex = BuildRugDexUI(canvas, sprites);
             built.Settings = BuildSettingsUI(canvas, sprites);
 
             // ---- Diagnostic (F3, développement uniquement)
@@ -1129,6 +1174,110 @@ namespace RugWash.Editor
             pausePanel.gameObject.SetActive(false);
             debugPanel.gameObject.SetActive(false);
             return built;
+        }
+
+        /// <summary>
+        /// Zone défilante verticale (molette, glisser) : retourne le contenu, à qui l'appelant ajoute sa mise en page.
+        /// Le contenu s'étire en largeur et grandit en hauteur avec ses éléments.
+        /// </summary>
+        static RectTransform CreateScrollList(Transform parent, string name, Vector2 position, Vector2 size, UISprites sprites)
+        {
+            var root = CreateRect(name, parent, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), position, size);
+            var scroll = root.gameObject.AddComponent<ScrollRect>();
+            var viewport = Stretch("Viewport", root);
+            viewport.gameObject.AddComponent<RectMask2D>();
+            AddImage(viewport, sprites.White, new Color(0f, 0f, 0f, 0.001f), sliced: false, raycast: true);
+            var content = CreateRect("Content", viewport, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
+            var fitter = content.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            scroll.viewport = viewport;
+            scroll.content = content;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 40f;
+
+            // Barre verticale juste à droite de la liste : signale qu'il reste des entrées et se masque sinon.
+            var track = CreateRect("Scrollbar", root, new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 0.5f), new Vector2(10f, 0f), new Vector2(12f, 0f));
+            AddImage(track, sprites.Rounded, new Color(1f, 1f, 1f, 0.08f), raycast: true);
+            var slidingArea = Stretch("Sliding Area", track);
+            var handle = Stretch("Handle", slidingArea);
+            var handleImage = AddImage(handle, sprites.Rounded, new Color(0.95f, 0.78f, 0.35f, 0.85f), raycast: true);
+            var scrollbar = track.gameObject.AddComponent<Scrollbar>();
+            scrollbar.handleRect = handle;
+            scrollbar.targetGraphic = handleImage;
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            scroll.verticalScrollbar = scrollbar;
+            scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            return content;
+        }
+
+        /// <summary>RugDex : cartes construites à l'exécution depuis le catalogue (aucune entrée codée en dur).</summary>
+        static RugDexUI BuildRugDexUI(Canvas canvas, UISprites sprites)
+        {
+            var window = BuildWindow(canvas.transform, "RugDex", new Vector2(1500f, 900f), sprites, "RugDex", out var panel, out var close);
+            var completion = AddText(CreateRect("Completion", window, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -28f), new Vector2(560f, 40f)),
+                string.Empty, 24, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+
+            var cards = CreateScrollList(window, "Cards", new Vector2(-370f, -100f), new Vector2(680f, 770f), sprites);
+            var gridLayout = cards.gameObject.AddComponent<GridLayoutGroup>();
+            gridLayout.cellSize = new Vector2(326f, 236f);
+            gridLayout.spacing = new Vector2(16f, 16f);
+            gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            gridLayout.constraintCount = 2;
+            gridLayout.childAlignment = TextAnchor.UpperCenter;
+
+            var card = CreateRect("CardTemplate", cards, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(326f, 236f));
+            // Liseré de focus derrière la carte : invisible au repos, cyan au survol, ambre quand la carte est sélectionnée.
+            var focus = CreateRect("Focus", card, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(12f, 12f));
+            var focusImage = AddImage(focus, sprites.Rounded, Color.white);
+            // Le fond de la carte est un enfant (et non la carte elle-même) pour être dessiné par-dessus le liseré.
+            var frame = AddImage(Stretch("Frame", card), sprites.Rounded, new Color(0.12f, 0.15f, 0.18f, 0.95f), raycast: true);
+            var button = card.gameObject.AddComponent<Button>();
+            button.targetGraphic = focusImage;
+            var cardColors = button.colors;
+            cardColors.normalColor = new Color(1f, 1f, 1f, 0f);
+            cardColors.highlightedColor = new Color(0.33f, 0.78f, 0.92f, 0.7f);
+            cardColors.pressedColor = new Color(0.33f, 0.78f, 0.92f, 1f);
+            cardColors.selectedColor = FocusColor;
+            cardColors.disabledColor = new Color(1f, 1f, 1f, 0f);
+            cardColors.fadeDuration = 0.05f;
+            button.colors = cardColors;
+            var thumbArea = CreateRect("Thumbnail", card, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(300f, 180f));
+            var thumbnail = thumbArea.gameObject.AddComponent<RawImage>();
+            thumbnail.raycastTarget = false;
+            var label = AddText(CreateRect("Label", card, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 8f), new Vector2(306f, 34f)),
+                "N° 00", 20, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 13;
+            label.resizeTextMaxSize = 20;
+            var cardView = card.gameObject.AddComponent<RugDexCardView>();
+            Wire(cardView, ("frame", frame), ("thumbnail", thumbnail), ("label", label), ("button", button));
+
+            var detail = CreateRect("Detail", window, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-30f, -100f), new Vector2(740f, 770f));
+            AddImage(detail, sprites.Rounded, new Color(0.06f, 0.08f, 0.1f, 0.9f));
+            var imageBox = CreateRect("ImageBox", detail, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -16f), new Vector2(700f, 360f));
+            var imageRect = CreateRect("Image", imageBox, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 360f));
+            var detailImage = imageRect.gameObject.AddComponent<RawImage>();
+            var aspect = imageRect.gameObject.AddComponent<AspectRatioFitter>();
+            aspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            aspect.aspectRatio = 1.5f;
+            var detailTitle = AddText(CreateRect("Title", detail, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -388f), new Vector2(700f, 44f)),
+                string.Empty, 28, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
+            detailTitle.resizeTextForBestFit = true;
+            detailTitle.resizeTextMinSize = 18;
+            detailTitle.resizeTextMaxSize = 28;
+            var detailBody = AddText(CreateRect("Body", detail, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -440f), new Vector2(700f, 318f)),
+                string.Empty, 20, TextAnchor.UpperLeft, new Color(0.85f, 0.87f, 0.9f));
+            detailBody.resizeTextForBestFit = true;
+            detailBody.resizeTextMinSize = 14;
+            detailBody.resizeTextMaxSize = 20;
+
+            var ui = window.parent.parent.gameObject.AddComponent<RugDexUI>();
+            Wire(ui, ("panel", panel), ("completionLabel", completion), ("cardRoot", cards), ("cardTemplate", cardView), ("detailImage", detailImage),
+                ("detailAspect", aspect), ("detailTitle", detailTitle), ("detailBody", detailBody), ("closeButton", close));
+            panel.SetActive(false);
+            return ui;
         }
 
         static RectTransform BuildWindow(Transform canvas, string name, Vector2 size, UISprites sprites, string title,
@@ -1146,6 +1295,8 @@ namespace RugWash.Editor
             closeRect.anchorMin = closeRect.anchorMax = new Vector2(1f, 1f);
             closeRect.pivot = new Vector2(1f, 1f);
             closeRect.anchoredPosition = new Vector2(-24f, -22f);
+            AddPrompt(closeButton, "Fermer ({back})");
+            panelRect.gameObject.AddComponent<NavigationScope>().LastResort = closeButton;
             panel = panelRect.gameObject;
             return window;
         }
@@ -1190,7 +1341,8 @@ namespace RugWash.Editor
             var boardWindow = BuildWindow(canvas.transform, "OrderBoard", new Vector2(1320f, 960f), sprites, "Commandes", out var boardPanel, out var boardClose);
             var header = AddText(CreateRect("Header", boardWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -28f), new Vector2(600f, 40f)),
                 string.Empty, 22, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
-            var list = CreateRect("List", boardWindow, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -96f), new Vector2(1260f, 640f));
+            // Liste défilante (molette) : le nombre de commandes peut grandir sans changer l'interface.
+            var list = CreateScrollList(boardWindow, "List", new Vector2(0f, -96f), new Vector2(1260f, 640f), sprites);
             AddVerticalLayout(list.gameObject, 8, new RectOffset(0, 0, 0, 0), TextAnchor.UpperCenter);
             var boardRow = BuildRowTemplate(list, sprites, 1260f, 98f, 380f);
             var active = CreateRect("Active", boardWindow, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f), new Vector2(1260f, 150f));
@@ -1208,10 +1360,19 @@ namespace RugWash.Editor
                 ("activeLabel", activeLabel), ("deliverButton", deliver), ("abandonButton", abandon), ("messageLabel", message), ("closeButton", boardClose));
 
             // ---- Boutique
-            var shopWindow = BuildWindow(canvas.transform, "Shop", new Vector2(1500f, 900f), sprites, "Boutique de matériel", out var shopPanel, out var shopClose);
+            var shopWindow = BuildWindow(canvas.transform, "Shop", new Vector2(1500f, 980f), sprites, "Boutique", out var shopPanel, out var shopClose);
+            var equipmentTab = CreateButton("Tab_Equipment", shopWindow, "Matériel", sprites.Rounded, new Vector2(240f, 50f));
+            var productsTab = CreateButton("Tab_Products", shopWindow, "Produits", sprites.Rounded, new Vector2(240f, 50f));
+            foreach (var (tab, x) in new[] { (equipmentTab, -125f), (productsTab, 125f) })
+            {
+                StyleTab(tab);
+                var rect = (RectTransform)tab.transform;
+                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 1f);
+                rect.anchoredPosition = new Vector2(x, -86f);
+            }
             var balance = AddText(CreateRect("Balance", shopWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -28f), new Vector2(500f, 40f)),
                 string.Empty, 24, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
-            var grid = CreateRect("Grid", shopWindow, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -96f), new Vector2(1440f, 700f));
+            var grid = CreateRect("Grid", shopWindow, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(1440f, 700f));
             var gridLayout = grid.gameObject.AddComponent<GridLayoutGroup>();
             gridLayout.cellSize = new Vector2(714f, 110f);
             gridLayout.spacing = new Vector2(12f, 8f);
@@ -1222,7 +1383,7 @@ namespace RugWash.Editor
                 string.Empty, 24, TextAnchor.MiddleCenter, Color.white);
             built.Shop = shopWindow.parent.parent.gameObject.AddComponent<ShopUI>();
             Wire(built.Shop, ("panel", shopPanel), ("balanceLabel", balance), ("listRoot", grid), ("rowTemplate", shopRow), ("messageLabel", shopMessage),
-                ("closeButton", shopClose));
+                ("closeButton", shopClose), ("equipmentTabButton", equipmentTab), ("productsTabButton", productsTab));
 
             // ---- Résultats
             var resultsWindow = BuildWindow(canvas.transform, "Results", new Vector2(1600f, 940f), sprites, "Résultats de la commande", out var resultsPanel, out var resultsClose);
@@ -1297,49 +1458,118 @@ namespace RugWash.Editor
             return stepper;
         }
 
+        /// <summary>
+        /// Paramètres en trois onglets (Général, Commandes, Touches). Les touches sont dans une liste défilante avec une
+        /// colonne clavier/souris et une colonne manette.
+        /// </summary>
         static SettingsUI BuildSettingsUI(Canvas canvas, UISprites sprites)
         {
             var window = BuildWindow(canvas.transform, "Settings", new Vector2(1340f, 900f), sprites, "Paramètres", out var panel, out var close);
 
-            var left = CreateRect("Left", window, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(50f, -100f), new Vector2(580f, 700f));
-            AddVerticalLayout(left.gameObject, 6, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
-            SectionTitle(left, "Audio");
-            var master = SliderRow(left, "Volume général", sprites, out var masterValue);
-            var effects = SliderRow(left, "Effets", sprites, out var effectsValue);
-            var interfaceSlider = SliderRow(left, "Interface", sprites, out var interfaceValue);
-            SectionTitle(left, "Contrôles");
-            var sensitivity = SliderRow(left, "Sensibilité", sprites, out var sensitivityValue);
-            var invert = StepperRow(left, "Inverser l'axe vertical", sprites);
-            var motion = SliderRow(left, "Balancement", sprites, out var motionValue);
-            SectionTitle(left, "Affichage");
-            var resolution = StepperRow(left, "Résolution", sprites);
-            var display = StepperRow(left, "Mode d'affichage", sprites);
-            var quality = StepperRow(left, "Qualité graphique", sprites);
+            var tabs = new List<Button>();
+            var pages = new List<GameObject>();
+            string[] tabNames = { "Général", "Commandes", "Touches" };
+            for (int i = 0; i < tabNames.Length; i++)
+            {
+                var tab = CreateButton($"Tab_{i}", window, tabNames[i], sprites.Rounded, new Vector2(250f, 50f));
+                StyleTab(tab);
+                var rect = (RectTransform)tab.transform;
+                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 1f);
+                rect.anchoredPosition = new Vector2((i - 1) * 265f, -86f);
+                tabs.Add(tab);
+                var page = CreateRect($"Page_{i}", window, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+                pages.Add(page.gameObject);
+            }
 
-            var right = CreateRect("Right", window, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-50f, -100f), new Vector2(580f, 700f));
-            AddVerticalLayout(right.gameObject, 6, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
-            SectionTitle(right, "Touches (disposition physique du clavier)");
-            var list = CreateRect("Bindings", right, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(580f, 480f));
-            list.gameObject.AddComponent<LayoutElement>().preferredHeight = 490f;
+            RectTransform Column(Transform page, bool left)
+            {
+                var anchor = left ? new Vector2(0f, 1f) : new Vector2(1f, 1f);
+                var column = CreateRect(left ? "Left" : "Right", page, anchor, anchor, anchor, new Vector2(left ? 50f : -50f, -160f), new Vector2(580f, 640f));
+                AddVerticalLayout(column.gameObject, 6, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
+                return column;
+            }
+
+            // ---- Général : audio et affichage
+            var general = pages[0].transform;
+            var audioColumn = Column(general, true);
+            SectionTitle(audioColumn, "Audio");
+            var master = SliderRow(audioColumn, "Volume général", sprites, out var masterValue);
+            var effects = SliderRow(audioColumn, "Effets", sprites, out var effectsValue);
+            var interfaceSlider = SliderRow(audioColumn, "Interface", sprites, out var interfaceValue);
+            var displayColumn = Column(general, false);
+            SectionTitle(displayColumn, "Affichage");
+            var resolution = StepperRow(displayColumn, "Résolution", sprites);
+            var display = StepperRow(displayColumn, "Mode d'affichage", sprites);
+            var quality = StepperRow(displayColumn, "Qualité graphique", sprites);
+
+            // ---- Commandes : souris, caméra, manette
+            var controls = pages[1].transform;
+            var mouseColumn = Column(controls, true);
+            SectionTitle(mouseColumn, "Souris et caméra");
+            var sensitivity = SliderRow(mouseColumn, "Sensibilité souris", sprites, out var sensitivityValue);
+            var invert = StepperRow(mouseColumn, "Inverser l'axe vertical", sprites);
+            var motion = SliderRow(mouseColumn, "Balancement", sprites, out var motionValue);
+            var padColumn = Column(controls, false);
+            SectionTitle(padColumn, "Manette");
+            var padLook = SliderRow(padColumn, "Vitesse caméra (stick)", sprites, out var padLookValue);
+            var deadZone = SliderRow(padColumn, "Zone morte des sticks", sprites, out var deadZoneValue);
+            var vibration = SliderRow(padColumn, "Vibrations", sprites, out var vibrationValue);
+            foreach (var value in new[] { padLookValue, vibrationValue })
+            {
+                value.resizeTextForBestFit = true;
+                value.resizeTextMinSize = 12;
+                value.resizeTextMaxSize = 20;
+            }
+
+            // ---- Touches : clavier/souris et manette
+            var keys = pages[2].transform;
+            var header = CreateRect("Header", keys, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(1240f, 36f));
+            AddText(CreateRect("Action", header, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(16f, 0f), new Vector2(300f, 36f)),
+                "Action", 22, TextAnchor.MiddleLeft, Accent, FontStyle.Bold);
+            AddText(CreateRect("Keyboard", header, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(330f, 0f), new Vector2(380f, 36f)),
+                "Clavier / souris (disposition physique)", 22, TextAnchor.MiddleLeft, Accent, FontStyle.Bold);
+            AddText(CreateRect("Gamepad", header, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(760f, 0f), new Vector2(300f, 36f)),
+                "Manette", 22, TextAnchor.MiddleLeft, Accent, FontStyle.Bold);
+            var list = CreateScrollList(keys, "Bindings", new Vector2(-10f, -192f), new Vector2(1240f, 520f), sprites);
             AddVerticalLayout(list.gameObject, 6, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
 
-            var template = CreateRect("RebindTemplate", list, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(580f, 54f));
+            var template = CreateRect("RebindTemplate", list, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1240f, 54f));
             template.gameObject.AddComponent<LayoutElement>().preferredHeight = 54f;
             AddImage(template, sprites.Rounded, new Color(0.12f, 0.15f, 0.18f, 0.95f));
-            var actionLabel = AddText(CreateRect("Action", template, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(16f, 0f), new Vector2(200f, 44f)),
+            var actionLabel = AddText(CreateRect("Action", template, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(16f, 0f), new Vector2(300f, 44f)),
                 "Action", 21, TextAnchor.MiddleLeft, Color.white);
-            var bindingLabel = AddText(CreateRect("Binding", template, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(220f, 0f), new Vector2(210f, 44f)),
-                "—", 21, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
-            bindingLabel.resizeTextForBestFit = true;
-            bindingLabel.resizeTextMinSize = 12;
-            bindingLabel.resizeTextMaxSize = 21;
-            var change = CreateButton("Change", template, "Modifier", sprites.Rounded, new Vector2(130f, 42f));
-            PlaceRight((RectTransform)change.transform, new Vector2(-8f, 0f));
-            change.GetComponentInChildren<Text>().fontSize = 21;
+            Text BindingText(string name, float x, float width)
+            {
+                var text = AddText(CreateRect(name, template, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(x, 0f), new Vector2(width, 44f)),
+                    "—", 21, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+                text.resizeTextForBestFit = true;
+                text.resizeTextMinSize = 12;
+                text.resizeTextMaxSize = 21;
+                return text;
+            }
+            Button ChangeButton(string name, float x)
+            {
+                var button = CreateButton(name, template, "Modifier", sprites.Rounded, new Vector2(140f, 42f));
+                var rect = (RectTransform)button.transform;
+                rect.anchorMin = rect.anchorMax = new Vector2(0f, 0.5f);
+                rect.pivot = new Vector2(0f, 0.5f);
+                rect.anchoredPosition = new Vector2(x, 0f);
+                button.GetComponentInChildren<Text>().fontSize = 21;
+                return button;
+            }
+            var bindingLabel = BindingText("Binding", 330f, 250f);
+            var change = ChangeButton("Change", 590f);
+            var gamepadLabel = BindingText("GamepadBinding", 760f, 300f);
+            var gamepadChange = ChangeButton("ChangeGamepad", 1080f);
             var rebindRow = template.gameObject.AddComponent<RebindRowView>();
-            Wire(rebindRow, ("actionLabel", actionLabel), ("bindingLabel", bindingLabel), ("changeButton", change));
+            Wire(rebindRow, ("actionLabel", actionLabel), ("bindingLabel", bindingLabel), ("changeButton", change),
+                ("gamepadLabel", gamepadLabel), ("gamepadButton", gamepadChange));
 
-            var reset = CreateButton("ResetBindings", right, "Touches par défaut", sprites.Rounded, new Vector2(300f, 56f));
+            var reset = CreateButton("ResetBindings", keys, "Touches et boutons par défaut", sprites.Rounded, new Vector2(420f, 56f));
+            var resetRect = (RectTransform)reset.transform;
+            resetRect.anchorMin = resetRect.anchorMax = resetRect.pivot = new Vector2(0.5f, 0f);
+            resetRect.anchoredPosition = new Vector2(0f, 76f);
+
             var message = AddText(CreateRect("Message", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(1200f, 40f)),
                 string.Empty, 22, TextAnchor.MiddleCenter, new Color(0.55f, 0.95f, 0.6f));
 
@@ -1348,7 +1578,13 @@ namespace RugWash.Editor
                 ("sensitivitySlider", sensitivity), ("masterValue", masterValue), ("effectsValue", effectsValue), ("interfaceValue", interfaceValue),
                 ("sensitivityValue", sensitivityValue), ("motionSlider", motion), ("motionValue", motionValue), ("invertYStepper", invert), ("resolutionStepper", resolution),
                 ("displayModeStepper", display), ("qualityStepper", quality), ("rebindRoot", list), ("rebindTemplate", rebindRow),
-                ("resetBindingsButton", reset), ("closeButton", close), ("messageLabel", message));
+                ("resetBindingsButton", reset), ("closeButton", close), ("messageLabel", message),
+                ("gamepadLookSlider", padLook), ("deadZoneSlider", deadZone), ("vibrationSlider", vibration),
+                ("gamepadLookValue", padLookValue), ("deadZoneValue", deadZoneValue), ("vibrationValue", vibrationValue), ("monitor", uiMonitor));
+            WireList(ui, "tabButtons", tabs);
+            WireList(ui, "tabPages", pages);
+            panel.GetComponent<NavigationScope>().FirstSelected = tabs[1];
+            for (int i = 1; i < pages.Count; i++) pages[i].SetActive(false);
             panel.SetActive(false);
             return ui;
         }
@@ -1410,12 +1646,29 @@ namespace RugWash.Editor
             return canvas;
         }
 
-        static void CreateEventSystem(Transform parent)
+        /// <summary>
+        /// EventSystem (souris, clavier et manette via les actions d'interface par défaut), moniteur du périphérique actif
+        /// et navigateur des fenêtres (focus, sélection restaurée, défilement).
+        /// </summary>
+        static UINavigator CreateEventSystem(Transform parent)
         {
             var go = new GameObject("EventSystem");
             go.transform.SetParent(parent, false);
             go.AddComponent<EventSystem>();
             go.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
+            uiMonitor = go.AddComponent<InputDeviceMonitor>();
+            var navigator = go.AddComponent<UINavigator>();
+            Wire(navigator, ("monitor", uiMonitor));
+            return navigator;
+        }
+
+        /// <summary>Libellé de bouton réécrit selon le périphérique actif (ex. « Fermer ({back}) »).</summary>
+        static void AddPrompt(Button button, string template)
+        {
+            var label = button.GetComponentInChildren<Text>(true);
+            var prompt = label.gameObject.AddComponent<InputPromptText>();
+            Wire(prompt, ("monitor", uiMonitor));
+            SetString(prompt, "template", template);
         }
     }
 }

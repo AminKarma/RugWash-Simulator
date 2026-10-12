@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 45b04205e54e5b5458488304c51560db, type: 3}
+  m_Name: Rug_Luxury
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.RugDefinition
+  id: luxury
+  displayName: Tapis de soie de Hereke
+  description: "Soie nou\xE9e main, plus de cent n\u0153uds au centim\xE8tre carr\xE9.
+    \xC9clat soyeux et fibres tr\xE8s d\xE9licates."
+  pileType: 3
+  surfaceKind: 0
+  dryingPerSecond: 0
+  fragility: 0.85
+  sheen: 0.4
+  sizeMeters: {x: 3.2, y: 2.2}
+  thickness: 0.009
+  cellsPerMeter: 64
+  patternTexture: {fileID: 2800000, guid: abbdf5065e9601f4fbbf33a7ad0b4aed, type: 3}
+  fiberNormal: {fileID: 2800000, guid: 55f0ae6f6170958488880e52067ed4b5, type: 3}
+  fiberTilesPerMeter: 12
+  fiberNormalStrength: 0.45
+  hasFringe: 1
+  fringeColor: {r: 0.95, g: 0.92, b: 0.84, a: 1}
+  dirtSeed: 51
+  defaultDirt:
+  - type: 1
+    pattern: 0
+    coverage: 0.7
+    intensity: 0.3
+    scale: 0.3
+    adhesionOffset: 0
+  - type: 4
+    pattern: 2
+    coverage: 0.15
+    intensity: 0.8
+    scale: 0.1
+    adhesionOffset: 0
+  - type: 11
+    pattern: 1
+    coverage: 0.25
+    intensity: 0.3
+    scale: 0.3
+    adhesionOffset: 0

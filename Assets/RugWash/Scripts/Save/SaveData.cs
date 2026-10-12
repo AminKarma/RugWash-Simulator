@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RugWash.RugDex;
 using UnityEngine;
 
 namespace RugWash.Save
@@ -24,8 +25,22 @@ namespace RugWash.Save
         public int fullScreenMode = -1;
         /// <summary>Liaisons de touches modifiées (format JSON de l'Input System).</summary>
         public string bindingOverrides = string.Empty;
+        /// <summary>Vitesse de la caméra au stick droit poussé à fond (degrés par seconde).</summary>
+        public float gamepadLookSpeed = 150f;
+        /// <summary>Zone morte radiale des sticks (0..1).</summary>
+        public float stickDeadZone = 0.15f;
+        /// <summary>Intensité des vibrations de la manette (0 = désactivées).</summary>
+        public float vibration = 1f;
 
         public SettingsData Clone() => (SettingsData)MemberwiseClone();
+    }
+
+    /// <summary>Stock d'un produit spécialisé (litres).</summary>
+    [Serializable]
+    public sealed class ProductStockData
+    {
+        public string id = string.Empty;
+        public float liters;
     }
 
     /// <summary>État de l'atelier : robot aspirateur, plan de travail et sol (grilles compressées, voir SurfaceStateCodec).</summary>
@@ -65,6 +80,11 @@ namespace RugWash.Save
 
         public SettingsData settings = new SettingsData();
         public WorkshopSaveData workshop = new WorkshopSaveData();
+        /// <summary>Produits spécialisés en stock et produit sélectionné (vide = détergent standard).</summary>
+        public List<ProductStockData> products = new List<ProductStockData>();
+        public string activeProduct = string.Empty;
+        /// <summary>Progression du RugDex.</summary>
+        public List<RugDexRecord> rugDex = new List<RugDexRecord>();
 
         /// <summary>Vrai si le joueur a commencé à progresser (sert à « Continuer » et à confirmer « Nouvelle partie »).</summary>
         public bool HasProgress => money > 0 || reputation > 0 || ordersDelivered > 0 || upgrades.Count > 0 || completedOrders.Count > 0;
@@ -101,6 +121,9 @@ namespace RugWash.Save
             s.mouseSensitivity = Mathf.Clamp(s.mouseSensitivity, 0.01f, 0.5f);
             s.motionIntensity = Mathf.Clamp01(s.motionIntensity);
             if (s.bindingOverrides == null) s.bindingOverrides = string.Empty;
+            s.gamepadLookSpeed = Mathf.Clamp(s.gamepadLookSpeed, 30f, 360f);
+            s.stickDeadZone = Mathf.Clamp(s.stickDeadZone, 0.02f, 0.5f);
+            s.vibration = Mathf.Clamp01(s.vibration);
         }
     }
 }

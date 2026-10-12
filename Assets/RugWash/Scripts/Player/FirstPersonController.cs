@@ -4,7 +4,7 @@ namespace RugWash.Player
 {
     /// <summary>
     /// Contrôleur FPS : CharacterController (collisions, marches), accélération/décélération,
-    /// gravité, orientation souris en degrés par pixel (indépendante du framerate).
+    /// gravité, orientation souris en degrés par pixel et stick droit en degrés par seconde (indépendantes du framerate).
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     [DisallowMultipleComponent]
@@ -23,6 +23,8 @@ namespace RugWash.Player
         [Header("Caméra")]
         [Tooltip("Degrés par pixel de déplacement souris.")]
         [SerializeField, Range(0.01f, 0.5f)] float lookSensitivity = 0.1f;
+        [Tooltip("Vitesse de rotation au stick droit poussé à fond (degrés par seconde).")]
+        [SerializeField, Range(30f, 360f)] float stickLookSpeed = 150f;
         [SerializeField] bool invertY;
         [SerializeField] float minPitch = -85f;
         [SerializeField] float maxPitch = 85f;
@@ -36,6 +38,12 @@ namespace RugWash.Player
         {
             get => lookSensitivity;
             set => lookSensitivity = Mathf.Clamp(value, 0.01f, 0.5f);
+        }
+
+        public float StickLookSpeed
+        {
+            get => stickLookSpeed;
+            set => stickLookSpeed = Mathf.Clamp(value, 30f, 360f);
         }
 
         public bool InvertY
@@ -70,15 +78,16 @@ namespace RugWash.Player
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
-            Look(input.LookDelta);
+            Look(input.LookDelta * lookSensitivity + input.LookStick * (stickLookSpeed * dt));
             Move(input.Move, input.SprintHeld, dt);
         }
 
-        void Look(Vector2 delta)
+        /// <summary>Rotation en degrés (x : lacet, y : tangage).</summary>
+        void Look(Vector2 degrees)
         {
-            if (delta.sqrMagnitude <= 0f) return;
-            transform.Rotate(0f, delta.x * lookSensitivity, 0f, Space.Self);
-            pitch = Mathf.Clamp(pitch + (invertY ? delta.y : -delta.y) * lookSensitivity, minPitch, maxPitch);
+            if (degrees.sqrMagnitude <= 0f) return;
+            transform.Rotate(0f, degrees.x, 0f, Space.Self);
+            pitch = Mathf.Clamp(pitch + (invertY ? degrees.y : -degrees.y), minPitch, maxPitch);
             cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
         }
 

@@ -49,6 +49,10 @@ namespace RugWash.UI
         DirtScanner scanner;
         WorkSurface workSurface;
         bool workSurfaceWasClean = true;
+        ProductStockBook products;
+        ProductDefinition lastProduct;
+        float lastWear;
+        float nextWearWarning;
         CleaningProgressFeedback progress;
         Color cleanlinessBaseColor;
         float displayedCleanliness;
@@ -95,6 +99,7 @@ namespace RugWash.UI
 
             interactor.Interacted += ShowToast;
             tools.LockedToolRequested += OnLockedToolRequested;
+            if (input.Monitor != null) input.Monitor.SchemeChanged += OnSchemeChanged;
             gameState.StateChanged += OnStateChanged;
             gameState.ModalsChanged += RefreshVisibility;
             toastLabel.text = string.Empty;
@@ -150,8 +155,50 @@ namespace RugWash.UI
         void OnContaminated(float amount) =>
             ShowToast("Tapis posé sur une aire de lavage sale : ses bords sont recontaminés");
 
+        /// <summary>Produits spécialisés : message au changement de produit et à l'épuisement.</summary>
+        public void BindProducts(ProductStockBook book)
+        {
+            products = book;
+            lastProduct = products.Active;
+            products.Changed += OnProductsChanged;
+            products.Depleted += OnProductDepleted;
+        }
+
+        void OnProductsChanged()
+        {
+            if (products.Active == lastProduct) return;
+            lastProduct = products.Active;
+            ShowToast(products.Active == null
+                ? "Produit : détergent standard"
+                : $"Produit : {products.Active.displayName} ({products.StockOf(products.Active):0.0} L en stock)");
+        }
+
+        void OnProductDepleted(ProductDefinition product) =>
+            ShowToast($"{product.displayName} épuisé — retour au détergent standard (boutique pour en racheter)");
+
+        /// <summary>
+        /// Tapis fragile : avertit (au plus toutes les 6 s) quand l'usure des fibres augmente réellement
+        /// (brossage à sec, produit agressif laissé en place).
+        /// </summary>
+        void CheckFiberWear()
+        {
+            if (rug == null || rug.Grid == null || rug.Fragility <= 0f) return;
+            float wear = rug.Grid.AverageWear;
+            if (wear > lastWear + 0.0005f && Time.unscaledTime >= nextWearWarning)
+            {
+                ShowToast($"Attention : fibres abîmées ({wear * 100f:0.#} %) — humidifiez ou savonnez avant de brosser");
+                nextWearWarning = Time.unscaledTime + 6f;
+            }
+            lastWear = wear;
+        }
+
         /// <summary>Texte de l'alerte du plan de travail (vide s'il est propre).</summary>
         public string WorkSurfaceAlert => workSurfaceLabel.text;
+        public string HintText => hintLabel.text;
+        public string PromptText => promptLabel.text;
+        public string OrderText => orderLabel.text;
+        public string ScanText => scanLabel.text;
+        public string ToolStatusText => toolStatusLabel.text;
 
         void OnScanDenied(float remaining) =>
             ShowToast(remaining > 0f ? $"Scan en recharge — encore {Mathf.CeilToInt(remaining)} s" : "Scan déjà en cours");
@@ -166,6 +213,14 @@ namespace RugWash.UI
         /// <summary>Intensité de l'animation de palier (1 au déclenchement, 0 au repos).</summary>
         public float MilestonePulse => pulse;
 
+        /// <summary>Clavier ↔ manette : toutes les indications de touches sont réécrites.</summary>
+        void OnSchemeChanged(InputScheme _)
+        {
+            lastTool = null;
+            RefreshEconomy();
+            RefreshAll(force: true);
+        }
+
         void OnWalletChanged(int balance, int delta) => RefreshEconomy();
         void OnReputationChanged(int points) => RefreshEconomy();
 
@@ -174,16 +229,23 @@ namespace RugWash.UI
             if (wallet == null) return;
             economyLabel.text = $"{WalletManager.Format(wallet.Balance)}\nRéputation {reputation.Points}";
             var order = orders.ActiveOrder;
+            string interact = input != null ? input.Label("Interact") : "E";
             orderLabel.text = order == null
-                ? "Aucune commande — comptoir de réception (E)"
+                ? $"Aucune commande — comptoir de réception ({interact})"
                 : $"{order.title} · objectif {order.objectives.targetCleanliness * 100f:0} % · {OrderEvaluator.FormatTime(orders.ElapsedSeconds)}\n" +
-                  "Livrer au comptoir de réception (E)";
+                  $"Livrer au comptoir de réception ({interact})";
         }
 
         void OnDestroy()
         {
+            if (input != null && input.Monitor != null) input.Monitor.SchemeChanged -= OnSchemeChanged;
             if (interactor != null) interactor.Interacted -= ShowToast;
             if (tools != null) tools.LockedToolRequested -= OnLockedToolRequested;
+            if (products != null)
+            {
+                products.Changed -= OnProductsChanged;
+                products.Depleted -= OnProductDepleted;
+            }
             if (workSurface != null)
             {
                 workSurface.StatusChanged -= OnWorkSurfaceChanged;
@@ -258,6 +320,7 @@ namespace RugWash.UI
         void RefreshAll(bool force)
         {
             RefreshEconomy();
+            CheckFiberWear();
             var tool = tools.ActiveTool;
 
             int percent = Mathf.FloorToInt((rug != null ? rug.Cleanliness01 : 0f) * 100f);
@@ -314,12 +377,16 @@ namespace RugWash.UI
             return string.Empty;
         }
 
+        /// <summary>Rappel des commandes, selon le périphérique actif (clavier/souris ou manette).</summary>
         string BuildHint(CleaningToolBase tool)
         {
             string verb = tool != null ? tool.ActionVerb : "utiliser";
-            return $"Clic gauche : {verb}   ·   1-8 / molette : outils   ·   " +
-                   $"{input.GetBindingLabel("Interact")} : interagir   ·   {input.GetBindingLabel("Scan")} : scanner   ·   " +
-                   $"{input.GetBindingLabel("Inspect")} : inspecter   ·   Échap : pause";
+            string common = $"{input.Label("Interact")} : interagir   ·   {input.Label("Scan")} : scanner   ·   {input.Label("Product")} : produit   ·   " +
+                            $"{input.Label("Inspect")} : inspecter   ·   ";
+            if (input.Scheme == InputScheme.Gamepad)
+                return $"{input.Label("Use")} : {verb}   ·   {input.Label("ToolPrevious")} / {input.Label("ToolNext")} : outils   ·   " +
+                       common + $"{input.Label("Pause")} : pause";
+            return $"Clic gauche : {verb}   ·   1-8 / molette : outils   ·   " + common + "Échap : pause";
         }
     }
 }

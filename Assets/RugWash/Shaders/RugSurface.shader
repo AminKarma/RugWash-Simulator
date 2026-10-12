@@ -3,7 +3,8 @@
 // superposées selon deux textures de contrôle produites par RugDirtRenderer à partir de la grille :
 //   _ControlA : R poussière, G saleté fixée, B saleté détachée, A mousse
 //   _ControlB : RGB couleur de la saleté (linéaire), A humidité
-//   _ControlC : R résidus de produit, G usure des fibres
+//   _ControlC : R résidus de produit, G usure des fibres, B adhérence de la saleté fixée
+//   _ControlD : RGB couleur de la salissure sèche (linéaire), A aspect (0 voile fin, 0,5 grains, 1 brins : poils, peluches)
 // Un bruit de détail découpe les seuils pour que la frontière propre/sale soit organique.
 // Scan de saleté (DirtScanner, variables globales) : surligne les cellules réellement sales — même seuil
 // que la grille — et les résidus de produit, derrière une onde partie du joueur. Le motif reste visible.
@@ -21,6 +22,7 @@ Shader "RugWash/Rug Surface"
         [NoScaleOffset] _ControlA("Contrôle A", 2D) = "black" {}
         [NoScaleOffset] _ControlB("Contrôle B", 2D) = "black" {}
         [NoScaleOffset] _ControlC("Contrôle C", 2D) = "black" {}
+        [NoScaleOffset] _ControlD("Contrôle D", 2D) = "black" {}
         _ResidueColor("Couleur des résidus", Color) = (0.86, 0.88, 0.84, 1)
         _RugSize("Taille du tapis (m)", Vector) = (3, 2, 0, 0)
         _DustColor("Couleur poussière", Color) = (0.6, 0.56, 0.48, 1)
@@ -88,6 +90,7 @@ Shader "RugWash/Rug Surface"
             TEXTURE2D(_ControlA);     SAMPLER(sampler_ControlA);
             TEXTURE2D(_ControlB);     SAMPLER(sampler_ControlB);
             TEXTURE2D(_ControlC);     SAMPLER(sampler_ControlC);
+            TEXTURE2D(_ControlD);     // échantillonné avec sampler_ControlA (mêmes réglages, pas de sampler en plus)
 
             // Globales du scan (hors CBUFFER matériau : partagées, compatibles SRP Batcher).
             float4 _RugScanParams;      // x intensité 0..1, y rayon de l'onde (m), z largeur du front (m), w temps
@@ -145,6 +148,7 @@ Shader "RugWash/Rug Surface"
                 half4 a = SAMPLE_TEXTURE2D(_ControlA, sampler_ControlA, uv);
                 half4 b = SAMPLE_TEXTURE2D(_ControlB, sampler_ControlB, uv);
                 half4 cc = SAMPLE_TEXTURE2D(_ControlC, sampler_ControlC, uv);
+                half4 cd = SAMPLE_TEXTURE2D(_ControlD, sampler_ControlA, uv);
                 half4 detail = SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, meters * _DirtDetailTiling);
                 half4 fineDetail = SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, meters * _DirtDetailTiling * 4.7);
 
@@ -152,9 +156,11 @@ Shader "RugWash/Rug Surface"
                 half moisture = b.a;
 
                 // Saleté fixée : le seuil suit le bruit, la zone sale « s'érode » à mesure que la valeur baisse.
+                // Une tache incrustée (adhérence élevée) a un bord plus net et une teinte plus sombre.
+                half adhesion = cc.b;
                 half stainThreshold = detail.r * _EdgeNoise * 0.75;
-                half stainMask = smoothstep(stainThreshold, stainThreshold + 0.18, a.g) * saturate(a.g * 4.0);
-                half3 stainedColor = lerp(albedo * lerp(1.0, stainTint * 2.3, 0.85), stainTint * 0.9, 0.22);
+                half stainMask = smoothstep(stainThreshold, stainThreshold + lerp(0.18, 0.07, adhesion), a.g) * saturate(a.g * 4.0);
+                half3 stainedColor = lerp(albedo * lerp(1.0, stainTint * 2.3, 0.85), stainTint * 0.9, 0.22) * (1.0 - 0.25 * adhesion);
                 half3 color = lerp(albedo, stainedColor, stainMask * saturate(0.75 + a.g * 0.25));
 
                 // Saleté détachée : boue humide, plus sombre et brillante.
@@ -162,11 +168,39 @@ Shader "RugWash/Rug Surface"
                 half looseMask = smoothstep(looseThreshold, looseThreshold + 0.22, a.b) * saturate(a.b * 4.0);
                 color = lerp(color, stainTint * 0.75, looseMask * 0.8);
 
-                // Poussière : voile mat et désaturé.
+                // Salissures sèches : voile mat et désaturé. Les types marqués (ControlD.a : 0 poussière, 0,5 amas et
+                // débris, 1 poils et peluches) teintent ce voile de leur propre couleur (ControlD.rgb).
+                half look = cd.a;
+                half typedWeight = saturate(look * 2.0);
+                half strandWeight = saturate(look * 2.0 - 1.0);
+                half grainWeight = typedWeight - strandWeight;
                 half dustThreshold = fineDetail.g * _EdgeNoise * 0.6;
-                half dustMask = smoothstep(dustThreshold, dustThreshold + 0.25, a.r) * saturate(a.r * 4.0);
-                half3 dusty = lerp(luminanceOf(color).xxx, _DustColor.rgb, 0.7) * (0.85 + 0.3 * fineDetail.g);
-                color = lerp(color, dusty, dustMask * 0.8);
+                half veilMask = smoothstep(dustThreshold, dustThreshold + 0.25, a.r) * saturate(a.r * 4.0);
+                half3 typedTint = cd.rgb * 1.25;
+                half3 veilTint = lerp(_DustColor.rgb, typedTint, typedWeight);
+                half3 dusty = lerp(luminanceOf(color).xxx, veilTint, 0.7) * (0.85 + 0.3 * fineDetail.g);
+                color = lerp(color, dusty, veilMask * 0.8);
+
+                // De près : touffes de brins croisés (~6 × 60 mm) ou grains (~8 mm) tirés du bruit à cellules (canal A, 64 cellules),
+                // estompés dès qu'une cellule devient plus petite qu'un pixel (pas de scintillement, le voile suffit de loin).
+                // Seuils calés sur la distribution du bruit : ~10 % de la surface à faible dose, ~27 % au maximum.
+                half coverage = saturate(a.r * 1.4);
+                half presence = saturate(a.r * 6.0);
+                float2 strandUV = float2(meters.x * 2.6, meters.y * 0.26);
+                float2 strandUV2 = float2((meters.x * 0.6 - meters.y * 0.8) * 2.6, (meters.x * 0.8 + meters.y * 0.6) * 0.26) + 0.37;
+                half strands = max(SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, strandUV).a,
+                                   SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, strandUV2).a);
+                float strandCells = max(max(fwidth(strandUV.x), fwidth(strandUV.y)), max(fwidth(strandUV2.x), fwidth(strandUV2.y))) * 64.0;
+                half strandMask = smoothstep(0.85 - coverage * 0.1, 0.88 - coverage * 0.1, strands) * presence * saturate((1.0 - strandCells) * 2.0);
+                float2 grainUV = meters * 1.95;
+                half grain = SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, grainUV).a;
+                float grainCells = max(fwidth(grainUV.x), fwidth(grainUV.y)) * 64.0;
+                half grainMask = smoothstep(0.80 - coverage * 0.12, 0.83 - coverage * 0.12, grain) * presence * saturate((1.0 - grainCells) * 2.0);
+                half pieces = strandMask * strandWeight + grainMask * grainWeight;
+                // Contraste avec le voile : brins clairs pour une teinte claire (peluches), sombres sinon (poils, amas).
+                half3 pieceColor = typedTint * lerp(0.6, 1.25, saturate((luminanceOf(typedTint) - 0.25) * 4.0));
+                color = lerp(color, pieceColor, pieces * 0.9);
+                half dustMask = max(veilMask, pieces);
 
                 // Zones propres : légère saturation/éclat pour accentuer la satisfaction du nettoyage.
                 half cleanness = 1.0 - saturate((a.r + a.g + a.b) * 3.0);
@@ -195,8 +229,14 @@ Shader "RugWash/Rug Surface"
                 color = lerp(color, foamColor, foamMask * 0.95);
                 smoothness = lerp(smoothness, 0.55 * fineDetail.b + 0.2, foamMask);
 
+                // Fibres usées (tapis fragile maltraité) : couleurs ternies et délavées, éclat perdu.
+                half wear = cc.g;
+                half wornLuma = dot(color, half3(0.299, 0.587, 0.114));
+                color = lerp(color, lerp(wornLuma.xxx, color, 0.45) * 1.08, saturate(wear * 1.6) * 0.85);
+                smoothness *= 1.0 - saturate(wear * 1.6) * 0.7;
+
                 // Relief des fibres, écrasé par la poussière et masqué par la mousse.
-                half strength = _FiberNormalStrength * (1.0 - dustMask * 0.5) * (1.0 - foamMask) * (1.0 - moisture * 0.35);
+                half strength = _FiberNormalStrength * (1.0 - dustMask * 0.5) * (1.0 - foamMask) * (1.0 - moisture * 0.35) * (1.0 - saturate(wear * 1.6) * 0.7);
                 half3 normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_FiberNormal, sampler_FiberNormal, meters * _FiberTiling), strength);
                 // Relief des bulles : pente du bruit de mousse (deux échantillons décalés), pondérée par la présence de mousse.
                 half fizzX = SAMPLE_TEXTURE2D(_DirtDetail, sampler_DirtDetail, fizzUV + float2(0.004, 0.0)).b;

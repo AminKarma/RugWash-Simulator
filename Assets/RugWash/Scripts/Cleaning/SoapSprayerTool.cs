@@ -27,13 +27,18 @@ namespace RugWash.Cleaning
 
         protected override float ContactIntensity => IsAffectingRug ? 1f : 0.4f;
 
+        public override string GetStatusLine() => ProductStatusLine();
+
         protected override int ApplyToRug(RugCleaningController rug, in ToolAim aim, float deltaTime, float supply)
         {
+            byte product = ConsumeActiveProduct(rug, deltaTime, out float residueFactor);
             var operation = new SoapOperation
             {
                 FoamPerSecond = EffectivePower * supply,
                 WettingPerSecond = definition.wettingPerSecond * supply,
                 DeltaTime = deltaTime,
+                ResiduePerFoam = 0.8f * residueFactor,
+                Product = product,
             };
             ApplyArea(rug, aim, ref operation);
             return 0;

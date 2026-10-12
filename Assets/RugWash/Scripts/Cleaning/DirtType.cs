@@ -14,14 +14,39 @@ namespace RugWash.Cleaning
         Grease = 5,
         HairDebris = 6,
         Embedded = 7,
+        /// <summary>Amas de poussière : plus épais que la poussière légère, l'aspirateur peine, le balai les emporte.</summary>
+        DustClumps = 8,
+        /// <summary>Boue sèche : croûte fixée qui s'effrite au brossage à sec, presque insensible au jet d'eau.</summary>
+        DriedMud = 9,
+        /// <summary>Poils d'animaux : s'accrochent aux fibres ; la brosse et le balai les décollent mieux que l'aspirateur.</summary>
+        PetHair = 10,
+        /// <summary>Peluches et fibres en surface : très légères, l'aspirateur les enlève facilement.</summary>
+        Lint = 11,
     }
 
     public static class DirtTypes
     {
-        public const int Count = 8;
+        public const int Count = 12;
 
         /// <summary>Salissures sèches et non fixées : stockées dans le canal poussière d'une cellule.</summary>
-        public static bool IsLooseDry(DirtType type) => type == DirtType.Dust || type == DirtType.HairDebris;
+        public static bool IsLooseDry(DirtType type) =>
+            type == DirtType.Dust || type == DirtType.HairDebris || type == DirtType.DustClumps || type == DirtType.PetHair || type == DirtType.Lint;
+
+        /// <summary>
+        /// Aspect d'une salissure sèche dans le shader du tapis : 0 voile fin (poussière), 0,5 grains
+        /// (amas, petits débris), 1 brins (poils d'animaux, peluches). Purement visuel.
+        /// </summary>
+        public static float LooseLook(DirtType type)
+        {
+            switch (type)
+            {
+                case DirtType.PetHair:
+                case DirtType.Lint: return 1f;
+                case DirtType.DustClumps:
+                case DirtType.HairDebris: return 0.5f;
+                default: return 0f;
+            }
+        }
     }
 
     /// <summary>

@@ -157,3 +157,51 @@ s'agissait pas d'une régression du jeu. La dernière exécution complète de la
 
 À vérifier à la main : ressenti des nouveaux outils, lisibilité des empreintes, comportement du robot sur une longue
 session, performance sur une machine sans autre application ouverte.
+
+## 10. Revalidation après le jalon 3 (contenu et RugDex)
+
+Exécutions réelles du 12/10/2026, même machine (Discord ouvert pendant les mesures).
+
+| Vérification | Résultat |
+|---|---|
+| Compilation | ✅ 0 erreur, 0 avertissement |
+| Tests EditMode | ✅ **132 / 132** (112 + 20 : salissures, adhérence, produits, stock, usure, RugDex, sauvegarde) |
+| Tests PlayMode | ✅ **76 / 76** (64 + 12, dont la galerie de captures `40` à `48`) |
+| Build Windows 64 bits | ✅ réussi |
+| Jeu compilé : 11 contrôles automatiques | ✅ 11 / 11 |
+| Performance | ✅ pas de régression : comparaison coup sur coup avec un build du jalon 2 (tableau ci-dessous). Un passage isolé avait dépassé le délai de 5 min pendant que la machine était chargée ; il ne s'est reproduit sur aucun des sept passages suivants (cause non identifiée, à surveiller). |
+
+**Performance comparée (1920 × 1080, mêmes conditions, deux tours alternés J2 / J3 / J2 / J3, 12/10/2026)** :
+
+| Scénario | Jalon 2 (tour 1 / tour 2) | Jalon 3 (tour 1 / tour 2) |
+|---|---|---|
+| Atelier au repos | 447,5 / 476,0 FPS | 465,0 / 463,3 FPS |
+| Rinçage intensif | 435,1 / 429,3 FPS | 431,6 / 411,7 FPS |
+| Savon puis brossage | 416,1 / 427,5 FPS | 452,3 / 441,8 FPS |
+| Tour complet | 487,4 / 489,6 FPS | 501,8 / 468,5 FPS |
+
+1 % le plus lent ≥ 239 FPS (jalon 2) et ≥ 245 FPS (jalon 3) ; 11 / 11 contrôles à chaque passage. Les écarts restent dans
+le bruit de mesure. Les passages plus lents relevés plus tôt (186–239 FPS) l'avaient été machine chargée.
+
+Nouveau rendu à surveiller : 4ᵉ texture de contrôle (`ControlD`, teinte et aspect des salissures sèches) et quatre
+échantillons supplémentaires dans le shader des surfaces (brins et grains).
+
+## 11. Revalidation après le jalon 4 (manette)
+
+Exécutions réelles du 12/10/2026, même machine.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation | ✅ 0 erreur, 0 avertissement |
+| Tests EditMode | ✅ **143 / 143** (132 + 11 : sticks, liaisons, libellés, détection du périphérique, curseur, vibrations, paramètres) |
+| Tests PlayMode | ✅ **84 / 84** (76 + 8 : parcours complet à la manette virtuelle, pause et paramètres, reconfiguration, vibrations, course et retour à la souris, défilement de liste, menu principal, captures `50` à `54`) |
+| Build Windows 64 bits | ✅ 124 Mo, 0 erreur, 0 avertissement |
+| Jeu compilé : 11 contrôles automatiques | ✅ 11 / 11 |
+| Performance (1920 × 1080) | ✅ 513,7 / 463,9 / 482,3 / 533,1 FPS (atelier au repos, rinçage intensif, savon puis brossage, tour complet), 1 % le plus lent ≥ 283 FPS — dans la plage des mesures coup sur coup du jalon 3 |
+
+Correctif révélé par les tests : les sélecteurs ‹ › d'un onglet des paramètres jamais affiché ne réagissaient pas
+(branchement fait dans `Awake`, qui ne s'exécute qu'à la première activation) ; ils se branchent désormais dès l'abonnement.
+
+Non vérifié : une vraie manette. Tous les tests manette utilisent un périphérique virtuel de l'Input System (mêmes
+actions, même module d'interface) ; le ressenti des sticks, des vibrations et les noms des boutons sur une manette
+PlayStation réelle restent à essayer à la main.

@@ -5,14 +5,16 @@ using System.IO.Compression;
 namespace RugWash.Cleaning
 {
     /// <summary>
-    /// Encodage compact d'une grille de surface pour la sauvegarde : 8 canaux quantifiés sur un octet, rangés canal par
+    /// Encodage compact d'une grille de surface pour la sauvegarde : 10 canaux quantifiés sur un octet, rangés canal par
     /// canal (les zones propres forment de longues suites de zéros), compressés (Deflate) puis en Base64.
     /// Une grille de dimensions différentes est refusée : jamais de lecture partielle.
     /// </summary>
     public static class SurfaceStateCodec
     {
-        const byte FormatVersion = 1;
-        const int Channels = 8;
+        const byte FormatVersion = 2;
+        const int Channels = 10;
+        /// <summary>Format 1 (jalon 2) : sans adhérence ni produit ; toujours lisible.</summary>
+        const int ChannelsV1 = 8;
 
         public static string Encode(RugCleaningGrid grid)
         {
@@ -37,6 +39,8 @@ namespace RugWash.Cleaning
                 raw[5 + count * 5 + i] = Quantize(cell.Residue);
                 raw[5 + count * 6 + i] = (byte)cell.DustType;
                 raw[5 + count * 7 + i] = (byte)cell.StainType;
+                raw[5 + count * 8 + i] = Quantize(cell.Adhesion);
+                raw[5 + count * 9 + i] = cell.Product;
             }
 
             using var output = new MemoryStream();
@@ -64,7 +68,8 @@ namespace RugWash.Cleaning
             }
 
             int count = grid.CellCount;
-            if (raw.Length != 5 + count * Channels || raw[0] != FormatVersion) return false;
+            int channels = raw.Length > 0 && raw[0] == 1 ? ChannelsV1 : Channels;
+            if (raw.Length != 5 + count * channels || (raw[0] != 1 && raw[0] != FormatVersion)) return false;
             int width = raw[1] | (raw[2] << 8), height = raw[3] | (raw[4] << 8);
             if (width != grid.Width || height != grid.Height) return false;
 
@@ -82,6 +87,8 @@ namespace RugWash.Cleaning
                     Residue = raw[5 + count * 5 + i] / 255f,
                     DustType = ToType(raw[5 + count * 6 + i]),
                     StainType = ToType(raw[5 + count * 7 + i]),
+                    Adhesion = channels > 8 ? raw[5 + count * 8 + i] / 255f : 0f,
+                    Product = channels > 9 ? raw[5 + count * 9 + i] : (byte)0,
                 });
             }
             grid.RecomputeTotals();

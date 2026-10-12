@@ -28,6 +28,8 @@ namespace RugWash.Save
         [SerializeField] ShopManager shop;
         [Tooltip("Robot aspirateur, plan de travail et sol.")]
         [SerializeField] WorkshopStateService workshop;
+        [SerializeField] Player.ProductInventory products;
+        [SerializeField] RugDex.RugDexService rugDex;
 
         SaveFileStore store;
         bool applied;
@@ -65,20 +67,44 @@ namespace RugWash.Save
             ApplyLoadedData();
             settings.Changed += OnSettingsChanged;
             if (orders != null) orders.OrderFinished += OnOrderFinished;
-            if (shop != null) shop.PurchaseAttempted += OnPurchaseAttempted;
+            if (shop != null)
+            {
+                shop.PurchaseAttempted += OnPurchaseAttempted;
+                shop.ProductPurchaseAttempted += OnProductPurchaseAttempted;
+            }
+        }
+
+        void OnProductPurchaseAttempted(Cleaning.ProductDefinition product, ProductPurchaseResult result)
+        {
+            if (result == ProductPurchaseResult.Purchased) SaveNow("achat de produit");
         }
 
         void OnDestroy()
         {
             if (settings != null) settings.Changed -= OnSettingsChanged;
             if (orders != null) orders.OrderFinished -= OnOrderFinished;
-            if (shop != null) shop.PurchaseAttempted -= OnPurchaseAttempted;
+            if (shop != null)
+            {
+                shop.PurchaseAttempted -= OnPurchaseAttempted;
+                shop.ProductPurchaseAttempted -= OnProductPurchaseAttempted;
+            }
         }
 
         void ApplyLoadedData()
         {
             settings.Apply(Current.settings);
             if (workshop != null) workshop.Restore(Current.workshop);
+            if (products != null)
+            {
+                var entries = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, float>>();
+                foreach (var stock in Current.products) entries.Add(new System.Collections.Generic.KeyValuePair<string, float>(stock.id, stock.liters));
+                products.Restore(entries, Current.activeProduct);
+            }
+            if (rugDex != null)
+            {
+                rugDex.Book.Restore(Current.rugDex);
+                rugDex.DiscoverCurrentRug();
+            }
             if (HasGameSystems)
             {
                 wallet.Wallet.Restore(Current.money);
@@ -94,6 +120,13 @@ namespace RugWash.Save
         {
             Current.settings = settings.Current.Clone();
             if (workshop != null) workshop.Capture(Current.workshop ??= new WorkshopSaveData());
+            if (products != null)
+            {
+                Current.products = new System.Collections.Generic.List<ProductStockData>();
+                foreach (var entry in products.Snapshot()) Current.products.Add(new ProductStockData { id = entry.Key, liters = entry.Value });
+                Current.activeProduct = products.Active != null ? products.Active.id : string.Empty;
+            }
+            if (rugDex != null) Current.rugDex = rugDex.Book.Snapshot();
             if (!HasGameSystems) return;
             Current.money = wallet.Balance;
             Current.reputation = reputation.Points;

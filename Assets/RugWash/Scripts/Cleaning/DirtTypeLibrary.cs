@@ -15,7 +15,10 @@ namespace RugWash.Cleaning
             var table = new DirtTypeTable();
             foreach (var definition in definitions)
                 if (definition != null && definition.type != DirtType.None)
+                {
                     table.Set(definition.type, definition.response, definition.color);
+                    table.SetBehaviour(definition.type, definition.adhesion, definition.productSensitivity);
+                }
             return table;
         }
     }

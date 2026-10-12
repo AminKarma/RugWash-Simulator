@@ -8,6 +8,8 @@ namespace RugWash.Cleaning
         ShortPile,
         Oriental,
         LongPile,
+        /// <summary>Soie nouée main : tapis de luxe, fibres délicates et brillantes.</summary>
+        Silk,
     }
 
     /// <summary>Nature d'une surface nettoyable : tapis à traiter, plan de travail de l'aire de lavage, sol de l'atelier.</summary>
@@ -34,6 +36,12 @@ namespace RugWash.Cleaning
         [Tooltip("Humidité évaporée par seconde (0 = ne sèche pas seule, cas des tapis).")]
         [Range(0f, 0.2f)] public float dryingPerSecond;
 
+        [Header("Matière")]
+        [Tooltip("Fragilité des fibres (0 = robuste, 1 = très délicate) : le brossage à sec et les produits agressifs les usent.")]
+        [Range(0f, 1f)] public float fragility;
+        [Tooltip("Éclat de la matière sèche (0 = valeur du matériau ; la soie brille).")]
+        [Range(0f, 1f)] public float sheen;
+
         [Header("Dimensions")]
         public Vector2 sizeMeters = new Vector2(3f, 2f);
         [Tooltip("Épaisseur du tapis (hauteur des poils comprise).")]
@@ -53,6 +61,23 @@ namespace RugWash.Cleaning
         [Header("Saleté par défaut (remplacée par la commande en phase 3)")]
         public int dirtSeed = 1;
         public List<DirtLayer> defaultDirt = new List<DirtLayer>();
+
+        /// <summary>Catégorie affichée (RugDex, comptoir), issue du type de velours réel du tapis.</summary>
+        public static string CategoryLabel(RugPileType pile)
+        {
+            switch (pile)
+            {
+                case RugPileType.ShortPile: return "Poils courts";
+                case RugPileType.Oriental: return "Oriental noué";
+                case RugPileType.LongPile: return "Poils longs";
+                case RugPileType.Silk: return "Soie (luxe)";
+                default: return pile.ToString();
+            }
+        }
+
+        /// <summary>Fragilité en mots, à partir de la valeur réelle.</summary>
+        public static string FragilityLabel(float fragility) =>
+            fragility <= 0f ? "robuste" : fragility < 0.4f ? "faible" : fragility < 0.7f ? "moyenne" : "élevée";
 
         public Vector2Int GridResolution => new Vector2Int(
             Mathf.Clamp(Mathf.RoundToInt(sizeMeters.x * cellsPerMeter), 8, 512),

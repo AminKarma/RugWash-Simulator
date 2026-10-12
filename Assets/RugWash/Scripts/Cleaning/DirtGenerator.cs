@@ -30,21 +30,24 @@ namespace RugWash.Cleaning
         [Range(0f, 1f)] public float intensity;
         [Tooltip("Taille caractéristique des motifs, en mètres.")]
         [Min(0.02f)] public float scale;
+        [Tooltip("Adhérence ajoutée à celle du type (-1 à 1) : taches plus ou moins incrustées. 0 = valeur du type.")]
+        [Range(-1f, 1f)] public float adhesionOffset;
 
-        public DirtLayer(DirtType type, DirtPattern pattern, float coverage, float intensity, float scale)
+        public DirtLayer(DirtType type, DirtPattern pattern, float coverage, float intensity, float scale, float adhesionOffset = 0f)
         {
             this.type = type;
             this.pattern = pattern;
             this.coverage = coverage;
             this.intensity = intensity;
             this.scale = scale;
+            this.adhesionOffset = adhesionOffset;
         }
     }
 
     /// <summary>Génère un état sale initial déterministe (même graine = même tapis).</summary>
     public static class DirtGenerator
     {
-        public static void Generate(RugCleaningGrid grid, IReadOnlyList<DirtLayer> layers, int seed)
+        public static void Generate(RugCleaningGrid grid, IReadOnlyList<DirtLayer> layers, int seed, DirtTypeTable table = null)
         {
             if (grid == null) throw new ArgumentNullException(nameof(grid));
             grid.Clear();
@@ -52,13 +55,20 @@ namespace RugWash.Cleaning
             {
                 var random = new System.Random(seed);
                 for (int i = 0; i < layers.Count; i++)
-                    ApplyLayer(grid, layers[i], random);
+                    ApplyLayer(grid, layers[i], random, AdhesionOf(layers[i], table));
             }
             grid.CaptureInitialState();
             grid.MarkAllDirty();
         }
 
-        static void ApplyLayer(RugCleaningGrid grid, DirtLayer layer, System.Random random)
+        /// <summary>Adhérence effective d'une couche : celle du type, modulée par la couche (bornée à [0, 1]).</summary>
+        public static float AdhesionOf(in DirtLayer layer, DirtTypeTable table)
+        {
+            float typeDefault = table != null ? table.GetAdhesion(layer.type) : DirtTypeTable.DefaultAdhesion(layer.type);
+            return Mathf.Clamp01(typeDefault + layer.adhesionOffset);
+        }
+
+        static void ApplyLayer(RugCleaningGrid grid, DirtLayer layer, System.Random random, float adhesion)
         {
             if (layer.type == DirtType.None || layer.intensity <= 0f || layer.coverage <= 0f) return;
 
@@ -68,7 +78,7 @@ namespace RugWash.Cleaning
 
             if (layer.pattern == DirtPattern.Spots)
             {
-                ApplySpots(grid, layer, random, ox, oy);
+                ApplySpots(grid, layer, random, ox, oy, adhesion);
                 return;
             }
 
@@ -110,11 +120,11 @@ namespace RugWash.Cleaning
                         break;
                 }
 
-                if (amount > 0.002f) AddToCell(grid, x, y, layer.type, amount);
+                if (amount > 0.002f) AddToCell(grid, x, y, layer.type, amount, adhesion);
             }
         }
 
-        static void ApplySpots(RugCleaningGrid grid, DirtLayer layer, System.Random random, float ox, float oy)
+        static void ApplySpots(RugCleaningGrid grid, DirtLayer layer, System.Random random, float ox, float oy, float adhesion)
         {
             Vector2 size = grid.SizeMeters;
             int count = Mathf.Max(1, Mathf.RoundToInt(layer.coverage * 24f));
@@ -136,16 +146,20 @@ namespace RugWash.Cleaning
                     float d = Vector2.Distance(new Vector2(px, py), center);
                     float wobble = (Fbm(px / (radius * 0.6f) + ox + s * 13.1f, py / (radius * 0.6f) + oy) - 0.5f) * radius * 0.8f;
                     float amount = strength * (1f - Smooth(radius * 0.55f, radius, d + wobble));
-                    if (amount > 0.002f) AddToCell(grid, x, y, layer.type, amount);
+                    if (amount > 0.002f) AddToCell(grid, x, y, layer.type, amount, adhesion);
                 }
             }
         }
 
-        static void AddToCell(RugCleaningGrid grid, int x, int y, DirtType type, float amount)
+        static void AddToCell(RugCleaningGrid grid, int x, int y, DirtType type, float amount, float adhesion)
         {
             var cell = grid.GetCell(x, y);
+            float stainBefore = cell.Stain;
             var op = new AddDirtOperation { Type = type, Amount = amount };
             op.Apply(ref cell, 1f);
+            // L'adhérence suit la saleté fixée : moyenne pondérée des couches qui se superposent.
+            if (!DirtTypes.IsLooseDry(type) && cell.Stain > 0f)
+                cell.Adhesion = Mathf.Lerp(cell.Adhesion, adhesion, Mathf.Clamp01((cell.Stain - stainBefore) / cell.Stain));
             cell.Dust = Mathf.Clamp01(cell.Dust);
             cell.Stain = Mathf.Clamp01(cell.Stain);
             grid.SetCell(x, y, cell);

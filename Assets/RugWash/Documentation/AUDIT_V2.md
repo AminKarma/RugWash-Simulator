@@ -74,4 +74,11 @@ benchmark revalidés ; détail dans `PRODUCTION.md` (section Roadmap V2) et `VAL
 Jalon 2 (outils et atelier) : **terminé** — canon à mousse, système de mousse, balai, brosse de détail, aire de lavage
 et traces de pas, robot aspirateur ; détail dans `PRODUCTION.md` et `VALIDATION.md` (section 9). Le plan de travail et le
 sol réutilisent la grille, les opérations, les outils et le rendu du tapis (aucun système parallèle).
+Jalon 3 (contenu et RugDex) : **terminé** — tapis de soie fragile, quatre nouvelles salissures et adhérence, quatre
+produits spécialisés, RugDex, quatre commandes ; détail dans `PRODUCTION.md` et `VALIDATION.md` (section 10). Tout étend
+les systèmes existants (types de saleté de la grille, réservoirs et boutique, sauvegarde v1 additive).
+Jalon 4 (manette) : **terminé** — toutes les actions et tous les menus à la manette, indications dynamiques, réglages,
+reconfiguration, vibrations ; détail dans `PRODUCTION.md` et `VALIDATION.md` (section 11). Réutilise l'Input System et les
+actions existantes (liaisons manette ajoutées après les liaisons clavier), l'EventSystem et les fenêtres existantes.
+Non vérifié : une vraie manette (tests sur manette virtuelle).
 Les jalons suivants seront traités dans l'ordre de la roadmap, chacun compilé, testé et documenté avant le suivant.

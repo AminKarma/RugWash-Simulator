@@ -59,6 +59,8 @@ namespace RugWash.Cleaning
         [SerializeField] BoxCollider surfaceCollider;
         [Tooltip("Réglages de la mousse et du séchage (valeurs par défaut si absent).")]
         [SerializeField] CleaningTuning tuning;
+        [Tooltip("Produits spécialisés reconnus dans la mousse (optionnel).")]
+        [SerializeField] ProductLibrary productLibrary;
 
         Mesh generatedMesh;
         float agingTimer;
@@ -66,6 +68,9 @@ namespace RugWash.Cleaning
         public RugCleaningGrid Grid { get; private set; }
         public RugDefinition Definition => definition;
         public DirtTypeTable DirtTable { get; private set; }
+        /// <summary>Effets des produits spécialisés (toujours présent : au minimum le détergent standard).</summary>
+        public ProductTable Products { get; private set; }
+        public float Fragility => definition != null ? definition.fragility : 0f;
         public RugDirtRenderer DirtRenderer => dirtRenderer;
         public float Cleanliness01 => Grid != null ? Grid.Cleanliness01 : 0f;
         public SurfaceKind Kind => definition != null ? definition.surfaceKind : SurfaceKind.Rug;
@@ -128,6 +133,8 @@ namespace RugWash.Cleaning
                 FoamDwellPower = tuning.foamDwellPower,
                 FoamToMoisture = tuning.foamToMoisture,
                 DryingPerSecond = drying,
+                Products = Products,
+                Fragility = Fragility,
             };
             Grid.ApplyAllTracked(ref operation);
             FoamDwellLoosened += operation.Loosened;
@@ -145,10 +152,11 @@ namespace RugWash.Cleaning
             }
 
             DirtTable ??= dirtLibrary.BuildTable();
+            Products ??= productLibrary != null ? productLibrary.BuildTable(DirtTable) : new ProductTable(null, DirtTable);
 
             Vector2Int resolution = rug.GridResolution;
             Grid = new RugCleaningGrid(resolution.x, resolution.y, rug.sizeMeters);
-            DirtGenerator.Generate(Grid, dirtOverride ?? rug.defaultDirt, seedOverride ?? rug.dirtSeed);
+            DirtGenerator.Generate(Grid, dirtOverride ?? rug.defaultDirt, seedOverride ?? rug.dirtSeed, DirtTable);
 
             if (generatedMesh != null) UnityObjectUtility.SafeDestroy(generatedMesh);
             generatedMesh = RugMeshBuilder.Build(rug.sizeMeters, rug.thickness, rug.hasFringe);

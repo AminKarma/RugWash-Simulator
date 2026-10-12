@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Dirt_Drink
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.DirtTypeDefinition
   type: 4
-  displayName: Boisson
+  displayName: Taches de boissons
   color: {r: 0.36, g: 0.13, b: 0.1, a: 1}
   response:
     vacuum: 0
@@ -21,3 +21,6 @@ MonoBehaviour:
     brushWet: 0.6
     brushSoap: 1
     rinse: 0.35
+    sweep: 0
+  adhesion: 0.15
+  productSensitivity: 1

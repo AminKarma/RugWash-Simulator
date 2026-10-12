@@ -21,6 +21,10 @@ namespace RugWash.Orders
 
         [Tooltip("Durée visée en secondes pour le bonus de rapidité (0 = pas de bonus).")]
         [Min(0f)] public float bonusTimeSeconds;
+
+        [Tooltip("Exiger des fibres intactes (tapis fragiles : usure moyenne maximale).")]
+        public bool limitWear;
+        [Range(0f, 1f)] public float maxWear;
     }
 
     /// <summary>Commande d'un client : tapis, saleté, difficulté, récompense et objectifs. L'état (disponible, active, terminée) est géré à l'exécution.</summary>
@@ -39,7 +43,7 @@ namespace RugWash.Orders
         public List<DirtLayer> dirt = new List<DirtLayer>();
 
         [Header("Difficulté et paiement")]
-        [Range(1, 3)] public int difficulty = 1;
+        [Range(1, 4)] public int difficulty = 1;
         [Min(0)] public int baseReward = 100;
         [Tooltip("Réputation nécessaire pour accepter la commande.")]
         [Min(0)] public int requiredReputation;

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc94f2efd6565434098d5bd782a832a6, type: 3}
+  m_Name: Dirt_DustClumps
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.DirtTypeDefinition
+  type: 8
+  displayName: "Amas de poussi\xE8re"
+  color: {r: 0.52, g: 0.49, b: 0.44, a: 1}
+  response:
+    vacuum: 0.55
+    brushDry: 0.5
+    brushWet: 0.4
+    brushSoap: 0.4
+    rinse: 0.35
+    sweep: 0.9
+  adhesion: 0
+  productSensitivity: 1

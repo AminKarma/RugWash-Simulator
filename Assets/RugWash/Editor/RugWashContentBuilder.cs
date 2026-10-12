@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using RugWash.Cleaning;
 using RugWash.Economy;
 using RugWash.Orders;
+using RugWash.RugDex;
 using UnityEditor;
 using UnityEngine;
 
@@ -28,6 +29,10 @@ namespace RugWash.Editor
         public const string OrientalRugPath = RugWashPaths.RugDefinitions + "/Rug_Oriental.asset";
         public const string ClassicRugPath = RugWashPaths.RugDefinitions + "/Rug_Classic.asset";
         public const string ShagRugPath = RugWashPaths.RugDefinitions + "/Rug_Shag.asset";
+        public const string LuxuryRugPath = RugWashPaths.RugDefinitions + "/Rug_Luxury.asset";
+        public const string ProductFolder = RugWashPaths.Root + "/ScriptableObjects/Products";
+        public const string ProductLibraryPath = ProductFolder + "/ProductLibrary.asset";
+        public const string RugCatalogPath = RugWashPaths.Root + "/ScriptableObjects/RugCatalog.asset";
 
         public sealed class Content
         {
@@ -36,7 +41,9 @@ namespace RugWash.Editor
             public ToolDefinition Rinse;
             public ToolDefinition Vacuum, Soap, Extractor;
             public ToolDefinition FoamCannon, Broom, DetailBrush;
-            public RugDefinition Oriental, Classic, Shag;
+            public RugDefinition Oriental, Classic, Shag, Luxury;
+            public ProductLibrary ProductLibrary;
+            public RugCatalog Catalog;
             /// <summary>Plan de travail de l'aire de lavage et sol de l'atelier (surfaces nettoyables).</summary>
             public RugDefinition WorkSurface, Floor;
             public CleaningTuning Tuning;
@@ -90,6 +97,15 @@ namespace RugWash.Editor
             EnsureToolBehaviour(content.Broom, aspect: 2.2f, runoffDirt: 0.9f, dry: true);
             EnsureToolBehaviour(content.DetailBrush, requiresUnlock: true);
             EnsureToolBehaviour(content.Rinse, runoffDirt: 0.6f, runoffFoam: 0.7f, runoffWater: 0.35f);
+            // Vibrations à la manette (jalon 4) : grondement (basse fréquence) et bourdonnement (haute fréquence).
+            EnsureToolRumble(content.Vacuum, 0.08f, 0.16f);
+            EnsureToolRumble(content.Soap, 0f, 0.06f);
+            EnsureToolRumble(content.Brush, 0.18f, 0.1f);
+            EnsureToolRumble(content.Rinse, 0.22f, 0.12f);
+            EnsureToolRumble(content.Extractor, 0.15f, 0.2f);
+            EnsureToolRumble(content.FoamCannon, 0.2f, 0.1f);
+            EnsureToolRumble(content.Broom, 0.12f, 0.05f);
+            EnsureToolRumble(content.DetailBrush, 0.12f, 0.18f);
             content.Tuning = LoadOrCreate<CleaningTuning>(TuningPath, out _);
 
             EnsureMaterials(content);
@@ -116,6 +132,17 @@ namespace RugWash.Editor
                 new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.25f, 0.8f, 0.3f),
                 new DirtLayer(DirtType.Embedded, DirtPattern.Spots, 0.1f, 0.7f, 0.08f));
 
+            content.Luxury = EnsureRug(LuxuryRugPath, "luxury", "Tapis de soie de Hereke", RugPileType.Silk,
+                new Vector2(3.2f, 2.2f), 0.009f, 64, RugWashTextureGenerator.LuxuryAlbedo, RugWashTextureGenerator.FiberShortNormal,
+                fiberTiles: 12f, fiberStrength: 0.45f, fringe: true, seed: 51,
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.7f, 0.3f, 0.3f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.15f, 0.8f, 0.1f),
+                new DirtLayer(DirtType.Lint, DirtPattern.Blotches, 0.25f, 0.3f, 0.3f));
+            EnsureRugMatter(content.Luxury, fragility: 0.85f, sheen: 0.4f, fringeColor: new Color(0.95f, 0.92f, 0.84f));
+            EnsureRugDescriptions(content);
+            content.ProductLibrary = EnsureProducts();
+            content.Catalog = EnsureCatalog(content);
+
             content.WorkSurface = EnsureSurface(WorkSurfacePath, "work_surface", "Plan de travail de l'aire de lavage", SurfaceKind.WorkSurface,
                 new Vector2(4.6f, 3.6f), 20, drying: 0.012f, fiberTiles: 0.7f, seed: 5);
             content.Floor = EnsureSurface(FloorSurfacePath, "floor", "Sol de l'atelier", SurfaceKind.Floor,
@@ -133,7 +160,7 @@ namespace RugWash.Editor
 
         // ------------------------------------------------------------------ Commandes
 
-        static OrderObjectives Objectives(float clean, float maxResidue = -1f, float maxMoisture = -1f, float bonusSeconds = 0f) =>
+        static OrderObjectives Objectives(float clean, float maxResidue = -1f, float maxMoisture = -1f, float bonusSeconds = 0f, float maxWear = -1f) =>
             new OrderObjectives
             {
                 targetCleanliness = clean,
@@ -142,6 +169,8 @@ namespace RugWash.Editor
                 limitMoisture = maxMoisture >= 0f,
                 maxMoisture = Mathf.Max(0f, maxMoisture),
                 bonusTimeSeconds = bonusSeconds,
+                limitWear = maxWear >= 0f,
+                maxWear = Mathf.Max(0f, maxWear),
             };
 
         static void EnsureOrders(Content c)
@@ -186,6 +215,35 @@ namespace RugWash.Editor
                 new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.8f, 0.5f, 0.3f),
                 new DirtLayer(DirtType.Soil, DirtPattern.Blotches, 0.25f, 0.6f, 0.35f),
                 new DirtLayer(DirtType.Embedded, DirtPattern.Spots, 0.2f, 0.8f, 0.08f)));
+            c.Orders.Add(EnsureOrder("order_kennel", "Pension canine Les Truffes", "Tapis de la salle de jeux",
+                "Des poils d'animaux partout, des amas de poussière dans les coins et quelques taches de boisson.",
+                c.Classic, 107, 2, 230, 1, Objectives(0.8f, bonusSeconds: 420f),
+                new DirtLayer(DirtType.PetHair, DirtPattern.Uniform, 0.8f, 0.55f, 0.25f),
+                new DirtLayer(DirtType.DustClumps, DirtPattern.Edges, 0.6f, 0.6f, 0.25f),
+                new DirtLayer(DirtType.Lint, DirtPattern.Blotches, 0.3f, 0.4f, 0.3f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.15f, 0.85f, 0.1f)));
+            c.Orders.Add(EnsureOrder("order_tailor", "Atelier Couture Lemaire", "Tapis de l'atelier de couture",
+                "Peluches et fils partout, et des taches d'huile de machine bien accrochées. Pas de traces de produit.",
+                c.Classic, 109, 2, 250, 1, Objectives(0.8f, maxResidue: 0.15f, bonusSeconds: 480f),
+                new DirtLayer(DirtType.Lint, DirtPattern.Uniform, 0.8f, 0.6f, 0.2f),
+                new DirtLayer(DirtType.HairDebris, DirtPattern.Blotches, 0.4f, 0.5f, 0.3f),
+                new DirtLayer(DirtType.Grease, DirtPattern.Spots, 0.25f, 0.85f, 0.1f, adhesionOffset: 0.25f)));
+            c.Orders.Add(EnsureOrder("order_site", "Chantier Bâtir & Fils", "Tapis du bureau de chantier",
+                "Boue séchée en croûtes, terre et poussière épaisse. Le client ne veut aucun résidu de produit.",
+                c.Shag, 108, 3, 300, 2, Objectives(0.8f, maxResidue: 0.2f, bonusSeconds: 540f),
+                new DirtLayer(DirtType.DriedMud, DirtPattern.Blotches, 0.45f, 0.9f, 0.3f, adhesionOffset: 0.2f),
+                new DirtLayer(DirtType.DustClumps, DirtPattern.Uniform, 0.6f, 0.5f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.5f, 0.7f, 0.25f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.7f, 0.4f, 0.3f)));
+            c.Orders.Add(EnsureOrder("order_palace", "Résidence Valmont", "Tapis de soie du grand salon",
+                "Une pièce en soie nouée main, d'une grande valeur. Fibres très fragiles : pas de brossage à sec, pas de produit agressif, " +
+                "à rendre propre, sec et sans résidu.",
+                c.Luxury, 110, 4, 950, 8, Objectives(0.9f, maxResidue: 0.08f, maxMoisture: 0.25f, bonusSeconds: 1080f, maxWear: 0.04f),
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.7f, 0.35f, 0.3f),
+                new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.25f, 0.85f, 0.12f, adhesionOffset: 0.3f),
+                new DirtLayer(DirtType.Grease, DirtPattern.Spots, 0.12f, 0.7f, 0.08f),
+                new DirtLayer(DirtType.Lint, DirtPattern.Blotches, 0.3f, 0.35f, 0.3f),
+                new DirtLayer(DirtType.Embedded, DirtPattern.Spots, 0.1f, 0.7f, 0.06f)));
         }
 
         static OrderDefinition EnsureOrder(string id, string client, string title, string description, RugDefinition rug, int seed,
@@ -263,10 +321,15 @@ namespace RugWash.Editor
             var library = LoadOrCreate<DirtTypeLibrary>(DirtLibraryPath, out _);
             var names = new Dictionary<DirtType, string>
             {
-                { DirtType.Dust, "Poussière" }, { DirtType.Mud, "Boue" }, { DirtType.Soil, "Terre" },
-                { DirtType.Drink, "Boisson" }, { DirtType.Grease, "Graisse" }, { DirtType.HairDebris, "Poils et débris" },
-                { DirtType.Embedded, "Tache incrustée" },
+                { DirtType.Dust, DirtTypeNames.Default(DirtType.Dust) }, { DirtType.Mud, DirtTypeNames.Default(DirtType.Mud) },
+                { DirtType.Soil, DirtTypeNames.Default(DirtType.Soil) }, { DirtType.Drink, DirtTypeNames.Default(DirtType.Drink) },
+                { DirtType.Grease, DirtTypeNames.Default(DirtType.Grease) }, { DirtType.HairDebris, DirtTypeNames.Default(DirtType.HairDebris) },
+                { DirtType.Embedded, DirtTypeNames.Default(DirtType.Embedded) }, { DirtType.DustClumps, DirtTypeNames.Default(DirtType.DustClumps) },
+                { DirtType.DriedMud, DirtTypeNames.Default(DirtType.DriedMud) }, { DirtType.PetHair, DirtTypeNames.Default(DirtType.PetHair) },
+                { DirtType.Lint, DirtTypeNames.Default(DirtType.Lint) },
             };
+            // Anciens noms (avant le jalon 3) : remplacés s'ils n'ont pas été modifiés à la main.
+            var legacyNames = new HashSet<string> { "Poussière", "Boue", "Boisson", "Graisse", "Poils et débris", "Tache incrustée" };
             foreach (var pair in names)
             {
                 string path = $"{RugWashPaths.DirtTypeDefinitions}/Dirt_{pair.Key}.asset";
@@ -277,13 +340,27 @@ namespace RugWash.Editor
                     definition.displayName = pair.Value;
                     definition.color = DirtTypeTable.DefaultColor(pair.Key);
                     definition.response = DirtTypeTable.DefaultResponse(pair.Key);
+                    definition.adhesion = DirtTypeTable.DefaultAdhesion(pair.Key);
+                    definition.productSensitivity = pair.Key == DirtType.Embedded ? 0.7f : 1f;
                     EditorUtility.SetDirty(definition);
                 }
-                else if (definition.response.sweep <= 0f && DirtTypeTable.DefaultResponse(pair.Key).sweep > 0f)
+                else
                 {
-                    // Champ ajouté avec le balai : les définitions existantes reçoivent la valeur de référence.
-                    definition.response.sweep = DirtTypeTable.DefaultResponse(pair.Key).sweep;
-                    EditorUtility.SetDirty(definition);
+                    bool changed = false;
+                    if (legacyNames.Contains(definition.displayName) && definition.displayName != pair.Value) { definition.displayName = pair.Value; changed = true; }
+                    if (definition.adhesion <= 0f && DirtTypeTable.DefaultAdhesion(pair.Key) > 0f)
+                    {
+                        definition.adhesion = DirtTypeTable.DefaultAdhesion(pair.Key);
+                        if (pair.Key == DirtType.Embedded) definition.productSensitivity = 0.7f;
+                        changed = true;
+                    }
+                    if (definition.response.sweep <= 0f && DirtTypeTable.DefaultResponse(pair.Key).sweep > 0f)
+                    {
+                        // Champ ajouté avec le balai : les définitions existantes reçoivent la valeur de référence.
+                        definition.response.sweep = DirtTypeTable.DefaultResponse(pair.Key).sweep;
+                        changed = true;
+                    }
+                    if (changed) EditorUtility.SetDirty(definition);
                 }
                 if (!library.definitions.Contains(definition))
                 {
@@ -333,6 +410,95 @@ namespace RugWash.Editor
             }
             if (requiresUnlock && !tool.requiresUnlock) { tool.requiresUnlock = true; changed = true; }
             if (changed) EditorUtility.SetDirty(tool);
+        }
+
+        /// <summary>Vibrations d'un outil (ajoutées au jalon 4) : appliquées tant qu'elles sont à leur valeur par défaut.</summary>
+        static void EnsureToolRumble(ToolDefinition tool, float low, float high)
+        {
+            if (!Mathf.Approximately(tool.rumbleLow, ToolDefinition.DefaultRumble) || !Mathf.Approximately(tool.rumbleHigh, ToolDefinition.DefaultRumble)) return;
+            tool.rumbleLow = low;
+            tool.rumbleHigh = high;
+            EditorUtility.SetDirty(tool);
+        }
+
+        /// <summary>Matière d'un tapis (ajoutée au jalon 3) : appliquée tant qu'elle n'a pas été réglée à la main.</summary>
+        static void EnsureRugMatter(RugDefinition rug, float fragility, float sheen, Color fringeColor)
+        {
+            if (rug.fragility > 0f || rug.sheen > 0f) return;
+            rug.fragility = fragility;
+            rug.sheen = sheen;
+            rug.fringeColor = fringeColor;
+            EditorUtility.SetDirty(rug);
+        }
+
+        static void EnsureRugDescriptions(Content c)
+        {
+            void Describe(RugDefinition rug, string text)
+            {
+                if (rug == null || !string.IsNullOrEmpty(rug.description)) return;
+                rug.description = text;
+                EditorUtility.SetDirty(rug);
+            }
+            Describe(c.Classic, "Tapis tufté à poils courts, robuste : le compagnon des entrées et des salons.");
+            Describe(c.Oriental, "Laine nouée à la main, médaillon central et bordures florales ; le tapis d'entraînement de l'atelier.");
+            Describe(c.Shag, "Poils longs et moelleux qui retiennent poussière, poils et miettes au cœur du velours.");
+            Describe(c.Luxury, "Soie nouée main, plus de cent nœuds au centimètre carré. Éclat soyeux et fibres très délicates.");
+        }
+
+        static ProductLibrary EnsureProducts()
+        {
+            if (!AssetDatabase.IsValidFolder(ProductFolder)) AssetDatabase.CreateFolder(RugWashPaths.Root + "/ScriptableObjects", "Products");
+            var library = LoadOrCreate<ProductLibrary>(ProductLibraryPath, out _);
+            void Add(ProductDefinition product)
+            {
+                if (library.products.Contains(product)) return;
+                library.products.Add(product);
+                EditorUtility.SetDirty(library);
+            }
+            Add(EnsureProduct("product_degreaser", "Dégraissant", "Dissout graisses et huiles.",
+                new[] { DirtType.Grease }, boost: 2.5f, dwell: 3f, residue: 1.3f, harshness: 0.8f, lps: 0.04f, pack: 2f, price: 90, max: 6f));
+            Add(EnsureProduct("product_enzyme", "Détachant enzymatique", "Décompose lentement les taches organiques ; à laisser agir.",
+                new[] { DirtType.Drink, DirtType.Embedded }, boost: 2f, dwell: 4f, residue: 1f, harshness: 0f, lps: 0.03f, pack: 1.5f, price: 110, max: 4.5f));
+            Add(EnsureProduct("product_silk", "Shampooing soie et laine", "Doux pour les fibres délicates, rince sans laisser de traces.",
+                new[] { DirtType.Dust, DirtType.DustClumps, DirtType.Soil, DirtType.Mud, DirtType.Drink }, boost: 1.3f, dwell: 1.2f, residue: 0.5f,
+                harshness: 0f, lps: 0.03f, pack: 2f, price: 70, max: 6f));
+            Add(EnsureProduct("product_mud", "Décolleur de boue", "Ramollit la boue sèche et la terre incrustée.",
+                new[] { DirtType.DriedMud, DirtType.Mud, DirtType.Soil }, boost: 2.2f, dwell: 2f, residue: 1.1f, harshness: 0.3f, lps: 0.04f,
+                pack: 2f, price: 80, max: 6f));
+            return library;
+        }
+
+        static ProductDefinition EnsureProduct(string id, string name, string description, DirtType[] targets, float boost, float dwell,
+            float residue, float harshness, float lps, float pack, int price, float max)
+        {
+            var product = LoadOrCreate<ProductDefinition>($"{ProductFolder}/{id}.asset", out bool created);
+            if (!created) return product;
+            product.id = id;
+            product.displayName = name;
+            product.description = description;
+            product.targets = new List<DirtType>(targets);
+            product.targetBoost = boost;
+            product.dwellBoost = dwell;
+            product.residueFactor = residue;
+            product.harshness = harshness;
+            product.litersPerSecond = lps;
+            product.packLiters = pack;
+            product.packPrice = price;
+            product.maxStock = max;
+            EditorUtility.SetDirty(product);
+            return product;
+        }
+
+        static RugCatalog EnsureCatalog(Content c)
+        {
+            var catalog = LoadOrCreate<RugCatalog>(RugCatalogPath, out _);
+            foreach (var rug in new[] { c.Classic, c.Oriental, c.Shag, c.Luxury })
+                if (rug != null && !catalog.rugs.Contains(rug))
+                {
+                    catalog.rugs.Add(rug);
+                    EditorUtility.SetDirty(catalog);
+                }
+            return catalog;
         }
 
         static RugDefinition EnsureSurface(string path, string id, string displayName, SurfaceKind kind, Vector2 size, int cellsPerMeter,

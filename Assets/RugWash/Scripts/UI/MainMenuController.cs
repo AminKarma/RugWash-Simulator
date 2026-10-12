@@ -1,4 +1,5 @@
 using RugWash.Audio;
+using RugWash.Core;
 using RugWash.Economy;
 using RugWash.Save;
 using UnityEngine;
@@ -10,7 +11,8 @@ namespace RugWash.UI
 {
     /// <summary>
     /// Menu principal : Nouvelle partie (avec confirmation si une progression existe), Continuer
-    /// (seulement si une sauvegarde avec progression existe), Paramètres, Quitter.
+    /// (seulement si une sauvegarde avec progression existe), Paramètres, RugDex, Quitter.
+    /// Navigable à la souris, au clavier et à la manette (B / Rond ferme la fenêtre ouverte, curseur masqué à la manette).
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class MainMenuController : MonoBehaviour
@@ -31,6 +33,18 @@ namespace RugWash.UI
         [SerializeField] Button confirmYesButton;
         [SerializeField] Button confirmNoButton;
         [SerializeField] GameObject loadingPanel;
+        [Tooltip("Périphérique actif : curseur masqué quand la manette est utilisée.")]
+        [SerializeField] InputDeviceMonitor inputMonitor;
+
+        [Header("RugDex (lecture de la progression sauvegardée)")]
+        [SerializeField] RugDex.RugDexUI rugDexUI;
+        [SerializeField] Button rugDexButton;
+        [SerializeField] RugDex.RugCatalog rugCatalog;
+        [SerializeField] Cleaning.DirtTypeLibrary dirtLibrary;
+        [SerializeField] System.Collections.Generic.List<Orders.OrderDefinition> orders = new System.Collections.Generic.List<Orders.OrderDefinition>();
+        [SerializeField] System.Collections.Generic.List<Cleaning.RugDefinition> practiceRugs = new System.Collections.Generic.List<Cleaning.RugDefinition>();
+
+        readonly RugDex.RugDexBook rugDexBook = new RugDex.RugDexBook();
 
         public Button PlayButton => playButton;
         public Button ContinueButton => continueButton;
@@ -40,7 +54,10 @@ namespace RugWash.UI
         public bool IsConfirmVisible => confirmPanel.activeSelf;
         public bool IsLoading { get; private set; }
         public SettingsUI Settings => settingsUI;
+        public RugDex.RugDexUI RugDex => rugDexUI;
+        public Button RugDexButton => rugDexButton;
         public string Message => messageLabel.text;
+        public InputDeviceMonitor InputMonitor => inputMonitor;
 
         public bool IsConfigured(out string missing)
         {
@@ -49,7 +66,8 @@ namespace RugWash.UI
                 : settingsButton == null ? nameof(settingsButton) : quitButton == null ? nameof(quitButton)
                 : continueSummary == null ? nameof(continueSummary) : messageLabel == null ? nameof(messageLabel)
                 : confirmPanel == null ? nameof(confirmPanel) : confirmYesButton == null ? nameof(confirmYesButton)
-                : confirmNoButton == null ? nameof(confirmNoButton) : loadingPanel == null ? nameof(loadingPanel) : null;
+                : confirmNoButton == null ? nameof(confirmNoButton) : loadingPanel == null ? nameof(loadingPanel)
+                : rugDexUI == null ? nameof(rugDexUI) : rugDexButton == null ? nameof(rugDexButton) : rugCatalog == null ? nameof(rugCatalog) : null;
             return missing == null;
         }
 
@@ -66,7 +84,8 @@ namespace RugWash.UI
         {
             Time.timeScale = 1f;
             Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            ApplyCursor();
+            if (inputMonitor != null) inputMonitor.SchemeChanged += OnSchemeChanged;
 
             settingsUI.Bind(settings, save, null);
             playButton.onClick.AddListener(OnPlay);
@@ -75,8 +94,12 @@ namespace RugWash.UI
             quitButton.onClick.AddListener(Quit);
             confirmYesButton.onClick.AddListener(StartNewGame);
             confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
+            rugDexBook.Restore(save.Current.rugDex);
+            rugDexUI.Bind(rugCatalog, rugDexBook, orders, practiceRugs, dirtLibrary, null);
+            rugDexButton.onClick.AddListener(() => rugDexUI.Open());
             audioManager.RegisterButtons(this);
             audioManager.RegisterButtons(settingsUI);
+            audioManager.RegisterButtons(rugDexUI);
 
             confirmPanel.SetActive(false);
             loadingPanel.SetActive(false);
@@ -95,11 +118,26 @@ namespace RugWash.UI
             (canContinue ? continueButton : playButton).Select();
         }
 
+        void OnDestroy()
+        {
+            if (inputMonitor != null) inputMonitor.SchemeChanged -= OnSchemeChanged;
+        }
+
+        void OnSchemeChanged(InputScheme _) => ApplyCursor();
+
+        void ApplyCursor() => Cursor.visible = GameStateRules.ShouldShowCursor(false, inputMonitor != null ? inputMonitor.Scheme : InputScheme.KeyboardMouse);
+
+        /// <summary>Retour : Échap au clavier, B / Rond à la manette (touches d'interface, non reconfigurables).</summary>
+        static bool BackPressed() =>
+            (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
+            (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame);
+
         void Update()
         {
-            if (Keyboard.current == null || !Keyboard.current.escapeKey.wasPressedThisFrame) return;
+            if (!BackPressed()) return;
             if (settingsUI.IsRebinding) return;
             if (settingsUI.IsOpen) settingsUI.Close();
+            else if (rugDexUI.IsOpen) rugDexUI.Close();
             else if (confirmPanel.activeSelf) confirmPanel.SetActive(false);
         }
 

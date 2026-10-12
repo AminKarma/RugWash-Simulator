@@ -14,8 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.RugDefinition
   id: oriental
   displayName: "Tapis oriental \xE0 m\xE9daillon"
-  description: 
+  description: "Laine nou\xE9e \xE0 la main, m\xE9daillon central et bordures florales
+    ; le tapis d'entra\xEEnement de l'atelier."
   pileType: 1
+  surfaceKind: 0
+  dryingPerSecond: 0
+  fragility: 0
+  sheen: 0
   sizeMeters: {x: 3, y: 2}
   thickness: 0.014
   cellsPerMeter: 64
@@ -32,23 +37,28 @@ MonoBehaviour:
     coverage: 0.9
     intensity: 0.6
     scale: 0.3
+    adhesionOffset: 0
   - type: 3
     pattern: 3
     coverage: 0.55
     intensity: 0.85
     scale: 0.25
+    adhesionOffset: 0
   - type: 2
     pattern: 1
     coverage: 0.3
     intensity: 0.85
     scale: 0.35
+    adhesionOffset: 0
   - type: 4
     pattern: 2
     coverage: 0.16
     intensity: 0.9
     scale: 0.14
+    adhesionOffset: 0
   - type: 5
     pattern: 2
     coverage: 0.08
     intensity: 0.8
     scale: 0.1
+    adhesionOffset: 0

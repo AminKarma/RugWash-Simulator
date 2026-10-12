@@ -1,4 +1,5 @@
 using RugWash.Cleaning;
+using RugWash.Core;
 using UnityEngine;
 
 namespace RugWash.Player
@@ -10,10 +11,17 @@ namespace RugWash.Player
         [SerializeField] ResourceTank water = new ResourceTank("Eau", "L", 40f, 40f);
         [SerializeField] ResourceTank soap = new ResourceTank("Détergent", "L", 4f, 4f);
         [SerializeField] ResourceTank recovery = new ResourceTank("Cuve de récupération", "L", 12f, 0f);
+        [Tooltip("Produits spécialisés achetés (optionnel).")]
+        [SerializeField] ProductInventory productInventory;
+        [Tooltip("Libellés des touches dans les indications des outils (optionnel).")]
+        [SerializeField] PlayerInputReader input;
 
         public ResourceTank Water => water;
         public ResourceTank Soap => soap;
         public ResourceTank Recovery => recovery;
+        public ProductInventory Inventory => productInventory;
+        public IProductSupply Products => productInventory;
+        public IInputPrompts Prompts => input;
 
         public ResourceTank Get(ToolResource resource)
         {

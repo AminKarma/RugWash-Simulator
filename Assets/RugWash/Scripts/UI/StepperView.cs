@@ -12,7 +12,22 @@ namespace RugWash.UI
         [SerializeField] Button previousButton;
         [SerializeField] Button nextButton;
 
-        public event Action<int> Stepped;
+        Action<int> stepped;
+        bool wired;
+
+        /// <summary>
+        /// Pas de -1 ou +1. Les boutons sont branchés dès le premier abonné, même si le sélecteur n'a jamais été affiché
+        /// (onglet de paramètres pas encore ouvert) : Awake ne s'exécute qu'à la première activation.
+        /// </summary>
+        public event Action<int> Stepped
+        {
+            add
+            {
+                WireButtons();
+                stepped += value;
+            }
+            remove => stepped -= value;
+        }
 
         public string Value => valueLabel.text;
         public Button PreviousButton => previousButton;
@@ -20,10 +35,14 @@ namespace RugWash.UI
 
         public bool IsConfigured => valueLabel != null && previousButton != null && nextButton != null;
 
-        void Awake()
+        void Awake() => WireButtons();
+
+        void WireButtons()
         {
-            previousButton.onClick.AddListener(() => Stepped?.Invoke(-1));
-            nextButton.onClick.AddListener(() => Stepped?.Invoke(1));
+            if (wired || !IsConfigured) return;
+            wired = true;
+            previousButton.onClick.AddListener(() => stepped?.Invoke(-1));
+            nextButton.onClick.AddListener(() => stepped?.Invoke(1));
         }
 
         public void SetValue(string text) => valueLabel.text = text;

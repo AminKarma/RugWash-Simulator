@@ -39,6 +39,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _ControlD:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _DirtDetail:
         m_Texture: {fileID: 2800000, guid: 33979c8b8f2f24c4b89349ec8b7e6bb5, type: 3}
         m_Scale: {x: 1, y: 1}

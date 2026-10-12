@@ -14,6 +14,7 @@ namespace RugWash.Editor
         public const string OrientalAlbedo = RugWashPaths.GeneratedTextures + "/Rug_Oriental_Albedo.png";
         public const string ClassicAlbedo = RugWashPaths.GeneratedTextures + "/Rug_Classic_Albedo.png";
         public const string ShagAlbedo = RugWashPaths.GeneratedTextures + "/Rug_Shag_Albedo.png";
+        public const string LuxuryAlbedo = RugWashPaths.GeneratedTextures + "/Rug_Luxury_Albedo.png";
         public const string FiberShortNormal = RugWashPaths.GeneratedTextures + "/Fiber_Short_Normal.png";
         public const string FiberLongNormal = RugWashPaths.GeneratedTextures + "/Fiber_Long_Normal.png";
         public const string DirtDetail = RugWashPaths.GeneratedTextures + "/Dirt_Detail.png";
@@ -39,6 +40,7 @@ namespace RugWash.Editor
             Generate(OrientalAlbedo, 1536, 1024, force, Kind.Color, false, OrientalPixel);
             Generate(ClassicAlbedo, 1536, 1024, force, Kind.Color, false, ClassicPixel);
             Generate(ShagAlbedo, 1536, 1024, force, Kind.Color, false, ShagPixel);
+            Generate(LuxuryAlbedo, 2048, 1408, force, Kind.Color, false, LuxuryPixel);
             GenerateHeightToNormal(FiberShortNormal, 512, force, ShortFiberHeight, 1.5f);
             GenerateHeightToNormal(FiberLongNormal, 512, force, LongFiberHeight, 3.2f);
             Generate(DirtDetail, 512, 512, force, Kind.Linear, true, DirtDetailPixel);
@@ -307,6 +309,143 @@ namespace RugWash.Editor
                     c = Indigo;
                     if (r < 0.2f * (0.55f + 0.45f * Mathf.Abs(Mathf.Cos(4f * theta)))) c = Gold;
                     if (r < 0.06f) c = Madder;
+                }
+            }
+            return c;
+        }
+
+        // ------------------------------------------------------------------ Tapis de luxe en soie (3,2 m x 2,2 m)
+
+        static readonly Color SilkIvory = Hex(0.93f, 0.89f, 0.80f);
+        static readonly Color SilkNavy = Hex(0.07f, 0.11f, 0.30f);
+        static readonly Color SilkWine = Hex(0.45f, 0.08f, 0.14f);
+        static readonly Color SilkRose = Hex(0.78f, 0.42f, 0.45f);
+        static readonly Color SilkSage = Hex(0.48f, 0.58f, 0.45f);
+        static readonly Color SilkGold = Hex(0.88f, 0.72f, 0.38f);
+        static readonly Color SilkSky = Hex(0.45f, 0.62f, 0.78f);
+
+        /// <summary>
+        /// Soie nouée très fine (nœuds de 3 mm, deux fois plus fins que le tapis oriental) : bordure bordeaux à arabesques
+        /// dorées et palmettes, champ ivoire à treillis floral, médaillon étoilé à seize lobes, écoinçons et reflets soyeux.
+        /// </summary>
+        static Color LuxuryPixel(float u, float v)
+        {
+            const float hx = 1.6f, hy = 1.1f, knot = 0.003f;
+            float x = (u - 0.5f) * hx * 2f, y = (v - 0.5f) * hy * 2f;
+            int kx = Mathf.FloorToInt(x / knot), ky = Mathf.FloorToInt(y / knot);
+            x = (kx + 0.5f) * knot;
+            y = (ky + 0.5f) * knot;
+
+            float ax = Mathf.Abs(x), ay = Mathf.Abs(y);
+            float d = Mathf.Min(hx - ax, hy - ay);
+            float along = hx - ax < hy - ay ? y : x;
+            Color c;
+
+            if (d < 0.006f) c = SilkGold;
+            else if (d < 0.034f)
+            {
+                bool dot = d > 0.014f && d < 0.026f && Repeat(along, 0.026f) < 0.012f;
+                c = dot ? SilkIvory : SilkNavy;
+            }
+            else if (d < 0.04f) c = SilkGold;
+            else if (d < 0.24f) c = LuxuryBorder(along, d - 0.14f);
+            else if (d < 0.246f) c = SilkGold;
+            else if (d < 0.272f)
+            {
+                float s = Repeat(along, 0.03f) - 0.015f, t = d - 0.259f;
+                float r = Mathf.Sqrt(s * s + t * t);
+                c = r < 0.0075f ? SilkNavy : r < 0.0105f ? SilkRose : SilkIvory;
+            }
+            else if (d < 0.278f) c = SilkNavy;
+            else c = LuxuryField(x, y, ax, ay);
+
+            // Soie : très faible abrash, reflets doux qui suivent le sens du velours.
+            float knotNoise = 0.96f + 0.06f * Hash(kx, ky, 5);
+            float abrash = 0.98f + 0.02f * Mathf.Sin(y * 5.1f + Fbm(u, v, 3, 2, 31) * 3f);
+            float sheen = 1f + 0.05f * Mathf.Pow(Mathf.Max(0f, Mathf.Sin(x * 2.3f + y * 1.7f + Fbm(u, v, 2, 2, 41) * 2f)), 6f);
+            return c * (knotNoise * abrash * sheen);
+        }
+
+        static Color LuxuryBorder(float along, float t)
+        {
+            Color c = SilkWine;
+            float period = 0.2f;
+            float s = Repeat(along, period) - period * 0.5f;
+            // Arabesque dorée continue.
+            float vine = t - 0.055f * Mathf.Sin(along / period * Mathf.PI * 2f);
+            if (Mathf.Abs(vine) < 0.0045f) c = SilkGold;
+            // Palmettes alternées (rose / sauge) entre les ondulations.
+            bool odd = Mathf.Repeat(Mathf.Floor(along / period), 2f) > 0.5f;
+            float ps = s, pt = t + (odd ? 0.035f : -0.035f);
+            float pr = Mathf.Sqrt(ps * ps * 1.6f + pt * pt);
+            float ptheta = Mathf.Atan2(pt, ps);
+            float petal = 0.045f * (0.7f + 0.3f * Mathf.Abs(Mathf.Cos(3f * ptheta)));
+            if (pr < petal) c = pr > petal - 0.008f ? SilkGold : odd ? SilkRose : SilkSage;
+            if (pr < 0.012f) c = SilkIvory;
+            // Petites fleurs bleues sur la tige.
+            float fs = Repeat(along + period * 0.25f, period * 0.5f) - period * 0.25f, ft = vine;
+            if (Mathf.Sqrt(fs * fs + ft * ft) < 0.009f) c = SilkSky;
+            return c;
+        }
+
+        static Color LuxuryField(float x, float y, float ax, float ay)
+        {
+            Color c = SilkIvory;
+
+            // Treillis floral en losanges : tiges sauge fines, palmettes aux nœuds.
+            const float cell = 0.16f;
+            float gx = Repeat(x, cell) - cell * 0.5f, gy = Repeat(y, cell) - cell * 0.5f;
+            float lattice = Mathf.Abs(Mathf.Abs(gx) + Mathf.Abs(gy) - cell * 0.5f);
+            if (lattice < 0.004f) c = SilkSage;
+            float node = Mathf.Sqrt(gx * gx + gy * gy);
+            float nodeTheta = Mathf.Atan2(gy, gx);
+            if (node < 0.024f * (0.75f + 0.25f * Mathf.Cos(8f * nodeTheta))) c = SilkRose;
+            if (node < 0.009f) c = SilkGold;
+            float cornerX = Mathf.Abs(gx) - cell * 0.5f, cornerY = Mathf.Abs(gy) - cell * 0.5f;
+            if (Mathf.Sqrt(cornerX * cornerX + cornerY * cornerY) < 0.012f) c = SilkNavy;
+
+            // Écoinçons : quarts de médaillon bleu nuit à bord doré.
+            const float fhx = 1.322f, fhy = 0.822f;
+            float ex = (ax - fhx) / 0.5f, ey = (ay - fhy) / 0.36f;
+            float rc = Mathf.Sqrt(ex * ex + ey * ey);
+            float corner = 1f + 0.06f * Mathf.Cos(20f * Mathf.Atan2(ey, ex));
+            if (rc < corner)
+            {
+                c = rc > corner - 0.06f ? SilkGold : SilkNavy;
+                if (rc < corner - 0.06f && Mathf.Abs(rc - 0.55f) < 0.05f && Mathf.Cos(16f * Mathf.Atan2(ey, ex)) > 0.5f) c = SilkRose;
+            }
+
+            // Pendentifs du médaillon.
+            float pendant = ax / 0.06f + Mathf.Abs(ay - 0.62f) / 0.1f;
+            if (pendant < 1f) c = pendant < 0.45f ? SilkGold : SilkNavy;
+
+            // Médaillon central à seize lobes.
+            float mx = x / 0.68f, my = y / 0.5f;
+            float r = Mathf.Sqrt(mx * mx + my * my);
+            float theta = Mathf.Atan2(my, mx);
+            float star = 0.9f + 0.1f * Mathf.Cos(16f * theta);
+            if (r < star)
+            {
+                if (r > star - 0.045f) c = SilkGold;
+                else if (r > 0.7f)
+                {
+                    c = SilkNavy;
+                    if (Mathf.Abs(r - 0.78f) < 0.03f && Mathf.Cos(32f * theta) > 0.55f) c = SilkSky;
+                }
+                else if (r > 0.66f) c = SilkGold;
+                else if (r > 0.28f)
+                {
+                    c = SilkIvory;
+                    float petal = 0.28f + 0.32f * Mathf.Abs(Mathf.Cos(4f * theta));
+                    if (r < petal) c = SilkRose;
+                    if (r < petal && r > petal - 0.035f) c = SilkWine;
+                    if (Mathf.Abs(Mathf.Cos(8f * theta)) > 0.95f && r > 0.4f && r < 0.62f) c = SilkSage;
+                }
+                else
+                {
+                    c = SilkNavy;
+                    if (r < 0.2f * (0.55f + 0.45f * Mathf.Abs(Mathf.Cos(6f * theta)))) c = SilkGold;
+                    if (r < 0.055f) c = SilkWine;
                 }
             }
             return c;

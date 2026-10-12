@@ -4,7 +4,9 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 2** (game feel, scan, nouveaux outils, aire de lavage, robot aspirateur). Build Windows produit et vérifié automatiquement.
+> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 4** (game feel, scan, nouveaux outils, aire de lavage, robot aspirateur,
+> tapis de soie, nouvelles salissures, produits spécialisés, RugDex, prise en charge complète de la manette).
+> Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
 > Voir [Assets/RugWash/Documentation/PRODUCTION.md](Assets/RugWash/Documentation/PRODUCTION.md) pour le suivi détaillé.
@@ -40,24 +42,44 @@ Si une scène est absente ou cassée : menu **RugWash → Setup → Générer la
 
 ## 3. Commandes
 
-| Action | Touche |
-|---|---|
-| Se déplacer | **ZQSD** (AZERTY) / **WASD** (QWERTY) — touches physiques, aucun réglage requis — ou flèches |
-| Courir | Maj gauche |
-| Regarder | Souris |
-| Utiliser l'outil | Clic gauche (maintenu) |
-| Choisir un outil | 1–8 (rangée du haut ou pavé numérique) / molette (saute les outils pas encore achetés) |
-| Interagir (postes, caniveau, comptoir des commandes, boutique, robot aspirateur ou sa base) | E |
-| Scanner la saleté (surligne les zones encore sales, puis recharge) | R |
-| Inspecter le tapis (avant/après) | F |
-| Pause | Échap |
-| Diagnostic (éditeur / build de développement) | F3 |
+Le jeu se joue entièrement au clavier/souris **ou** à la manette (Xbox, PlayStation et manettes compatibles avec l'Input
+System), et l'on peut passer de l'un à l'autre à tout moment : les indications à l'écran (HUD, invites, boutons « Fermer »,
+fenêtre des touches) suivent le dernier périphérique utilisé, le curseur est masqué dans les menus à la manette.
 
-**Paramètres** (menu principal ou pause → « Paramètres ») — chaque option est réellement appliquée :
-volumes général / effets / interface, sensibilité et inversion de la souris, **balancement** de la caméra et des
-outils (0 % = désactivé), résolution, mode d'affichage (plein écran, plein écran fenêtré, fenêtré), niveau de qualité,
-et **reconfiguration des touches** (avancer, reculer, gauche, droite, courir, interagir, scanner, inspecter ;
-Échap annule la saisie ; « Touches par défaut »).
+| Action | Clavier / souris | Manette (Xbox · PlayStation) |
+|---|---|---|
+| Se déplacer | **ZQSD** (AZERTY) / **WASD** (QWERTY) — touches physiques — ou flèches | Stick gauche |
+| Courir | Maj gauche (maintenue) | Clic du stick gauche (LS · L3) : la course dure jusqu'à l'arrêt |
+| Regarder | Souris | Stick droit |
+| Utiliser l'outil | Clic gauche (maintenu) | RT · R2 (maintenue) |
+| Outil suivant / précédent | Molette, ou 1–8 (rangée du haut ou pavé numérique) | RB / LB · R1 / L1 (les outils pas encore achetés sont sautés) |
+| Interagir (postes, caniveau, comptoir des commandes, boutique, robot aspirateur ou sa base) | E | A · Croix |
+| Scanner la saleté (surligne les zones encore sales, puis recharge) | R | Y · Triangle |
+| Changer de produit spécialisé (produits en stock, puis détergent standard) | T | X · Carré |
+| Inspecter le tapis (avant/après) | F | Vue · Partager |
+| Pause | Échap | Menu · Options |
+| Fermer la fenêtre / revenir | Échap | B · Rond |
+| Menus : se déplacer, valider | Souris, flèches, Entrée | Croix directionnelle ou stick gauche, A · Croix |
+| Changer d'onglet (boutique, paramètres) | Clic sur l'onglet | LB / RB · L1 / R1 |
+| Diagnostic (éditeur / build de développement) | F3 | — |
+
+Dans les menus, la fenêtre ouverte reçoit le focus (premier élément, ou celui laissé à la fermeture d'une fenêtre ouverte
+par-dessus) et les listes défilent jusqu'à l'élément sélectionné.
+
+**Paramètres** (menu principal ou pause → « Paramètres », trois onglets) — chaque option est réellement appliquée :
+- **Général** : volumes général / effets / interface, résolution, mode d'affichage (plein écran, plein écran fenêtré,
+  fenêtré), niveau de qualité ;
+- **Commandes** : sensibilité de la souris, inversion de l'axe vertical (souris et stick), **balancement** de la caméra et des
+  outils (0 % = désactivé), **vitesse de la caméra au stick** (30–360 °/s), **zone morte des sticks** (2–50 %),
+  **vibrations** (intensité, 0 = désactivées) ;
+- **Touches** : reconfiguration **clavier** (avancer, reculer, gauche, droite, courir, interagir, scanner, changer de produit,
+  inspecter ; Échap annule) et **manette** (courir, interagir, scanner, produit, inspecter, utiliser l'outil, outil
+  suivant / précédent ; Menu annule — les sticks, Menu et B restent fixes). Une touche déjà utilisée est signalée.
+  « Touches et boutons par défaut » rétablit tout.
+
+**Vibrations** (manette) : grondement propre à chaque outil pendant son utilisation (réglé dans sa définition) et brèves
+impulsions (palier de propreté, objectif atteint, scan, outil verrouillé). Coupées en pause, dans les menus, quand la
+manette n'est plus utilisée et à la perte du focus.
 Résolution et mode d'affichage n'ont d'effet visible que dans un build (l'éditeur les ignore).
 
 ## 4. Outils et boucle de nettoyage
@@ -94,6 +116,57 @@ visée devient une ellipse pour les outils en éventail : il montre toujours la 
   il « pulse » au premier contact avec le tapis. Les paliers de propreté (25, 50, 75, 90 %) sont annoncés
   (son, message, panneau qui pulse) et l'objectif atteint déclenche une pluie d'éclats sur le tapis.
 
+### Salissures
+
+Chaque type a ses réponses réelles à chaque traitement (`DirtTypeTable.DefaultResponse`, modifiables dans
+`ScriptableObjects/DirtTypes`) : aspiration, brossage sec / humide / savonneux, rinçage, balai. Les salissures **sèches**
+(poussière, débris, amas, poils, peluches) vivent dans le canal poussière d'une cellule ; les autres sont des **taches
+fixées** à détacher puis rincer.
+
+| Salissure | Comportement |
+|---|---|
+| Poussière légère | S'aspire très bien ; voile mat |
+| Petits débris | Aspirateur ou **balai** (×1,2) ; grains sombres |
+| Amas de poussière | Moitié moins bien aspirés que la poussière, à brosser ou balayer ; grains gris |
+| Poils d'animaux | L'aspirateur seul peine (×0,45) : **brosse à sec** (×0,9) ou **balai** (×1,3) ; brins bruns |
+| Peluches et fibres | S'aspirent très bien (×1,3) ; brins clairs |
+| Terre, boue humide | Brosse humide ou savonneuse puis rinçage |
+| Boue sèche | **Se brise à sec** (brosse sèche ×0,9) puis s'aspire ou se rince ; adhérence 0,2 |
+| Taches de boissons | Savon et action de la mousse ; adhérence 0,15 |
+| Taches grasses | Seulement au savon ; adhérence 0,25 |
+| Taches incrustées | Les plus tenaces (savon ×0,45) ; adhérence 0,5 |
+
+**Adhérence** (0..1, par cellule) : valeur du type, modulée par chaque couche de saleté (`adhesionOffset`, ex. graisse
+« bien accrochée » d'une commande). Elle freine brossage et rinçage (jusqu'à −75 %) et l'action de la mousse (jusqu'à
+−50 %), et se voit : une tache incrustée a un bord plus net et une teinte plus sombre. Elle est sauvegardée avec les
+surfaces de l'atelier.
+
+### Produits spécialisés
+
+Achetés à la boutique (onglet **Produits**), stockés en litres, sélectionnés avec **T**. Le produit actif est **ajouté**
+au détergent (pulvérisateur et canon à mousse) et consommé à son débit propre ; un flacon vide repasse au détergent
+standard (message à l'écran). Effets réels, uniquement sur les salissures ciblées et tant que la mousse est présente :
+
+| Produit | Prix / flacon | Cibles | Brossage | Action au repos | Résidus | Agressivité |
+|---|---|---|---|---|---|---|
+| Dégraissant | 90 € / 2 L | Taches grasses | ×2,5 | ×3 | ×1,3 | 0,8 |
+| Détachant enzymatique | 110 € / 1,5 L | Boissons, taches incrustées | ×2 | ×4 | ×1 | 0 |
+| Shampooing soie et laine | 70 € / 2 L | Poussière, amas, terre, boue, boissons | ×1,3 | ×1,2 | **×0,5** | 0 |
+| Décolleur de boue | 80 € / 2 L | Boue sèche, boue, terre | ×2,2 | ×2 | ×1,1 | 0,3 |
+
+Un produit **agressif** laissé en mousse sur un tapis **fragile** use ses fibres. Le texte de la boutique est généré à
+partir de ces valeurs (`ProductTable.Describe`) : il n'annonce rien que le code ne fasse. Stock maximal par produit.
+
+### Tapis de soie (luxe)
+
+« Tapis de soie de Hereke » (3,2 × 2,2 m, 9 mm, motif généré, reflet soyeux) — **fragilité 0,85** :
+- brosser **à sec** use les fibres (deux fois plus sur une zone déjà propre ; la brosse de détail est plus abrasive) ;
+  sous la mousse ou sur fibres humides, pas d'usure ;
+- un produit agressif (dégraissant, décolleur de boue) laissé en mousse les use aussi ;
+- l'usure se voit (couleurs ternies, éclat et relief perdus), le HUD avertit « Attention : fibres abîmées » et la commande
+  « Tapis de soie du grand salon » (Résidence Valmont, 950 €, réputation 8, ★★★★) exige **usure ≤ 4 %**, propreté 90 %,
+  résidus ≤ 8 %, humidité ≤ 25 % (critère « Fibres abîmées », poids 15 %). Le tableau des commandes signale la fragilité.
+
 ## 4 ter. Commandes, économie et boutique
 
 1. **Comptoir de réception** (coin avant droit, E) : liste des commandes avec client, tapis, difficulté (★),
@@ -115,7 +188,25 @@ visée devient une ellipse pour les outils en éventail : il montre toujours la 
    puissance aspirateur, brosse, lance, extracteur. Achat refusé (solde inchangé) si fonds insuffisants ou
    amélioration précédente manquante.
 
-Contenu modifiable sans code : `ScriptableObjects/Orders` (commandes) et `ScriptableObjects/Upgrades` (prix, valeurs).
+   Onglet **Produits** : produits spécialisés (prix par flacon, stock actuel / maximum ; achat refusé si fonds
+   insuffisants ou si un flacon entier ne tient plus dans le stock).
+7. **Nouvelles commandes** (jalon 3) : pension canine (poils, amas, boissons), atelier de couture (peluches, débris,
+   graisse accrochée, résidus ≤ 15 %), bureau de chantier (boue sèche, amas, terre, résidus ≤ 20 %), grand salon
+   (tapis de soie, voir ci-dessus). Le tableau est une liste défilante (molette, barre à droite).
+
+## 4 sexies. RugDex
+
+Collection des tapis (menu principal ou pause → « RugDex »). Les entrées viennent du catalogue
+`ScriptableObjects/RugCatalog` (aucune entrée codée en dur) :
+- tapis **découvert** dès qu'il est chargé dans l'atelier (commande ou entraînement) ; message « Nouveau tapis dans le RugDex » ;
+- fiche : visuel, numéro, nom, catégorie (type de velours), dimensions et épaisseur, fragilité des fibres, salissures
+  rencontrées (couches du tapis et de ses commandes), commandes associées, nombre de livraisons et meilleure note
+  (commandes acceptées uniquement), description ;
+- tapis **inconnu** : silhouette sombre et condition réelle de découverte (commande à accepter, réputation requise) ;
+- complétion « x / y tapis (p %) ». Pas de rareté ni de bonus : rien de tel n'existe dans le jeu.
+
+Contenu modifiable sans code : `ScriptableObjects/Orders` (commandes), `ScriptableObjects/Upgrades` (prix, valeurs),
+`ScriptableObjects/Products` (produits) et `ScriptableObjects/RugCatalog` (RugDex).
 
 **Créer une commande** : `Create → RugWash → Commande`, renseigner tapis, couches de saleté et graine,
 difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste `orders` de `[Game] → OrderManager`.
@@ -173,13 +264,18 @@ Inventaire complet, règles de lecture (catégories, pause, anti-empilement) et 
 ```
 Assets/RugWash/
   Scripts/                 (assembly RugWash.Runtime)
-    Core/        GameBootstrap (racine de composition), GameStateManager (états explicites), utilitaires
-    Cleaning/    Grille de nettoyage, opérations, générateur de saleté, outils, définitions (ScriptableObjects)
+    Core/        GameBootstrap (racine de composition), GameStateManager (états explicites, curseur), InputDeviceMonitor
+                 (périphérique actif), utilitaires
+    Cleaning/    Grille de nettoyage, opérations, générateur de saleté, outils, définitions (ScriptableObjects),
+                 produits spécialisés (ProductDefinition, ProductLibrary → ProductTable, ProductStockBook)
+    RugDex/      RugCatalog (catalogue), RugDexBook (progression, testée), RugDexService (découvertes), RugDexUI
     Audio/       AudioManager (volumes, pause, sons d'interface, voix ponctuelles réutilisées)
     Effects/     RugDirtRenderer (grille → textures de contrôle), capture avant/après, indicateur de visée,
                  CleaningAudioController (boucle par outil), CleaningVFXPool, WaterEffectController (sol mouillé)
-    Player/      Entrées, contrôleur FPS, outils du joueur, interactions, équipement
-    UI/          HUD, barre d'outils, menu pause, inspection
+    Player/      Entrées (clavier/souris et manette, réponse des sticks, libellés de touches), contrôleur FPS, outils du joueur,
+                 interactions, équipement
+    UI/          HUD, barre d'outils, menu pause, inspection, navigation sans souris (UINavigator, NavigationScope),
+                 libellés de touches dynamiques (InputPromptText)
     Orders/      OrderDefinition, OrderBook (états), OrderEvaluator (note), OrderManager (cycle de commande)
     Economy/     Wallet, WalletManager, ReputationManager, UpgradeDefinition, EquipmentStats, ShopRules,
                  UpgradeManager (applique les effets), ShopManager
@@ -212,8 +308,9 @@ Principes :
 - **Propreté** = part de la saleté initiale retirée, tenue à jour incrémentalement (recalcul complet à l'inspection).
 
 ### Rendu
-`RugDirtRenderer` encode la grille dans trois textures RGBA32 (`ControlA` = poussière, tache, détaché,
-mousse ; `ControlB` = couleur de la saleté, humidité ; `ControlC` = résidus de produit, usure). Seul le **rectangle modifié** est réencodé,
+`RugDirtRenderer` encode la grille dans quatre textures RGBA32 (`ControlA` = poussière, tache, détaché,
+mousse ; `ControlB` = couleur de la tache, humidité ; `ControlC` = résidus de produit, usure, adhérence ; `ControlD` =
+couleur et aspect de la salissure sèche — voile, grains ou brins). Seul le **rectangle modifié** est réencodé,
 directement dans la mémoire de la texture, et l'envoi GPU est limité à 30/s. Le shader
 `RugWash/Rug Surface` superpose saleté, boue, poussière, humidité et mousse **au motif d'origine**
 (jamais remplacé) ; un bruit de détail découpe les seuils pour une frontière propre/sale organique.
@@ -225,8 +322,13 @@ Compatible tout GPU DX11 (pas de compute shader).
 texture de motif (couleur, *Clamp*), normale de fibres (tuilable), couches de saleté (type, motif,
 couverture, intensité, échelle, graine). L'ajouter à la liste `availableRugs` de `[Game] → GameBootstrap`.
 
-**Un type de saleté** : ajouter une valeur à l'enum `DirtType` (sans renuméroter), créer
-`Create → RugWash → Type de saleté`, l'ajouter à `DirtTypeLibrary`.
+**Un type de saleté** : ajouter une valeur à l'enum `DirtType` (sans renuméroter, mettre à jour `DirtTypes.Count`), créer
+`Create → RugWash → Type de saleté` (réponses, couleur, adhérence, sensibilité aux produits), l'ajouter à `DirtTypeLibrary`.
+
+**Un produit** : `Create → RugWash → Produit` (cibles, multiplicateurs, résidus, agressivité, débit, flacon, prix, stock
+maximal), l'ajouter à `ScriptableObjects/ProductLibrary`. Il apparaît dans la boutique et se sauvegarde sans code.
+
+**Une entrée du RugDex** : ajouter le `RugDefinition` (avec sa description) à la liste `rugs` de `ScriptableObjects/RugCatalog`.
 
 **Un outil** :
 1. Créer `Create → RugWash → Outil` (portée, rayon, dureté, puissance, ressource, emplacement).
@@ -272,6 +374,13 @@ Fichier JSON local : `%USERPROFILE%\AppData\LocalLow\RugWash Studio\RugWash Simu
   état du plan de travail et du sol (grilles quantifiées, compressées puis encodées en Base64 ; une grille de taille
   différente ou illisible est ignorée). Ajout compatible : une sauvegarde antérieure se charge avec un atelier propre et
   le robot sur sa base.
+- **Manette** (dans `settings`) : `gamepadLookSpeed`, `stickDeadZone`, `vibration` ; les boutons reconfigurés sont dans
+  `bindingOverrides` avec les touches (les index des liaisons clavier existantes sont inchangés : les touches déjà
+  reconfigurées restent valables). Ancienne sauvegarde : valeurs par défaut.
+- **Produits** (`products` : identifiant + litres, `activeProduct`) et **RugDex** (`rugDex` : identifiant, découvert,
+  livraisons, meilleure note). Champs ajoutés sans changer de version : une ancienne sauvegarde se charge sans produit et
+  avec le RugDex vide (le tapis présent est alors découvert). Identifiants inconnus ignorés, valeurs bornées.
+- Surfaces de l'atelier : format v2 (adhérence et produit par cellule) ; le format v1 se relit.
 - Pas de sauvegarde cloud, de synchronisation ni de protection contre la modification du fichier.
 
 ## 9. Tests
@@ -283,7 +392,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 Étapes : `compile`, `bootstrap`, `scene` (atelier + menu principal), `test` (EditMode, sans GPU),
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows) et
 `benchmark` (lance le jeu compilé en mode vérification). `all` enchaîne les cinq premières étapes.
-État actuel : 112 tests EditMode et 64 tests PlayMode, tous réussis (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel : 143 tests EditMode et 84 tests PlayMode, tous réussis (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

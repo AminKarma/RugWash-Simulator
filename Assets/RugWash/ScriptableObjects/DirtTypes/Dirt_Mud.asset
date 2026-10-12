@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Dirt_Mud
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.DirtTypeDefinition
   type: 2
-  displayName: Boue
+  displayName: Boue humide
   color: {r: 0.3, g: 0.21, b: 0.13, a: 1}
   response:
     vacuum: 0.15
@@ -22,3 +22,5 @@ MonoBehaviour:
     brushSoap: 1
     rinse: 0.25
     sweep: 0.1
+  adhesion: 0
+  productSensitivity: 1

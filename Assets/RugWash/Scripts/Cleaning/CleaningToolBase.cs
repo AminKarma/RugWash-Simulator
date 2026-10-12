@@ -25,6 +25,12 @@ namespace RugWash.Cleaning
         ResourceTank Recovery { get; }
 
         ResourceTank Get(ToolResource resource);
+
+        /// <summary>Produits spécialisés ajoutés au détergent (null si aucun inventaire).</summary>
+        IProductSupply Products { get; }
+
+        /// <summary>Libellés des touches pour les indications des outils (null : libellés clavier par défaut).</summary>
+        Core.IInputPrompts Prompts { get; }
     }
 
     /// <summary>
@@ -289,6 +295,41 @@ namespace RugWash.Cleaning
             float water = definition.resource == ToolResource.Water ? LastConsumed / LitersPerSaturatedSquareMeter : 0f;
             var runoff = new RunoffProfile(definition.runoffDirt, definition.runoffFoam, definition.runoffWater * water, definition.runoffIsDry);
             return rug.ApplyOperation(aim.Point, Radius, definition.falloffHardness, definition.spreadAspect, across, runoff, ref operation);
+        }
+
+        /// <summary>
+        /// Prélève le produit spécialisé actif pour cette frame (pulvérisateurs) : retourne son identifiant dans la table
+        /// du tapis visé (0 = détergent standard) et le multiplicateur de résidus correspondant.
+        /// </summary>
+        protected byte ConsumeActiveProduct(RugCleaningController rug, float deltaTime, out float residueFactor)
+        {
+            residueFactor = 1f;
+            var supply = Resources?.Products;
+            var product = supply?.Active;
+            if (product == null || rug.Products == null) return ProductTable.Standard;
+            byte id = rug.Products.IdOf(product);
+            if (id == ProductTable.Standard || supply.Consume(product.litersPerSecond * deltaTime) <= 0f) return ProductTable.Standard;
+            residueFactor = rug.Products.ResidueFactor(id);
+            return id;
+        }
+
+        /// <summary>Libellé de la touche d'une action pour le périphérique actif (ou celui donné par défaut).</summary>
+        protected string KeyLabel(string actionName, string fallback) => Resources?.Prompts?.Label(actionName) ?? fallback;
+
+        /// <summary>Ligne d'état des pulvérisateurs : réservoir de détergent et produit ajouté.</summary>
+        protected string ProductStatusLine()
+        {
+            string tank = GetBaseStatusLine();
+            var active = Resources?.Products?.Active;
+            string key = KeyLabel("Product", "T");
+            if (active == null) return $"{tank} · produit : standard ({key})";
+            return $"{tank} · + {active.displayName} {Resources.Products.StockOf(active):0.0} L ({key})";
+        }
+
+        string GetBaseStatusLine()
+        {
+            var tank = ResourceTank;
+            return tank == null ? string.Empty : $"{tank.DisplayName} : {tank.Amount:0.0} / {tank.Capacity:0} {tank.Unit}";
         }
 
         /// <summary>Rapport largeur / profondeur de la zone traitée (1 = disque).</summary>

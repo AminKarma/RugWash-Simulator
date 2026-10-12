@@ -39,6 +39,13 @@ namespace RugWash.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        public static void SetString(Object target, string property, string value)
+        {
+            var serialized = new SerializedObject(target);
+            Find(serialized, property, target).stringValue = value;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         public static void SetFloat(Object target, string property, float value)
         {
             var serialized = new SerializedObject(target);
@@ -333,7 +340,9 @@ namespace RugWash.Editor
             var colors = button.colors;
             colors.normalColor = new Color(0.16f, 0.2f, 0.24f, 0.95f);
             colors.highlightedColor = new Color(0.2f, 0.5f, 0.64f, 1f);
-            colors.selectedColor = new Color(0.2f, 0.5f, 0.64f, 1f);
+            // Sélection (manette, clavier) : ambre, distincte du survol à la souris et visible sans curseur.
+            colors.selectedColor = FocusColor;
+            colors.fadeDuration = 0.05f;
             colors.pressedColor = new Color(0.12f, 0.36f, 0.48f, 1f);
             colors.disabledColor = new Color(0.3f, 0.3f, 0.3f, 0.5f);
             button.colors = colors;
@@ -363,7 +372,23 @@ namespace RugWash.Editor
             slider.direction = Slider.Direction.LeftToRight;
             slider.minValue = 0f;
             slider.maxValue = 1f;
+            var colors = slider.colors;
+            colors.highlightedColor = new Color(0.8f, 0.93f, 1f, 1f);
+            colors.selectedColor = FocusColor;
+            colors.fadeDuration = 0.05f;
+            slider.colors = colors;
             return slider;
+        }
+
+        /// <summary>Couleur de l'élément sélectionné à la manette ou au clavier.</summary>
+        public static readonly Color FocusColor = new Color(0.86f, 0.58f, 0.16f, 1f);
+
+        /// <summary>Onglet : la page affichée (bouton inactif) prend une teinte « page courante » au lieu du gris désactivé.</summary>
+        public static void StyleTab(Button tab)
+        {
+            var colors = tab.colors;
+            colors.disabledColor = new Color(0.12f, 0.42f, 0.55f, 1f);
+            tab.colors = colors;
         }
 
         public static VerticalLayoutGroup AddVerticalLayout(GameObject go, int spacing, RectOffset padding, TextAnchor alignment)

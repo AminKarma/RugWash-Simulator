@@ -22,6 +22,7 @@ namespace RugWash.UI
         [SerializeField] Button nextRugButton;
         [SerializeField] Button abandonOrderButton;
         [SerializeField] Button settingsButton;
+        [SerializeField] Button rugDexButton;
         [SerializeField] Button mainMenuButton;
         [SerializeField] Button quitButton;
         [SerializeField] Text subtitleLabel;
@@ -36,6 +37,11 @@ namespace RugWash.UI
 
         public const string MainMenuScene = "MainMenu";
 
+        public Button ResumeButton => resumeButton;
+        public Button SettingsButton => settingsButton;
+        public Button RugDexButton => rugDexButton;
+        public bool IsVisible => panel != null && panel.activeSelf;
+
         public bool IsConfigured(out string missing)
         {
             missing = panel == null ? nameof(panel)
@@ -44,6 +50,7 @@ namespace RugWash.UI
                 : nextRugButton == null ? nameof(nextRugButton)
                 : abandonOrderButton == null ? nameof(abandonOrderButton)
                 : settingsButton == null ? nameof(settingsButton)
+                : rugDexButton == null ? nameof(rugDexButton)
                 : mainMenuButton == null ? nameof(mainMenuButton)
                 : quitButton == null ? nameof(quitButton)
                 : subtitleLabel == null ? nameof(subtitleLabel)
@@ -72,6 +79,9 @@ namespace RugWash.UI
             gameState.StateChanged += OnStateChanged;
             panel.SetActive(gameState.State == GameState.Paused);
         }
+
+        /// <summary>Bouton « RugDex » : ouvre la collection par-dessus la pause.</summary>
+        public void BindRugDex(RugDex.RugDexUI rugDex) => rugDexButton.onClick.AddListener(() => rugDex.Open());
 
         void OnDestroy()
         {

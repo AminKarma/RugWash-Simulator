@@ -258,7 +258,8 @@ namespace RugWash.Cleaning
 
         static bool Same(in RugCell a, in RugCell b) =>
             a.Dust == b.Dust && a.Stain == b.Stain && a.Loosened == b.Loosened && a.Foam == b.Foam && a.Moisture == b.Moisture
-            && a.Residue == b.Residue && a.Wear == b.Wear && a.DustType == b.DustType && a.StainType == b.StainType;
+            && a.Residue == b.Residue && a.Wear == b.Wear && a.DustType == b.DustType && a.StainType == b.StainType
+            && a.Adhesion == b.Adhesion && a.Product == b.Product;
 
         /// <summary>Applique une opération à toutes les cellules (génération, réinitialisation).</summary>
         public void ApplyAll<T>(ref T operation) where T : struct, ICellOperation
@@ -328,6 +329,9 @@ namespace RugWash.Cleaning
             c.Moisture = Clamp01Finite(c.Moisture);
             c.Residue = Clamp01Finite(c.Residue);
             c.Wear = Clamp01Finite(c.Wear);
+            c.Adhesion = Clamp01Finite(c.Adhesion);
+            if (c.Stain <= 0f) c.Adhesion = 0f;
+            if (c.Foam <= 0f && c.Residue <= 0f) c.Product = 0;
             if (c.Stain <= 0f && c.Loosened <= 0f) c.StainType = DirtType.None;
             if (c.Dust <= 0f) c.DustType = DirtType.None;
         }

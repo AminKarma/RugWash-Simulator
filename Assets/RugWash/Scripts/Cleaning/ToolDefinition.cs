@@ -57,5 +57,13 @@ namespace RugWash.Cleaning
         [Header("Boutique")]
         [Tooltip("L'outil doit être acheté (amélioration « déblocage ») avant d'être utilisable.")]
         public bool requiresUnlock;
+
+        [Header("Vibrations (manette)")]
+        [Tooltip("Moteur basse fréquence (grondement) pendant l'utilisation.")]
+        [Range(0f, 1f)] public float rumbleLow = DefaultRumble;
+        [Tooltip("Moteur haute fréquence (bourdonnement) pendant l'utilisation.")]
+        [Range(0f, 1f)] public float rumbleHigh = DefaultRumble;
+
+        public const float DefaultRumble = 0.1f;
     }
 }

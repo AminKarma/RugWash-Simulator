@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 896293a1dc916094aa0ce6567139b787, type: 3}
+  m_Name: RugCatalog
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.RugDex.RugCatalog
+  rugs:
+  - {fileID: 11400000, guid: a17a1c8d40c3bf44c9ed2feedb5230fa, type: 2}
+  - {fileID: 11400000, guid: 877b709ee4659a74889774ba6f19d63f, type: 2}
+  - {fileID: 11400000, guid: 8768446b5a8976247bbe4b2806062003, type: 2}
+  - {fileID: 11400000, guid: 3236e3f50001baf4d9b62109fc865c34, type: 2}

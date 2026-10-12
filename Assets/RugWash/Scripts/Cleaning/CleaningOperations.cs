@@ -20,6 +20,11 @@ namespace RugWash.Cleaning
         public float StubbornBonus;
         /// <summary>Mousse « montée » par seconde en brossant une zone savonneuse (0 = aucune).</summary>
         public float LatherPerSecond;
+        /// <summary>Produits spécialisés présents dans la mousse (null = détergent standard partout).</summary>
+        public ProductTable Products;
+
+        /// <summary>Part de l'effort perdue sur une tache d'adhérence maximale.</summary>
+        public const float AdhesionResistance = 0.75f;
 
         /// <summary>Statistique de sortie : saleté détachée pendant cette application.</summary>
         public float Loosened;
@@ -37,7 +42,9 @@ namespace RugWash.Cleaning
             {
                 bool stubborn = cell.StainType == DirtType.Grease || cell.StainType == DirtType.Embedded;
                 float bonus = stubborn && StubbornBonus > 0f ? StubbornBonus : 1f;
-                float amount = Mathf.Min(cell.Stain, k * bonus * ResponseFor(Table.GetResponse(cell.StainType), cell));
+                float grip = 1f - AdhesionResistance * cell.Adhesion;
+                float response = ResponseFor(Table.GetResponse(cell.StainType), cell, ProductBoost(cell, cell.StainType));
+                float amount = Mathf.Min(cell.Stain, k * bonus * grip * response);
                 cell.Stain -= amount;
                 cell.Loosened += amount;
                 Loosened += amount;
@@ -45,22 +52,26 @@ namespace RugWash.Cleaning
 
             if (cell.Dust > 0f)
             {
-                float amount = Mathf.Min(cell.Dust, k * ResponseFor(Table.GetResponse(cell.DustType), cell));
+                float amount = Mathf.Min(cell.Dust, k * ResponseFor(Table.GetResponse(cell.DustType), cell, ProductBoost(cell, cell.DustType)));
                 cell.Dust -= amount;
                 cell.Loosened += amount;
                 if (cell.StainType == DirtType.None) cell.StainType = cell.DustType;
                 Loosened += amount;
             }
 
-            if (FiberWearEnabled && cell.Dirt < RugCleaningGrid.CleanCellThreshold && cell.Moisture < 0.2f)
-                cell.Wear += WearPerSecond * DeltaTime * weight;
+            // Tapis fragile : brosser à sec use les fibres (deux fois plus sur une zone déjà propre).
+            if (FiberWearEnabled && cell.Moisture < 0.2f && cell.Foam < 0.05f)
+                cell.Wear += WearPerSecond * DeltaTime * weight * (cell.Dirt < RugCleaningGrid.CleanCellThreshold ? 1f : 0.5f);
         }
 
+        float ProductBoost(in RugCell cell, DirtType type) =>
+            Products != null && cell.Foam > 0f && cell.Product != ProductTable.Standard ? Products.TargetBoost(cell.Product, type) : 1f;
+
         /// <summary>Réponse au brossage selon l'état des fibres : la mousse prime sur l'humidité, l'humidité sur le sec.</summary>
-        public static float ResponseFor(DirtResponse r, in RugCell cell)
+        public static float ResponseFor(DirtResponse r, in RugCell cell, float productBoost = 1f)
         {
             float wet = Mathf.Lerp(r.brushDry, Mathf.Max(r.brushDry, r.brushWet), Mathf.Clamp01(cell.Moisture * 2.5f));
-            float soapy = Mathf.Lerp(wet, Mathf.Max(wet, r.brushSoap), Mathf.Clamp01(cell.Foam * 3f));
+            float soapy = Mathf.Lerp(wet, Mathf.Max(wet, r.brushSoap * productBoost), Mathf.Clamp01(cell.Foam * 3f));
             return soapy;
         }
     }
@@ -95,7 +106,7 @@ namespace RugWash.Cleaning
             float dust = Mathf.Min(cell.Dust, k * Table.GetResponse(cell.DustType).rinse);
             cell.Dust -= dust;
 
-            float stain = Mathf.Min(cell.Stain, k * 0.5f * Table.GetResponse(cell.StainType).rinse);
+            float stain = Mathf.Min(cell.Stain, k * 0.5f * Table.GetResponse(cell.StainType).rinse * (1f - BrushOperation.AdhesionResistance * cell.Adhesion));
             cell.Stain -= stain;
 
             Removed += loose + dust + stain;
@@ -175,6 +186,8 @@ namespace RugWash.Cleaning
         public float DeltaTime;
         /// <summary>Résidus de produit déposés par unité de mousse (0 = valeur de référence 0,8 du détergent pur).</summary>
         public float ResiduePerFoam;
+        /// <summary>Produit spécialisé ajouté au détergent (0 = standard).</summary>
+        public byte Product;
 
         public float FoamAdded;
 
@@ -183,6 +196,8 @@ namespace RugWash.Cleaning
             float k = DeltaTime * weight;
             if (k <= 0f) return;
             float foam = Mathf.Min(1f - cell.Foam, FoamPerSecond * k);
+            // Le produit de la nouvelle mousse l'emporte dès qu'elle domine celle déjà présente.
+            if (Product != cell.Product && (cell.Foam <= 0.01f || foam >= cell.Foam * 0.5f)) cell.Product = Product;
             cell.Foam += foam;
             cell.Residue += foam * (ResiduePerFoam > 0f ? ResiduePerFoam : 0.8f);
             cell.Moisture += WettingPerSecond * k;
@@ -324,6 +339,12 @@ namespace RugWash.Cleaning
         public float FoamToMoisture;
         /// <summary>Humidité évaporée par seconde (0 = la surface ne sèche pas seule).</summary>
         public float DryingPerSecond;
+        /// <summary>Produits présents dans la mousse (null = détergent standard).</summary>
+        public ProductTable Products;
+        /// <summary>Fragilité du tapis (0..1) : un produit agressif laissé en place use alors les fibres.</summary>
+        public float Fragility;
+        /// <summary>Usure par seconde sous une mousse pleine d'un produit d'agressivité 1 sur un tapis de fragilité 1.</summary>
+        public const float HarshWearPerSecond = 0.02f;
 
         public float Loosened;
         public float FoamLost;
@@ -336,11 +357,15 @@ namespace RugWash.Cleaning
                 if (cell.Stain > 0f && FoamDwellPower > 0f && Table != null)
                 {
                     float reactivity = Table.GetResponse(cell.StainType).brushSoap;
+                    if (Products != null) reactivity *= Products.DwellBoost(cell.Product, cell.StainType);
+                    reactivity *= 1f - 0.5f * cell.Adhesion;
                     float amount = Mathf.Min(cell.Stain, FoamDwellPower * cell.Foam * reactivity * DeltaTime);
                     cell.Stain -= amount;
                     cell.Loosened += amount;
                     Loosened += amount;
                 }
+                if (Products != null && Fragility > 0f && cell.Product != ProductTable.Standard)
+                    cell.Wear += Products.Harshness(cell.Product) * Fragility * cell.Foam * HarshWearPerSecond * DeltaTime;
                 float lost = Mathf.Min(cell.Foam, (cell.Foam * FoamDecayPerSecond + FoamDecayFloor) * DeltaTime);
                 cell.Foam -= lost;
                 cell.Moisture += lost * FoamToMoisture;

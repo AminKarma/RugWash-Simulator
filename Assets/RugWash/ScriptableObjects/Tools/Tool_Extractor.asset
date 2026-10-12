@@ -22,5 +22,13 @@ MonoBehaviour:
   falloffHardness: 5
   power: 0.9
   wettingPerSecond: 0
+  spreadAspect: 1
   resource: 3
   resourcePerSecond: 0
+  runoffDirt: 0
+  runoffFoam: 0
+  runoffWater: 0
+  runoffIsDry: 0
+  requiresUnlock: 0
+  rumbleLow: 0.15
+  rumbleHigh: 0.2

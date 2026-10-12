@@ -22,6 +22,8 @@ namespace RugWash.Cleaning
         [SerializeField, Range(1f, 4f)] float stubbornBonus = 1f;
         [Tooltip("Mousse montée par seconde en brossant une zone savonneuse.")]
         [SerializeField, Range(0f, 2f)] float latherPerSecond = 0.5f;
+        [Tooltip("Usure par seconde de brossage à sec sur un tapis de fragilité 1 (soie).")]
+        [SerializeField, Range(0f, 0.5f)] float abrasiveness = 0.06f;
 
         float loosenedPerSecond;
         Color? debrisDefaultColor;
@@ -42,6 +44,9 @@ namespace RugWash.Cleaning
                 DeltaTime = deltaTime,
                 StubbornBonus = stubbornBonus,
                 LatherPerSecond = latherPerSecond,
+                Products = rug.Products,
+                FiberWearEnabled = rug.Fragility > 0f,
+                WearPerSecond = abrasiveness * rug.Fragility,
             };
             ApplyArea(rug, aim, ref operation);
             loosenedPerSecond = operation.Loosened / deltaTime;

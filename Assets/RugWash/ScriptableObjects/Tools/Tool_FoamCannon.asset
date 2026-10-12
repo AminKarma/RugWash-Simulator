@@ -32,3 +32,5 @@ MonoBehaviour:
   runoffWater: 0
   runoffIsDry: 0
   requiresUnlock: 0
+  rumbleLow: 0.2
+  rumbleHigh: 0.1

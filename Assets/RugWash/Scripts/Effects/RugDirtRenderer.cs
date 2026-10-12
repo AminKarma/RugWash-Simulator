@@ -6,10 +6,11 @@ using UnityEngine;
 namespace RugWash.Effects
 {
     /// <summary>
-    /// Traduit la grille de nettoyage en deux textures de contrôle lues par le shader « RugWash/Rug Surface » :
+    /// Traduit la grille de nettoyage en quatre textures de contrôle lues par le shader « RugWash/Rug Surface » :
     ///   ControlA = (poussière, saleté fixée, saleté détachée, mousse)
     ///   ControlB = (couleur de la saleté RGB, humidité)
-    ///   ControlC = (résidus de produit, usure des fibres, -, -)
+    ///   ControlC = (résidus de produit, usure des fibres, adhérence de la saleté fixée, -)
+    ///   ControlD = (couleur de la salissure sèche RGB, aspect : voile, grains ou brins)
     /// Seules les cellules du rectangle modifié sont réencodées, directement dans la mémoire de la texture,
     /// et l'envoi au GPU est limité à <see cref="maxUploadsPerSecond"/>. Aucune texture n'est recréée en jeu.
     /// </summary>
@@ -19,12 +20,14 @@ namespace RugWash.Effects
         static readonly int ControlAId = Shader.PropertyToID("_ControlA");
         static readonly int ControlBId = Shader.PropertyToID("_ControlB");
         static readonly int ControlCId = Shader.PropertyToID("_ControlC");
+        static readonly int ControlDId = Shader.PropertyToID("_ControlD");
         static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
         static readonly int FiberNormalId = Shader.PropertyToID("_FiberNormal");
         static readonly int FiberTilingId = Shader.PropertyToID("_FiberTiling");
         static readonly int FiberStrengthId = Shader.PropertyToID("_FiberNormalStrength");
         static readonly int RugSizeId = Shader.PropertyToID("_RugSize");
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        static readonly int DrySmoothnessId = Shader.PropertyToID("_DrySmoothness");
 
         [SerializeField] MeshRenderer targetRenderer;
         [Tooltip("Matériau modèle utilisant le shader RugWash/Rug Surface (instancié par tapis).")]
@@ -34,7 +37,7 @@ namespace RugWash.Effects
 
         RugCleaningGrid grid;
         DirtTypeTable table;
-        Texture2D controlA, controlB, controlC;
+        Texture2D controlA, controlB, controlC, controlD;
         Material rugMaterial, fringeMaterial;
         Color32[] stainColors;
         float lastUploadTime = float.NegativeInfinity;
@@ -77,6 +80,7 @@ namespace RugWash.Effects
             controlA.Apply(false);
             controlB.Apply(false);
             controlC.Apply(false);
+            controlD.Apply(false);
             lastUploadTime = Time.unscaledTime;
             UploadCount++;
         }
@@ -93,6 +97,7 @@ namespace RugWash.Effects
             NativeArray<Color32> a = controlA.GetPixelData<Color32>(0);
             NativeArray<Color32> b = controlB.GetPixelData<Color32>(0);
             NativeArray<Color32> c = controlC.GetPixelData<Color32>(0);
+            NativeArray<Color32> d = controlD.GetPixelData<Color32>(0);
             int width = grid.Width;
             for (int y = rect.yMin; y < rect.yMax; y++)
             for (int x = rect.xMin; x < rect.xMax; x++)
@@ -104,7 +109,11 @@ namespace RugWash.Effects
                 Color32 tint = stainColors[(int)colorType];
                 tint.a = ToByte(cell.Moisture);
                 b[i] = tint;
-                c[i] = new Color32(ToByte(cell.Residue), ToByte(cell.Wear), 0, 0);
+                c[i] = new Color32(ToByte(cell.Residue), ToByte(cell.Wear), ToByte(cell.Adhesion), 0);
+                // Salissure sèche : sa propre teinte, indépendante d'une tache dans la même cellule.
+                Color32 dustTint = stainColors[(int)cell.DustType];
+                dustTint.a = ToByte(DirtTypes.LooseLook(cell.DustType));
+                d[i] = dustTint;
             }
         }
 
@@ -126,6 +135,7 @@ namespace RugWash.Effects
             controlA = CreateControlTexture("RugControlA", width, height);
             controlB = CreateControlTexture("RugControlB", width, height);
             controlC = CreateControlTexture("RugControlC", width, height);
+            controlD = CreateControlTexture("RugControlD", width, height);
         }
 
         static Texture2D CreateControlTexture(string name, int width, int height) =>
@@ -141,12 +151,15 @@ namespace RugWash.Effects
         {
             if (rugMaterial == null)
                 rugMaterial = new Material(rugMaterialTemplate) { name = "RugSurface (instance)", hideFlags = HideFlags.DontSave };
+            // Éclat propre à la matière (soie) ; sinon celui du matériau modèle.
+            rugMaterial.SetFloat(DrySmoothnessId, definition.sheen > 0f ? definition.sheen : rugMaterialTemplate.GetFloat(DrySmoothnessId));
             if (fringeMaterial == null)
                 fringeMaterial = new Material(fringeMaterialTemplate) { name = "RugFringe (instance)", hideFlags = HideFlags.DontSave };
 
             rugMaterial.SetTexture(ControlAId, controlA);
             rugMaterial.SetTexture(ControlBId, controlB);
             rugMaterial.SetTexture(ControlCId, controlC);
+            rugMaterial.SetTexture(ControlDId, controlD);
             if (definition.patternTexture != null) rugMaterial.SetTexture(BaseMapId, definition.patternTexture);
             if (definition.fiberNormal != null) rugMaterial.SetTexture(FiberNormalId, definition.fiberNormal);
             rugMaterial.SetFloat(FiberTilingId, definition.fiberTilesPerMeter);
@@ -166,7 +179,8 @@ namespace RugWash.Effects
             if (controlA != null) UnityObjectUtility.SafeDestroy(controlA);
             if (controlB != null) UnityObjectUtility.SafeDestroy(controlB);
             if (controlC != null) UnityObjectUtility.SafeDestroy(controlC);
-            controlA = controlB = controlC = null;
+            if (controlD != null) UnityObjectUtility.SafeDestroy(controlD);
+            controlA = controlB = controlC = controlD = null;
         }
 
         void OnDestroy()

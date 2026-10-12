@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Dirt_Dust
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.DirtTypeDefinition
   type: 1
-  displayName: "Poussi\xE8re"
+  displayName: "Poussi\xE8re l\xE9g\xE8re"
   color: {r: 0.62, g: 0.58, b: 0.5, a: 1}
   response:
     vacuum: 1
@@ -22,3 +22,5 @@ MonoBehaviour:
     brushSoap: 0.45
     rinse: 0.6
     sweep: 0.55
+  adhesion: 0
+  productSensitivity: 1

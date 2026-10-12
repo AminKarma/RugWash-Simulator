@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Dirt_Grease
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.DirtTypeDefinition
   type: 5
-  displayName: Graisse
+  displayName: Taches grasses
   color: {r: 0.36, g: 0.32, b: 0.17, a: 1}
   response:
     vacuum: 0
@@ -21,3 +21,6 @@ MonoBehaviour:
     brushWet: 0.15
     brushSoap: 1
     rinse: 0.02
+    sweep: 0
+  adhesion: 0.25
+  productSensitivity: 1

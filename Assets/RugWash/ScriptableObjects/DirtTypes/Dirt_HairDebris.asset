@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Dirt_HairDebris
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.DirtTypeDefinition
   type: 6
-  displayName: "Poils et d\xE9bris"
+  displayName: "Petits d\xE9bris"
   color: {r: 0.45, g: 0.4, b: 0.35, a: 1}
   response:
     vacuum: 0.8
@@ -22,3 +22,5 @@ MonoBehaviour:
     brushSoap: 0.3
     rinse: 0.3
     sweep: 1.2
+  adhesion: 0
+  productSensitivity: 1

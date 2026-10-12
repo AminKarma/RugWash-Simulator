@@ -154,14 +154,43 @@ Rapport : [AUDIT_V2.md](AUDIT_V2.md) — état réel du projet, cause du bug d'a
 | Ancien effet global « sol mouillé » remplacé par les vraies données de l'aire de lavage | Testé | `WashArea_GetsWet_WhenRinsing_ThenDries` (remplace `FloorGetsWet_WhenRinsing_ThenDries`) |
 | Ressenti des nouveaux outils, lisibilité des empreintes, crédibilité du robot sur une longue session | À vérifier à la main | Jugement humain |
 
+## Roadmap V2 — Jalon 3 (contenu et RugDex)
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 3.1 Tapis de soie (luxe) : motif et matériau distincts (reflet soyeux, franges claires), fragilité 0,85 (usure au brossage à sec et par produit agressif, protégée par la mousse et l'humidité), usure visible et mesurée, avertissement HUD, critère « Fibres abîmées » dans l'évaluation, commande la plus exigeante (950 €, réputation 8, ★★★★), avertissement sur le tableau | Testé | `Content_LuxuryRug_IsDistinct_…`, `FragileRug_DryBrushingWears_…` (EditMode et PlayMode), `Products_ReallyChangeBrushingDwellAndWear`, `Evaluator_WearObjective_CountsOnlyWhenRequired`, `LuxuryOrder_IsLockedByReputation_ThenLoadsTheSilkRug`, `PalaceDelivery_WithDamagedFibers_…`, captures `40`, `41` |
+| 3.2 Salissures : amas de poussière, boue sèche, poils d'animaux, peluches et fibres ajoutés aux types existants (poussière légère, petits débris, terre, boue humide, boissons, graisse, taches incrustées), chacun avec réponses propres, couleur, adhérence configurable (type + couche), sensibilité aux produits, aspect distinct au rendu (voile, grains, brins) ; intégrés à la grille, à la propreté, à la note et au scan | Testé | `NewDirtTypes_AreStoredInTheRightChannel_AndBehaveDifferently`, `EveryDirtType_HasAColorAndAName`, `Adhesion_…`, `Library_CanOverride…`, `DryDirt_HasADistinctLook_OnlyForLooseTypes`, `NewDirtTypes_ArePresentInRealOrders`, captures `42`, `42b` (gros plan : brins de poils, grains d'amas), `43` |
+| 3.3 Produits spécialisés (4) : cibles, multiplicateurs de brossage et d'action au repos, résidus, agressivité, débit, flacon, prix, stock maximal ; boutique (onglet Produits), inventaire, sélection T, consommation réelle, épuisement → détergent standard, sauvegarde ; description générée depuis les valeurs | Testé | `ProductTable_…`, `Products_ReallyChange…`, `Soap_RecordsTheProduct_…`, `ProductDescription_IsGeneratedFromRealValues`, `ProductStock_…` (2), `ShopRules_ProductPurchase_…`, `Products_BoughtSelectedWithT_…`, `Product_RunsOut_…`, `ShopProductsTab_…`, capture `44` |
+| 3.4 RugDex : catalogue de données, découverte au chargement, fiche (visuel, catégorie, dimensions, fragilité, salissures, commandes, livraisons, meilleure note, description), entrées inconnues avec condition réelle, complétion, accès depuis le menu principal et la pause, sauvegarde ; aucune rareté ni bonus inventés | Testé | `RugDex_…` (EditMode 2, PlayMode 2), `Products_AndRugDex_AreSavedAndRestored`, `OldSave_LoadsWithEmptyProductsAndRugDex`, captures `45`, `46` |
+| 4 nouvelles commandes (pension canine, atelier de couture, bureau de chantier, grand salon) ; tableau des commandes en liste défilante avec barre | Testé | `OrderBoard_ListsAllOrders_InAScrollableList`, captures `47`, `48` |
+| Sauvegarde : champs `products`, `activeProduct`, `rugDex` (ajout compatible) ; surfaces de l'atelier en format v2 (adhérence, produit) | Testé | `OldSave_…`, `SurfaceState_KeepsAdhesionAndProduct`, `Products_AndRugDex_AreSavedAndRestored` |
+| Équilibrage (prix des produits, difficulté du tapis de soie), lisibilité des poils et peluches en jeu, ressenti de l'usure | À vérifier à la main | Jugement humain |
+
+## Roadmap V2 — Jalon 4 (manette)
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| Déplacement (stick gauche, course au clic du stick qui s'arrête à l'immobilité), caméra au stick droit (degrés par seconde, indépendante du framerate), zone morte radiale et courbe de réponse | Testé | `StickResponse_…`, `Gamepad_MovesLooksSelectsCleansAndTakesAnOrder`, `SprintToggle_AndDeviceSwitch_BackToMouse` |
+| Outils : RB / LB pour changer (outils verrouillés sautés), RT pour utiliser ; interaction A, scan Y, produit X, inspection Vue, pause Menu, retour B | Testé | `EveryGameplayAction_IsReachableWithAGamepad`, `DefaultGamepadBindings_AreUnique`, `Gamepad_MovesLooks…` (aspirateur à la gâchette, comptoir au bouton A) |
+| Menus sans souris : fenêtre ouverte = focus (premier élément, ou « Fermer » en dernier recours), sélection restaurée à la fermeture d'une fenêtre ouverte par-dessus, sélection impossible sur une fenêtre recouverte, sélection vidée en jeu, défilement automatique des listes, focus ambre bien visible, onglets LB / RB (boutique, paramètres), fiche du RugDex qui suit le focus | Testé | `Gamepad_PauseSettingsTabsAndBack_RestoreTheSelection`, `OrderBoard_ScrollsToTheSelectedRow`, `MainMenu_IsFullyUsableWithAGamepad`, captures `45`, `51`–`54` |
+| Commandes, résultats, RugDex, boutique, pause, paramètres, menu principal (nouvelle partie, RugDex) au complet à la manette | Testé | mêmes tests (le menu principal lance réellement l'atelier au bouton A) |
+| Indications dynamiques selon le périphérique actif (HUD, invites « [A] », boutons « Fermer (B) », fenêtre des touches), noms Xbox ou PlayStation, retour au clavier/souris au mouvement de la souris ; curseur masqué dans les menus à la manette | Testé | `GamepadLabels_FollowTheControllerFamily`, `DeviceScheme_IsDetectedFromTheDevice`, `Cursor_IsHiddenInMenus_…`, `SprintToggle_AndDeviceSwitch_BackToMouse`, capture `50` |
+| Paramètres manette (vitesse caméra 30–360 °/s, zone morte 2–50 %, vibrations 0–100 %), sauvegardés (champs ajoutés, anciennes sauvegardes compatibles) | Testé | `GamepadSettings_AreClamped_AndOldSettingsGetDefaults`, `Gamepad_PauseSettings…` (valeurs réellement appliquées) |
+| Reconfiguration des boutons de manette (colonne dédiée ; sticks, Menu et B fixes ; doublons signalés), index des touches clavier inchangés | Testé | `RebindableRows_…`, `KeyboardBindingIndices_AreUnchanged_…`, `Labels_FollowARebind`, `Gamepad_RebindsScan_ToTheDpad_AndThePromptFollows` |
+| Vibrations : grondement propre à chaque outil (réglé dans sa définition), impulsions (paliers, objectif, scan, outil verrouillé), coupées hors jeu, hors manette, vibrations désactivées, perte du focus | Testé | `Rumble_OnlyWithAGamepad_…`, `Rumble_FollowsTheToolInUse_AndStopsInMenusOrWhenDisabled` |
+| Correctif : les sélecteurs ‹ › d'un onglet de paramètres jamais affiché branchent leurs boutons (révélé par le test existant des paramètres) | Testé | `Settings_ChangedInUI_AreAppliedSavedAndRestored` |
+| Essai sur une vraie manette (Xbox, DualShock / DualSense), ressenti des sticks et des vibrations, lisibilité à distance d'un téléviseur | À vérifier à la main | Les tests utilisent une manette virtuelle de l'Input System ; aucun matériel n'a été branché |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |
 |---|---|
 | Sons enregistrés définitifs | À faire (substituts synthétisés `tmp_*`) |
 | Modèles 3D réalisés par un artiste | À faire (modèles procéduraux) |
-| Génération de nouvelles commandes après les 6 du catalogue | À faire |
+| Génération de nouvelles commandes après les 10 du catalogue | À faire |
 | Mode coopératif | Non développé (architecture préparée, voir ci-dessous) |
+| Icônes de boutons de manette (images) | À faire : les indications sont textuelles (« A », « RT », « Croix »…) |
+| Sélection directe d'un outil à la manette | Non prévue : RB / LB font défiler les 8 outils |
 
 ## Limites connues (phase 1)
 

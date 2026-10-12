@@ -60,6 +60,15 @@ namespace RugWash.Economy
         Unknown,
     }
 
+    public enum ProductPurchaseResult
+    {
+        Purchased,
+        /// <summary>Un flacon entier ne tient plus dans le stock transportable.</summary>
+        StockFull,
+        InsufficientFunds,
+        Unknown,
+    }
+
     /// <summary>Règle d'achat pure : le solde n'est débité que si l'achat est entièrement valide.</summary>
     public static class ShopRules
     {
@@ -79,6 +88,26 @@ namespace RugWash.Economy
             if (!wallet.TrySpend(upgrade.price)) return PurchaseResult.InsufficientFunds;
             owned.Add(upgrade.id);
             return PurchaseResult.Purchased;
+        }
+
+        /// <summary>Achat d'un flacon de produit : il doit tenir entièrement dans le stock et être payable.</summary>
+        public static ProductPurchaseResult CheckProduct(Cleaning.ProductDefinition product, float freeSpace, Wallet wallet)
+        {
+            if (product == null) return ProductPurchaseResult.Unknown;
+            if (freeSpace + 1e-4f < product.packLiters) return ProductPurchaseResult.StockFull;
+            if (!wallet.CanAfford(product.packPrice)) return ProductPurchaseResult.InsufficientFunds;
+            return ProductPurchaseResult.Purchased;
+        }
+
+        public static string Describe(ProductPurchaseResult result)
+        {
+            switch (result)
+            {
+                case ProductPurchaseResult.Purchased: return "Achat effectué";
+                case ProductPurchaseResult.StockFull: return "Stock plein";
+                case ProductPurchaseResult.InsufficientFunds: return "Fonds insuffisants";
+                default: return "Article inconnu";
+            }
         }
 
         public static string Describe(PurchaseResult result)

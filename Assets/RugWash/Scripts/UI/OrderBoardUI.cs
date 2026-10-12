@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using RugWash.Cleaning;
 using RugWash.Core;
 using RugWash.Economy;
 using RugWash.Orders;
@@ -133,7 +134,7 @@ namespace RugWash.UI
         {
             var state = orders.Book.StateOf(order);
             bool locked = orders.Book.IsLocked(order, orders.Reputation);
-            string stars = new string('★', order.difficulty) + new string('☆', 3 - order.difficulty);
+            string stars = new string('★', order.difficulty) + new string('☆', Mathf.Max(0, 4 - order.difficulty));
             string details = $"{order.clientName} · {order.rug.displayName} · {stars} · {WalletManager.Format(order.baseReward)}\n{DescribeObjectives(order)}";
 
             string status, action = null;
@@ -158,7 +159,12 @@ namespace RugWash.UI
             var builder = new StringBuilder($"Objectif : {o.targetCleanliness * 100f:0} % de saleté retirée");
             if (o.limitResidue) builder.Append($" · résidus ≤ {o.maxResidue * 100f:0} %");
             if (o.limitMoisture) builder.Append($" · humidité ≤ {o.maxMoisture * 100f:0} %");
+            if (o.limitWear) builder.Append($" · fibres abîmées ≤ {o.maxWear * 100f:0.#} %");
             if (o.bonusTimeSeconds > 0f) builder.Append($" · bonus sous {OrderEvaluator.FormatTime(o.bonusTimeSeconds)}");
+            // Avertissement issu des données réelles du tapis (fragilité) : brossage à sec et produits agressifs l'usent.
+            if (order.rug != null && order.rug.fragility > 0f)
+                builder.Append("\nTapis fragile (").Append(RugDefinition.FragilityLabel(order.rug.fragility))
+                    .Append(") : brossez sur fibres humides ou savonneuses, évitez les produits agressifs");
             return builder.ToString();
         }
 

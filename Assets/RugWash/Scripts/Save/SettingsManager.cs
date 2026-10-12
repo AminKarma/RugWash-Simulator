@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using RugWash.Audio;
 using RugWash.Core;
+using RugWash.Effects;
 using RugWash.Player;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -53,40 +54,58 @@ namespace RugWash.Save
         }
     }
 
-    /// <summary>Action reconfigurable dans les paramètres.</summary>
+    /// <summary>Action reconfigurable dans les paramètres (colonne clavier et colonne manette).</summary>
     public readonly struct RebindableAction
     {
         public readonly string Label;
         public readonly string ActionName;
         /// <summary>Partie de composite (« up », « down »…) ou null pour un bouton simple.</summary>
         public readonly string CompositePart;
+        /// <summary>La liaison clavier/souris peut être modifiée (le clic gauche et la molette restent fixes).</summary>
+        public readonly bool KeyboardRebindable;
+        /// <summary>Action portant la liaison manette affichée (ex. « MoveStick » pour le déplacement).</summary>
+        public readonly string GamepadActionName;
+        public readonly bool GamepadRebindable;
+        /// <summary>Texte de la colonne clavier/souris quand la liaison n'y est pas reconfigurable (« Clic gauche », « Molette »).</summary>
+        public readonly string KeyboardHint;
 
-        public RebindableAction(string label, string actionName, string compositePart = null)
+        public RebindableAction(string label, string actionName, string compositePart = null, bool keyboardRebindable = true,
+            string gamepadActionName = null, bool gamepadRebindable = true, string keyboardHint = null)
         {
             Label = label;
             ActionName = actionName;
             CompositePart = compositePart;
+            KeyboardRebindable = keyboardRebindable;
+            GamepadActionName = gamepadActionName ?? actionName;
+            GamepadRebindable = gamepadRebindable;
+            KeyboardHint = keyboardHint;
         }
     }
 
     /// <summary>
-    /// Applique réellement les paramètres : volumes (AudioManager), souris (FirstPersonController),
-    /// affichage (Screen), qualité (QualitySettings) et liaisons de touches (Input System).
+    /// Applique réellement les paramètres : volumes (AudioManager), souris et stick de caméra (FirstPersonController),
+    /// zone morte des sticks (PlayerInputReader), vibrations (GamepadRumble), affichage (Screen), qualité (QualitySettings)
+    /// et liaisons de touches et de boutons (Input System).
     /// Présent dans le menu principal et dans l'atelier.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SettingsManager : MonoBehaviour
     {
+        // Nouvelles actions ajoutées à la fin : les lignes existantes gardent leur position.
         public static readonly IReadOnlyList<RebindableAction> RebindableActions = new[]
         {
-            new RebindableAction("Avancer", "Move", "up"),
-            new RebindableAction("Reculer", "Move", "down"),
-            new RebindableAction("Aller à gauche", "Move", "left"),
-            new RebindableAction("Aller à droite", "Move", "right"),
+            new RebindableAction("Avancer", "Move", "up", gamepadActionName: "MoveStick", gamepadRebindable: false),
+            new RebindableAction("Reculer", "Move", "down", gamepadActionName: "MoveStick", gamepadRebindable: false),
+            new RebindableAction("Aller à gauche", "Move", "left", gamepadActionName: "MoveStick", gamepadRebindable: false),
+            new RebindableAction("Aller à droite", "Move", "right", gamepadActionName: "MoveStick", gamepadRebindable: false),
             new RebindableAction("Courir", "Sprint"),
             new RebindableAction("Interagir", "Interact"),
             new RebindableAction("Scanner la saleté", "Scan"),
+            new RebindableAction("Changer de produit", "Product"),
             new RebindableAction("Inspecter", "Inspect"),
+            new RebindableAction("Utiliser l'outil", "Use", keyboardRebindable: false, keyboardHint: "Clic gauche"),
+            new RebindableAction("Outil suivant", "ToolNext", keyboardRebindable: false, keyboardHint: "Molette / 1-8"),
+            new RebindableAction("Outil précédent", "ToolPrevious", keyboardRebindable: false, keyboardHint: "Molette / 1-8"),
         };
 
         static readonly FullScreenMode[] DisplayModes = { FullScreenMode.ExclusiveFullScreen, FullScreenMode.FullScreenWindow, FullScreenMode.Windowed };
@@ -99,6 +118,8 @@ namespace RugWash.Save
         [Tooltip("Optionnel (atelier) : reçoivent l'intensité du balancement.")]
         [SerializeField] ViewModelRig viewModelRig;
         [SerializeField] CameraMotion cameraMotion;
+        [Tooltip("Optionnel (atelier) : reçoit l'intensité des vibrations.")]
+        [SerializeField] GamepadRumble rumble;
 
         InputActionAsset ownAsset;
 
@@ -126,6 +147,7 @@ namespace RugWash.Save
             SaveValidator.ClampSettings(Current);
             ApplyAudio();
             ApplyMouse();
+            ApplyGamepad();
             ApplyMotion();
             ApplyQuality();
             ApplyDisplay();
@@ -148,6 +170,10 @@ namespace RugWash.Save
         public void SetInvertY(bool value) { Current.invertY = value; ApplyMouse(); Changed?.Invoke(); }
 
         public void SetMotionIntensity(float value) { Current.motionIntensity = Mathf.Clamp01(value); ApplyMotion(); Changed?.Invoke(); }
+
+        public void SetGamepadLookSpeed(float value) { Current.gamepadLookSpeed = Mathf.Clamp(value, 30f, 360f); ApplyGamepad(); Changed?.Invoke(); }
+        public void SetStickDeadZone(float value) { Current.stickDeadZone = Mathf.Clamp(value, 0.02f, 0.5f); ApplyGamepad(); Changed?.Invoke(); }
+        public void SetVibration(float value) { Current.vibration = Mathf.Clamp01(value); ApplyGamepad(); Changed?.Invoke(); }
 
         public void SetQualityLevel(int level)
         {
@@ -225,12 +251,20 @@ namespace RugWash.Save
             }
         }
 
-        public static int FindBindingIndex(InputAction action, RebindableAction target)
+        /// <summary>Index de la liaison clavier/souris reconfigurable de la ligne (première trouvée), -1 si aucune.</summary>
+        public static int FindBindingIndex(InputAction action, RebindableAction target) =>
+            FindBindingIndex(action, target, InputSchemes.KeyboardMouseGroup);
+
+        /// <summary>Index de la liaison de la ligne dans le groupe donné (clavier/souris ou manette), -1 si aucune.</summary>
+        public static int FindBindingIndex(InputAction action, RebindableAction target, string group)
         {
+            if (action == null) return -1;
+            bool gamepad = group == InputSchemes.GamepadGroup;
             for (int i = 0; i < action.bindings.Count; i++)
             {
                 var binding = action.bindings[i];
-                if (target.CompositePart == null ? !binding.isComposite && !binding.isPartOfComposite
+                if (!InputPrompts.InGroup(binding, group)) continue;
+                if (gamepad || target.CompositePart == null ? !binding.isComposite && !binding.isPartOfComposite
                         : binding.isPartOfComposite && string.Equals(binding.name, target.CompositePart, StringComparison.OrdinalIgnoreCase))
                     return i;
             }
@@ -252,6 +286,13 @@ namespace RugWash.Save
             if (player == null) return;
             player.LookSensitivity = Current.mouseSensitivity;
             player.InvertY = Current.invertY;
+        }
+
+        void ApplyGamepad()
+        {
+            if (player != null) player.StickLookSpeed = Current.gamepadLookSpeed;
+            if (input != null) input.StickDeadZone = Current.stickDeadZone;
+            if (rumble != null) rumble.Intensity = Current.vibration;
         }
 
         void ApplyMotion()

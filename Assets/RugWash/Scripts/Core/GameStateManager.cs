@@ -22,6 +22,9 @@ namespace RugWash.Core
         /// <summary>Le curseur n'est verrouillé que pendant le gameplay, sans fenêtre modale ouverte.</summary>
         public static bool ShouldLockCursor(GameState state, int openModals) => IsGameplay(state) && openModals == 0;
 
+        /// <summary>Curseur visible : menus et fenêtres, sauf quand on joue à la manette (navigation sans souris).</summary>
+        public static bool ShouldShowCursor(bool locked, InputScheme scheme) => !locked && scheme != InputScheme.Gamepad;
+
         public static float TimeScaleFor(GameState state) => state == GameState.Paused ? 0f : 1f;
     }
 
@@ -33,6 +36,8 @@ namespace RugWash.Core
     public sealed class GameStateManager : MonoBehaviour
     {
         [SerializeField] GameState initialState = GameState.Workshop;
+        [Tooltip("Optionnel : masque le curseur dans les menus quand la manette est utilisée.")]
+        [SerializeField] InputDeviceMonitor inputMonitor;
 
         GameState stateBeforePause;
         int openModals;
@@ -57,8 +62,11 @@ namespace RugWash.Core
         void Start()
         {
             started = true;
+            if (inputMonitor != null) inputMonitor.SchemeChanged += OnSchemeChanged;
             Apply();
         }
+
+        void OnSchemeChanged(InputScheme _) => Apply();
 
         public void SetState(GameState next)
         {
@@ -113,7 +121,7 @@ namespace RugWash.Core
             if (!started) return;
             bool locked = GameStateRules.ShouldLockCursor(State, openModals);
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !locked;
+            Cursor.visible = GameStateRules.ShouldShowCursor(locked, inputMonitor != null ? inputMonitor.Scheme : InputScheme.KeyboardMouse);
             Time.timeScale = GameStateRules.TimeScaleFor(State);
         }
 
@@ -124,6 +132,7 @@ namespace RugWash.Core
 
         void OnDestroy()
         {
+            if (inputMonitor != null) inputMonitor.SchemeChanged -= OnSchemeChanged;
             // Ne jamais laisser le jeu figé ou le curseur capturé après la fermeture de la scène.
             Time.timeScale = 1f;
             Cursor.lockState = CursorLockMode.None;

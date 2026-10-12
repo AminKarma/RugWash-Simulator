@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa13e84074b259e4d92f25ad115ca3c2, type: 3}
+  m_Name: order_palace
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Orders.OrderDefinition
+  id: order_palace
+  clientName: "R\xE9sidence Valmont"
+  title: Tapis de soie du grand salon
+  description: "Une pi\xE8ce en soie nou\xE9e main, d'une grande valeur. Fibres tr\xE8s
+    fragiles : pas de brossage \xE0 sec, pas de produit agressif, \xE0 rendre propre,
+    sec et sans r\xE9sidu."
+  rug: {fileID: 11400000, guid: 3236e3f50001baf4d9b62109fc865c34, type: 2}
+  dirtSeed: 110
+  dirt:
+  - type: 1
+    pattern: 0
+    coverage: 0.7
+    intensity: 0.35
+    scale: 0.3
+    adhesionOffset: 0
+  - type: 4
+    pattern: 2
+    coverage: 0.25
+    intensity: 0.85
+    scale: 0.12
+    adhesionOffset: 0.3
+  - type: 5
+    pattern: 2
+    coverage: 0.12
+    intensity: 0.7
+    scale: 0.08
+    adhesionOffset: 0
+  - type: 11
+    pattern: 1
+    coverage: 0.3
+    intensity: 0.35
+    scale: 0.3
+    adhesionOffset: 0
+  - type: 7
+    pattern: 2
+    coverage: 0.1
+    intensity: 0.7
+    scale: 0.06
+    adhesionOffset: 0
+  difficulty: 4
+  baseReward: 950
+  requiredReputation: 8
+  objectives:
+    targetCleanliness: 0.9
+    limitResidue: 1
+    maxResidue: 0.08
+    limitMoisture: 1
+    maxMoisture: 0.25
+    bonusTimeSeconds: 1080
+    limitWear: 1
+    maxWear: 0.04

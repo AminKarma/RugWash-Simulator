@@ -116,6 +116,7 @@ namespace RugWash.Player
 
             HandleSelection();
             tool = ActiveTool;
+            if (input.ProductPressed && equipment.Inventory != null) equipment.Inventory.Book.SelectNext();
 
             var aim = ComputeAim();
             CurrentAim = aim;

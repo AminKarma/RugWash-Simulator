@@ -92,6 +92,17 @@ namespace RugWash.Orders
                 result.Lines.Add(new ResultLine("Humidité", $"{summary.AverageMoisture01 * 100f:0} % (max {objectives.maxMoisture * 100f:0} %)", met));
             }
 
+            if (objectives.limitWear)
+            {
+                float factor = summary.AverageWear01 <= objectives.maxWear
+                    ? 1f : Mathf.Clamp01(1f - (summary.AverageWear01 - objectives.maxWear) / 0.2f);
+                bool met = summary.AverageWear01 <= objectives.maxWear + 1e-4f;
+                weightedSum += 0.15f * factor;
+                weights += 0.15f;
+                allMet &= met;
+                result.Lines.Add(new ResultLine("Fibres abîmées", $"{summary.AverageWear01 * 100f:0.#} % (max {objectives.maxWear * 100f:0.#} %)", met));
+            }
+
             result.Score = Mathf.Round(100f * weightedSum / weights * 10f) / 10f;
             result.Grade = GradeFor(result.Score, allMet);
 

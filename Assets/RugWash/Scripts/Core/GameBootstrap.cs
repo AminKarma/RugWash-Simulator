@@ -29,6 +29,9 @@ namespace RugWash.Core
 
         [Header("Joueur")]
         [SerializeField] PlayerInputReader input;
+        [SerializeField] InputDeviceMonitor inputMonitor;
+        [SerializeField] UINavigator navigator;
+        [SerializeField] GamepadRumble rumble;
         [SerializeField] FirstPersonController playerController;
         [SerializeField] PlayerToolController toolController;
         [SerializeField] PlayerInteractor interactor;
@@ -41,6 +44,10 @@ namespace RugWash.Core
         [SerializeField] WorkSurface workSurface;
         [SerializeField] Workshop.RobotVacuum robot;
         [SerializeField] WorkshopStateService workshopState;
+        [SerializeField] RugDex.RugDexService rugDex;
+        [SerializeField] RugDex.RugDexUI rugDexUI;
+        [SerializeField] ProductInventory productInventory;
+        [SerializeField] DirtTypeLibrary dirtLibrary;
         [SerializeField] List<RugDefinition> availableRugs = new List<RugDefinition>();
 
         [Header("Commandes et économie")]
@@ -84,6 +91,14 @@ namespace RugWash.Core
         public CleaningProgressFeedback ProgressFeedback => progressFeedback;
         public WorkSurface WorkSurface => workSurface;
         public Workshop.RobotVacuum Robot => robot;
+        public RugDex.RugDexService RugDexService => rugDex;
+        public RugDex.RugDexUI RugDexUI => rugDexUI;
+        public ProductInventory Products => productInventory;
+        public PlayerInputReader Input => input;
+        public InputDeviceMonitor InputMonitor => inputMonitor;
+        public UINavigator Navigator => navigator;
+        public GamepadRumble Rumble => rumble;
+        public PauseMenuUI PauseMenu => pauseMenu;
         public bool IsReady { get; private set; }
 
         /// <summary>Vérifie toutes les références, y compris celles des composants enfants.</summary>
@@ -101,6 +116,9 @@ namespace RugWash.Core
             Require(settingsManager, nameof(settingsManager));
             Require(settingsUI, nameof(settingsUI));
             Require(input, nameof(input));
+            Require(inputMonitor, nameof(inputMonitor));
+            Require(navigator, nameof(navigator));
+            Require(rumble, nameof(rumble));
             Require(playerController, nameof(playerController));
             Require(toolController, nameof(toolController));
             Require(interactor, nameof(interactor));
@@ -111,6 +129,10 @@ namespace RugWash.Core
             Require(workSurface, nameof(workSurface));
             Require(robot, nameof(robot));
             Require(workshopState, nameof(workshopState));
+            Require(rugDex, nameof(rugDex));
+            Require(rugDexUI, nameof(rugDexUI));
+            Require(productInventory, nameof(productInventory));
+            Require(dirtLibrary, nameof(dirtLibrary));
             Require(orders, nameof(orders));
             Require(wallet, nameof(wallet));
             Require(reputation, nameof(reputation));
@@ -138,6 +160,9 @@ namespace RugWash.Core
             if (workSurface != null && !workSurface.IsConfigured(out detail)) problems.Add($"workSurface.{detail}");
             if (robot != null && !robot.IsConfigured(out detail)) problems.Add($"robot.{detail}");
             if (workshopState != null && !workshopState.IsConfigured(out detail)) problems.Add($"workshopState.{detail}");
+            if (rugDex != null && !rugDex.IsConfigured(out detail)) problems.Add($"rugDex.{detail}");
+            if (rugDexUI != null && !rugDexUI.IsConfigured(out detail)) problems.Add($"rugDexUI.{detail}");
+            if (productInventory != null && !productInventory.IsConfigured(out detail)) problems.Add($"productInventory.{detail}");
             if (orders != null && !orders.IsConfigured(out detail)) problems.Add($"orders.{detail}");
             if (upgrades != null && !upgrades.IsConfigured(out detail)) problems.Add($"upgrades.{detail}");
             if (shop != null && !shop.IsConfigured(out detail)) problems.Add($"shop.{detail}");
@@ -151,6 +176,8 @@ namespace RugWash.Core
             if (settingsUI != null && !settingsUI.IsConfigured(out detail)) problems.Add($"settingsUI.{detail}");
             if (saveManager != null && !saveManager.IsConfigured(out detail)) problems.Add($"saveManager.{detail}");
             if (debugOverlay != null && !debugOverlay.IsConfigured(out detail)) problems.Add($"debugOverlay.{detail}");
+            if (rumble != null && !rumble.IsConfigured(out detail)) problems.Add($"rumble.{detail}");
+            if (input != null && input.Monitor == null) problems.Add("input.monitor");
 
             missing = string.Join(", ", problems);
             return problems.Count == 0;
@@ -166,7 +193,7 @@ namespace RugWash.Core
                 return;
             }
             // Ordre = priorité de fermeture par Échap (les paramètres s'ouvrent par-dessus la pause).
-            modalPanels = new IModalPanel[] { settingsUI, inspection, orderBoard, shopUI };
+            modalPanels = new IModalPanel[] { settingsUI, rugDexUI, inspection, orderBoard, shopUI };
             IsReady = true;
         }
 
@@ -182,6 +209,10 @@ namespace RugWash.Core
             upgrades.Changed += toolbar.Refresh;
             robot.Message += hud.ShowToast;
             orderBoard.SetWorkSurface(workSurface);
+            hud.BindProducts(productInventory.Book);
+            rugDexUI.Bind(rugDex.Catalog, rugDex.Book, orders.Book.Orders, availableRugs, dirtLibrary, gameState);
+            pauseMenu.BindRugDex(rugDexUI);
+            rugDex.NewRugDiscovered += OnNewRugDiscovered;
             pauseMenu.Bind(gameState, rug, orders, availableRugs, settingsUI, saveManager);
             settingsUI.Bind(settingsManager, saveManager, gameState);
             saveManager.Saved += OnSaved;
@@ -191,12 +222,14 @@ namespace RugWash.Core
             shopUI.Bind(gameState, shop);
             results.Bind(gameState, orders, snapshots, orderBoard);
             debugOverlay.Bind(gameState, rug, toolController, input);
+            rumble.Bind(orders, progressFeedback, dirtScanner);
             audioManager.RegisterButtons(pauseMenu);
             audioManager.RegisterButtons(inspection);
             audioManager.RegisterButtons(orderBoard);
             audioManager.RegisterButtons(shopUI);
             audioManager.RegisterButtons(results);
             audioManager.RegisterButtons(settingsUI);
+            audioManager.RegisterButtons(rugDexUI);
 
             gameState.StateChanged += OnGameStateChanged;
             gameState.ModalsChanged += SyncGameplayInput;
@@ -204,6 +237,8 @@ namespace RugWash.Core
         }
 
         void OnSaved(bool success, string message) => hud.ShowToast(message);
+
+        void OnNewRugDiscovered(RugDefinition rugDefinition) => hud.ShowToast($"Nouveau tapis dans le RugDex : {rugDefinition.displayName}");
 
         void OnObjectiveReached(OrderDefinition order)
         {
@@ -217,6 +252,7 @@ namespace RugWash.Core
             if (orders != null) orders.ObjectiveReached -= OnObjectiveReached;
             if (upgrades != null && toolbar != null) upgrades.Changed -= toolbar.Refresh;
             if (robot != null && hud != null) robot.Message -= hud.ShowToast;
+            if (rugDex != null) rugDex.NewRugDiscovered -= OnNewRugDiscovered;
             if (gameState == null) return;
             gameState.StateChanged -= OnGameStateChanged;
             gameState.ModalsChanged -= SyncGameplayInput;
@@ -230,6 +266,11 @@ namespace RugWash.Core
             if (input.PausePressed)
             {
                 if (!CloseOpenPanel()) gameState.TogglePause();
+            }
+            else if (input.BackPressed)
+            {
+                // Manette (B / Rond) : ferme la fenêtre du dessus, ou reprend la partie depuis la pause.
+                if (!CloseOpenPanel() && gameState.IsPaused) gameState.Resume();
             }
             else if (input.InspectPressed)
             {

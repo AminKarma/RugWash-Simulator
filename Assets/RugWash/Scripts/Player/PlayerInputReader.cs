@@ -8,12 +8,18 @@ namespace RugWash.Player
     /// Définition des actions du joueur. Les liaisons clavier désignent des touches physiques
     /// (position QWERTY) : « &lt;Keyboard&gt;/w » est la touche Z sur un clavier AZERTY.
     /// Le déplacement fonctionne donc en ZQSD (AZERTY) comme en WASD (QWERTY) sans réglage.
+    /// Chaque liaison appartient au groupe « Keyboard&amp;Mouse » ou « Gamepad » (indications et reconfiguration
+    /// par périphérique). Les liaisons manette sont ajoutées après les liaisons clavier : les index des liaisons
+    /// clavier, utilisés par les touches reconfigurées sauvegardées, ne changent pas.
     /// </summary>
     public static class RugWashInputActions
     {
         public const string GameplayMap = "Gameplay";
         public const string SystemMap = "System";
         public const int ToolSlotCount = 8;
+
+        const string Kbm = InputSchemes.KeyboardMouseGroup;
+        const string Pad = InputSchemes.GamepadGroup;
 
         public static InputActionAsset Create()
         {
@@ -23,42 +29,78 @@ namespace RugWash.Player
             var gameplay = asset.AddActionMap(GameplayMap);
             var move = gameplay.AddAction("Move", InputActionType.Value, expectedControlLayout: "Vector2");
             move.AddCompositeBinding("2DVector")
-                .With("Up", "<Keyboard>/w").With("Down", "<Keyboard>/s")
-                .With("Left", "<Keyboard>/a").With("Right", "<Keyboard>/d");
+                .With("Up", "<Keyboard>/w", Kbm).With("Down", "<Keyboard>/s", Kbm)
+                .With("Left", "<Keyboard>/a", Kbm).With("Right", "<Keyboard>/d", Kbm);
             move.AddCompositeBinding("2DVector")
-                .With("Up", "<Keyboard>/upArrow").With("Down", "<Keyboard>/downArrow")
-                .With("Left", "<Keyboard>/leftArrow").With("Right", "<Keyboard>/rightArrow");
+                .With("Up", "<Keyboard>/upArrow", Kbm).With("Down", "<Keyboard>/downArrow", Kbm)
+                .With("Left", "<Keyboard>/leftArrow", Kbm).With("Right", "<Keyboard>/rightArrow", Kbm);
 
-            gameplay.AddAction("Look", InputActionType.Value, "<Mouse>/delta", expectedControlLayout: "Vector2");
-            gameplay.AddAction("Sprint", InputActionType.Button, "<Keyboard>/leftShift");
-            gameplay.AddAction("Use", InputActionType.Button, "<Mouse>/leftButton");
-            gameplay.AddAction("Interact", InputActionType.Button, "<Keyboard>/e");
-            gameplay.AddAction("Scan", InputActionType.Button, "<Keyboard>/r");
-            gameplay.AddAction("ToolScroll", InputActionType.Value, "<Mouse>/scroll/y", expectedControlLayout: "Axis");
+            Button(gameplay, "Look", "<Mouse>/delta", null, InputActionType.Value, "Vector2");
+            Button(gameplay, "Sprint", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
+            Button(gameplay, "Use", "<Mouse>/leftButton", "<Gamepad>/rightTrigger");
+            Button(gameplay, "Interact", "<Keyboard>/e", "<Gamepad>/buttonSouth");
+            Button(gameplay, "Scan", "<Keyboard>/r", "<Gamepad>/buttonNorth");
+            Button(gameplay, "Product", "<Keyboard>/t", "<Gamepad>/buttonWest");
+            Button(gameplay, "ToolScroll", "<Mouse>/scroll/y", null, InputActionType.Value, "Axis");
             for (int i = 1; i <= ToolSlotCount; i++)
             {
-                var slot = gameplay.AddAction($"Tool{i}", InputActionType.Button, $"<Keyboard>/{i}");
-                slot.AddBinding($"<Keyboard>/numpad{i}");
+                var slot = Button(gameplay, $"Tool{i}", $"<Keyboard>/{i}", null);
+                slot.AddBinding($"<Keyboard>/numpad{i}").WithGroup(Kbm);
             }
+            // Manette : sticks lus sans processeur (zone morte et courbe appliquées par PlayerInputReader, réglables).
+            Button(gameplay, "MoveStick", null, "<Gamepad>/leftStick", InputActionType.Value, "Vector2");
+            Button(gameplay, "LookStick", null, "<Gamepad>/rightStick", InputActionType.Value, "Vector2");
+            Button(gameplay, "ToolNext", null, "<Gamepad>/rightShoulder");
+            Button(gameplay, "ToolPrevious", null, "<Gamepad>/leftShoulder");
 
             var system = asset.AddActionMap(SystemMap);
-            system.AddAction("Pause", InputActionType.Button, "<Keyboard>/escape");
-            system.AddAction("Inspect", InputActionType.Button, "<Keyboard>/f");
-            system.AddAction("DebugOverlay", InputActionType.Button, "<Keyboard>/f3");
+            Button(system, "Pause", "<Keyboard>/escape", "<Gamepad>/start");
+            Button(system, "Inspect", "<Keyboard>/f", "<Gamepad>/select");
+            Button(system, "DebugOverlay", "<Keyboard>/f3", null);
+            // Retour (fermer la fenêtre ouverte, reprendre depuis la pause) : Échap au clavier, déjà porté par « Pause ».
+            Button(system, "Back", null, "<Gamepad>/buttonEast");
             return asset;
+        }
+
+        static InputAction Button(InputActionMap map, string name, string keyboard, string gamepad,
+            InputActionType type = InputActionType.Button, string layout = null)
+        {
+            var action = map.AddAction(name, type, expectedControlLayout: layout);
+            if (keyboard != null) action.AddBinding(keyboard).WithGroup(Kbm);
+            if (gamepad != null) action.AddBinding(gamepad).WithGroup(Pad);
+            return action;
         }
     }
 
-    /// <summary>Lit les entrées du joueur. La carte « Gameplay » est coupée en pause et dans les menus.</summary>
+    /// <summary>
+    /// Lit les entrées du joueur (clavier/souris et manette). La carte « Gameplay » est coupée en pause et dans les menus.
+    /// Les sticks passent par une zone morte radiale réglable puis une courbe de réponse (<see cref="StickResponse"/>).
+    /// </summary>
     [DisallowMultipleComponent]
-    public sealed class PlayerInputReader : MonoBehaviour
+    public sealed class PlayerInputReader : MonoBehaviour, IInputPrompts
     {
+        [Tooltip("Périphérique actif : libellés des touches adaptés (clavier ou manette).")]
+        [SerializeField] InputDeviceMonitor monitor;
+        [Tooltip("Zone morte radiale des sticks (réglable dans les paramètres).")]
+        [SerializeField, Range(0.02f, 0.5f)] float stickDeadZone = 0.15f;
+        [Tooltip("Courbe du stick de caméra : 1 = linéaire, 2 = plus précis au centre.")]
+        [SerializeField, Range(1f, 3f)] float lookStickExponent = 2f;
+
         InputActionAsset asset;
         InputActionMap gameplay;
-        InputAction move, look, sprint, use, interact, scan, toolScroll, pause, inspect, debugOverlay;
+        InputAction move, look, sprint, use, interact, scan, product, toolScroll, pause, inspect, debugOverlay;
+        InputAction moveStick, lookStick, toolNext, toolPrevious, back;
         readonly InputAction[] toolSlots = new InputAction[RugWashInputActions.ToolSlotCount];
+        bool sprintLatched;
 
         public InputActionAsset Asset => asset;
+        public InputDeviceMonitor Monitor => monitor;
+
+        public float StickDeadZone
+        {
+            get => stickDeadZone;
+            set => stickDeadZone = Mathf.Clamp(value, 0.02f, 0.5f);
+        }
 
         void Awake()
         {
@@ -72,15 +114,33 @@ namespace RugWash.Player
             use = gameplay.FindAction("Use", true);
             interact = gameplay.FindAction("Interact", true);
             scan = gameplay.FindAction("Scan", true);
+            product = gameplay.FindAction("Product", true);
             toolScroll = gameplay.FindAction("ToolScroll", true);
+            moveStick = gameplay.FindAction("MoveStick", true);
+            lookStick = gameplay.FindAction("LookStick", true);
+            toolNext = gameplay.FindAction("ToolNext", true);
+            toolPrevious = gameplay.FindAction("ToolPrevious", true);
             for (int i = 0; i < toolSlots.Length; i++)
                 toolSlots[i] = gameplay.FindAction($"Tool{i + 1}", true);
             pause = system.FindAction("Pause", true);
             inspect = system.FindAction("Inspect", true);
             debugOverlay = system.FindAction("DebugOverlay", true);
+            back = system.FindAction("Back", true);
 
             system.Enable();
             gameplay.Enable();
+        }
+
+        void Update()
+        {
+            // Course à la manette : un clic du stick gauche l'active, elle s'arrête quand le joueur s'immobilise.
+            if (!GameplayEnabled)
+            {
+                sprintLatched = false;
+                return;
+            }
+            if (sprint.WasPressedThisFrame() && sprint.activeControl?.device is Gamepad) sprintLatched = !sprintLatched;
+            if (sprintLatched && StickResponse.Apply(moveStick.ReadValue<Vector2>(), stickDeadZone, 1f).sqrMagnitude < 0.01f) sprintLatched = false;
         }
 
         public bool GameplayEnabled => gameplay != null && gameplay.enabled;
@@ -92,17 +152,35 @@ namespace RugWash.Player
             else gameplay.Disable();
         }
 
-        public Vector2 Move => GameplayEnabled ? move.ReadValue<Vector2>() : Vector2.zero;
+        /// <summary>Déplacement : clavier s'il est utilisé, sinon stick gauche (zone morte, réponse linéaire).</summary>
+        public Vector2 Move
+        {
+            get
+            {
+                if (!GameplayEnabled) return Vector2.zero;
+                Vector2 keys = move.ReadValue<Vector2>();
+                return keys.sqrMagnitude > 0f ? keys : StickResponse.Apply(moveStick.ReadValue<Vector2>(), stickDeadZone, 1f);
+            }
+        }
+
+        /// <summary>Mouvement de la souris (pixels) de cette frame.</summary>
         public Vector2 LookDelta => GameplayEnabled ? look.ReadValue<Vector2>() : Vector2.zero;
-        public bool SprintHeld => GameplayEnabled && sprint.IsPressed();
+
+        /// <summary>Stick de caméra après zone morte et courbe, dans [-1, 1] (à multiplier par une vitesse en degrés/s).</summary>
+        public Vector2 LookStick => GameplayEnabled ? StickResponse.Apply(lookStick.ReadValue<Vector2>(), stickDeadZone, lookStickExponent) : Vector2.zero;
+
+        public bool SprintHeld => GameplayEnabled && (sprintLatched || sprint.IsPressed());
         public bool UseHeld => GameplayEnabled && use.IsPressed();
         public bool InteractPressed => GameplayEnabled && interact.WasPressedThisFrame();
         public bool ScanPressed => GameplayEnabled && scan.WasPressedThisFrame();
+        public bool ProductPressed => GameplayEnabled && product.WasPressedThisFrame();
         public bool PausePressed => pause != null && pause.WasPressedThisFrame();
+        /// <summary>Retour (manette) : ferme la fenêtre ouverte ou reprend la partie ; Échap passe par <see cref="PausePressed"/>.</summary>
+        public bool BackPressed => back != null && back.WasPressedThisFrame();
         public bool InspectPressed => inspect != null && inspect.WasPressedThisFrame();
         public bool DebugOverlayPressed => debugOverlay != null && debugOverlay.WasPressedThisFrame();
 
-        /// <summary>Retourne l'emplacement d'outil (1..5) pressé cette frame, sinon 0.</summary>
+        /// <summary>Retourne l'emplacement d'outil (1..8) pressé cette frame, sinon 0.</summary>
         public int ToolSlotPressedThisFrame()
         {
             if (!GameplayEnabled) return 0;
@@ -111,23 +189,33 @@ namespace RugWash.Player
             return 0;
         }
 
-        /// <summary>-1, 0 ou +1 selon la molette.</summary>
+        /// <summary>
+        /// -1, 0 ou +1 : molette (vers le haut = +1 = outil précédent) ou boutons d'épaule de la manette
+        /// (RB = outil suivant = -1, LB = outil précédent = +1).
+        /// </summary>
         public int ToolScrollStep
         {
             get
             {
                 if (!GameplayEnabled) return 0;
+                if (toolNext.WasPressedThisFrame()) return -1;
+                if (toolPrevious.WasPressedThisFrame()) return 1;
                 float value = toolScroll.ReadValue<float>();
                 return value > 0.01f ? 1 : value < -0.01f ? -1 : 0;
             }
         }
 
-        /// <summary>Libellé de touche adapté à la disposition active (ex. « Z » sur AZERTY).</summary>
-        public string GetBindingLabel(string actionName)
-        {
-            var action = asset != null ? asset.FindAction(actionName) : null;
-            return action != null ? action.GetBindingDisplayString(0) : "?";
-        }
+        public InputScheme Scheme => monitor != null ? monitor.Scheme : InputScheme.KeyboardMouse;
+        GamepadStyle Style => monitor != null ? monitor.Style : GamepadStyle.Xbox;
+
+        /// <summary>Libellé de la touche de l'action pour le périphérique actif (ex. « Z » sur AZERTY, « A » à la manette).</summary>
+        public string Label(string actionName) => InputPrompts.Label(asset != null ? asset.FindAction(actionName) : null, Scheme, Style);
+
+        /// <summary>Synonyme historique de <see cref="Label"/>.</summary>
+        public string GetBindingLabel(string actionName) => Label(actionName);
+
+        /// <summary>Libellé de la touche « retour » de l'interface pour le périphérique actif.</summary>
+        public string BackLabel => InputPrompts.Back(Scheme, Style);
 
         void OnDestroy()
         {

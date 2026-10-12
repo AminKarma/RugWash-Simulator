@@ -9,6 +9,7 @@ namespace RugWash.Save
     ///   v0 : prototype (champs « coins » et « rep », sans profil ni paramètres).
     ///   v1 : format actuel. L'état de l'atelier (robot, plan de travail, sol) est un ajout compatible :
     ///        absent d'une ancienne sauvegarde, il prend ses valeurs par défaut (atelier propre, robot sur sa base).
+    ///        Même principe pour les produits spécialisés (aucun en stock) et le RugDex (vide).
     /// </summary>
     public static class SaveMigration
     {
@@ -96,6 +97,11 @@ namespace RugWash.Save
             data.completedOrders ??= new System.Collections.Generic.List<string>();
             data.settings ??= new SettingsData();
             data.workshop ??= new WorkshopSaveData();
+            data.products ??= new System.Collections.Generic.List<ProductStockData>();
+            data.products.RemoveAll(p => p == null || string.IsNullOrWhiteSpace(p.id) || float.IsNaN(p.liters) || p.liters < 0f);
+            data.activeProduct ??= string.Empty;
+            data.rugDex ??= new System.Collections.Generic.List<RugDex.RugDexRecord>();
+            data.rugDex.RemoveAll(r => r == null || string.IsNullOrWhiteSpace(r.id));
             data.workshop.workSurface ??= string.Empty;
             data.workshop.floor ??= string.Empty;
             if (string.IsNullOrWhiteSpace(data.profileId)) data.profileId = "profile0";
