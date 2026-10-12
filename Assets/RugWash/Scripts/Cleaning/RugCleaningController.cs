@@ -87,6 +87,14 @@ namespace RugWash.Cleaning
         /// <summary>Saleté fixée détachée par la mousse au repos depuis le chargement.</summary>
         public float FoamDwellLoosened { get; private set; }
 
+        /// <summary>
+        /// Multijoueur, côté invité : la surface est une réplique de celle de l'hôte. Les opérations sont transmises à
+        /// l'hôte et prédites localement ; la simulation lente (mousse, séchage) et le ruissellement restent à l'hôte.
+        /// Null (solo, hôte) : la surface fait autorité.
+        /// </summary>
+        public ISurfaceReplication Replication { get; set; }
+        public bool IsReplica => Replication != null;
+
         public bool IsConfigured(out string missing)
         {
             missing = definition == null ? nameof(definition)
@@ -105,7 +113,7 @@ namespace RugWash.Cleaning
 
         void Update()
         {
-            if (Grid == null || Time.deltaTime <= 0f) return;
+            if (Grid == null || Time.deltaTime <= 0f || IsReplica) return;
             agingTimer += Time.deltaTime;
             if (agingTimer < tuning.agingInterval) return;
             Age(agingTimer);
@@ -207,46 +215,55 @@ namespace RugWash.Cleaning
 
         /// <summary>Applique une opération de nettoyage autour d'un point monde. Retourne le nombre de cellules touchées.</summary>
         public int ApplyOperation<T>(Vector3 worldPoint, float radiusMeters, float hardness, ref T operation)
-            where T : struct, ICellOperation
-        {
-            if (Grid == null) return 0;
-            TryWorldToUV(worldPoint, out Vector2 uv);
-            // Un impact juste au bord touche encore les cellules du bord ; au-delà du rayon, rien.
-            return Grid.ApplyCircle(uv, radiusMeters, hardness, ref operation);
-        }
+            where T : struct, ICellOperation =>
+            ApplyOperation(worldPoint, radiusMeters, hardness, 1f, Vector3.zero, default, ref operation);
 
         /// <summary>
         /// Applique une opération sur un disque (<paramref name="aspect"/> = 1) ou un éventail elliptique de même surface dont
         /// le grand axe suit <paramref name="spreadAxisWorld"/>, puis signale ce qui ruisselle selon <paramref name="runoff"/>.
+        /// Sur une réplique (invité), l'opération est aussi transmise à l'hôte.
         /// </summary>
         public int ApplyOperation<T>(Vector3 worldPoint, float radiusMeters, float hardness, float aspect, Vector3 spreadAxisWorld,
             in RunoffProfile runoff, ref T operation) where T : struct, ICellOperation
         {
             if (Grid == null) return 0;
-            TryWorldToUV(worldPoint, out Vector2 uv);
+            var geometry = new SurfaceOpGeometry(worldPoint, radiusMeters, hardness, aspect, spreadAxisWorld, runoff);
+            if (Replication != null) Replication.Forward(this, geometry, ref operation);
+            return ApplyLocal(geometry, !IsReplica, ref operation);
+        }
+
+        /// <summary>
+        /// Applique l'opération sans passer par le réseau : hôte (opération reçue d'un invité, avec ruissellement) ou
+        /// invité (prédiction et rejeu, sans ruissellement : celui-ci est produit par l'hôte).
+        /// </summary>
+        public int ApplyLocal<T>(in SurfaceOpGeometry geometry, bool allowRunoff, ref T operation) where T : struct, ICellOperation
+        {
+            if (Grid == null) return 0;
+            TryWorldToUV(geometry.Point, out Vector2 uv);
             DirtType type = DirtType.None;
-            bool tracksRunoff = !runoff.IsNone && Runoff != null;
-            if (tracksRunoff && TrySampleCell(worldPoint, out RugCell sampled))
+            bool tracksRunoff = allowRunoff && !geometry.Runoff.IsNone && Runoff != null;
+            if (tracksRunoff && TrySampleCell(geometry.Point, out RugCell sampled))
                 type = sampled.StainType != DirtType.None ? sampled.StainType : sampled.DustType;
             float dirtBefore = Grid.TotalDirt, foamBefore = Grid.TotalFoam;
 
             int touched;
-            if (aspect <= 1.001f) touched = Grid.ApplyCircle(uv, radiusMeters, hardness, ref operation);
+            if (geometry.Aspect <= 1.001f) touched = Grid.ApplyCircle(uv, geometry.Radius, geometry.Hardness, ref operation);
             else
             {
-                Vector3 local = transform.InverseTransformDirection(spreadAxisWorld);
+                Vector3 local = transform.InverseTransformDirection(geometry.Axis);
                 float angle = Mathf.Atan2(local.z, local.x);
-                float stretch = Mathf.Sqrt(aspect);
-                touched = Grid.ApplyEllipse(uv, radiusMeters * stretch, radiusMeters / stretch, angle, hardness, ref operation);
+                float stretch = Mathf.Sqrt(geometry.Aspect);
+                touched = Grid.ApplyEllipse(uv, geometry.Radius * stretch, geometry.Radius / stretch, angle, geometry.Hardness, ref operation);
             }
 
             if (touched > 0 && tracksRunoff)
             {
                 float area = Grid.CellAreaM2;
+                var runoff = geometry.Runoff;
                 var runoffEvent = new RunoffEvent
                 {
-                    Point = worldPoint,
-                    Radius = radiusMeters,
+                    Point = geometry.Point,
+                    Radius = geometry.Radius,
                     Dirt = Mathf.Max(0f, dirtBefore - Grid.TotalDirt) * runoff.Dirt * area,
                     Foam = Mathf.Max(0f, foamBefore - Grid.TotalFoam) * runoff.Foam * area,
                     Water = runoff.Water,

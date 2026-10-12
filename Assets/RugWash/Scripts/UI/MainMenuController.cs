@@ -36,6 +36,11 @@ namespace RugWash.UI
         [Tooltip("Périphérique actif : curseur masqué quand la manette est utilisée.")]
         [SerializeField] InputDeviceMonitor inputMonitor;
 
+        [Header("Multijoueur")]
+        [SerializeField] MultiplayerMenuUI multiplayerUI;
+        [SerializeField] Button multiplayerButton;
+        [SerializeField] Network.NetworkContent networkContent;
+
         [Header("RugDex (lecture de la progression sauvegardée)")]
         [SerializeField] RugDex.RugDexUI rugDexUI;
         [SerializeField] Button rugDexButton;
@@ -56,6 +61,8 @@ namespace RugWash.UI
         public SettingsUI Settings => settingsUI;
         public RugDex.RugDexUI RugDex => rugDexUI;
         public Button RugDexButton => rugDexButton;
+        public MultiplayerMenuUI Multiplayer => multiplayerUI;
+        public Button MultiplayerButton => multiplayerButton;
         public string Message => messageLabel.text;
         public InputDeviceMonitor InputMonitor => inputMonitor;
 
@@ -67,7 +74,8 @@ namespace RugWash.UI
                 : continueSummary == null ? nameof(continueSummary) : messageLabel == null ? nameof(messageLabel)
                 : confirmPanel == null ? nameof(confirmPanel) : confirmYesButton == null ? nameof(confirmYesButton)
                 : confirmNoButton == null ? nameof(confirmNoButton) : loadingPanel == null ? nameof(loadingPanel)
-                : rugDexUI == null ? nameof(rugDexUI) : rugDexButton == null ? nameof(rugDexButton) : rugCatalog == null ? nameof(rugCatalog) : null;
+                : rugDexUI == null ? nameof(rugDexUI) : rugDexButton == null ? nameof(rugDexButton) : rugCatalog == null ? nameof(rugCatalog)
+                : multiplayerUI == null ? nameof(multiplayerUI) : multiplayerButton == null ? nameof(multiplayerButton) : null;
             return missing == null;
         }
 
@@ -97,6 +105,8 @@ namespace RugWash.UI
             rugDexBook.Restore(save.Current.rugDex);
             rugDexUI.Bind(rugCatalog, rugDexBook, orders, practiceRugs, dirtLibrary, null);
             rugDexButton.onClick.AddListener(() => rugDexUI.Open());
+            multiplayerButton.onClick.AddListener(() => multiplayerUI.Open());
+            audioManager.RegisterButtons(multiplayerUI);
             audioManager.RegisterButtons(this);
             audioManager.RegisterButtons(settingsUI);
             audioManager.RegisterButtons(rugDexUI);
@@ -104,6 +114,21 @@ namespace RugWash.UI
             confirmPanel.SetActive(false);
             loadingPanel.SetActive(false);
             Refresh();
+            ShowSessionOutcome();
+        }
+
+        /// <summary>
+        /// Retour d'une partie en ligne (départ, hôte parti, erreur réseau) : le message est affiché ; s'il y avait une erreur,
+        /// la fenêtre Multijoueur s'ouvre avec « Se reconnecter ». Invitation Steam acceptée jeu fermé : connexion au salon.
+        /// </summary>
+        void ShowSessionOutcome()
+        {
+            var session = Network.MultiplayerSession.Find();
+            bool launchedByInvite = Network.SteamPlatform.LobbyFromCommandLine(System.Environment.GetCommandLineArgs()) != 0;
+            if (session == null && launchedByInvite) session = Network.MultiplayerSession.GetOrCreate(networkContent);
+            if (session == null) return;
+            if (!string.IsNullOrEmpty(session.Message)) messageLabel.text = session.Message;
+            if (session.LastEndedWithError || launchedByInvite) multiplayerUI.Open();
         }
 
         void Refresh()
@@ -137,6 +162,7 @@ namespace RugWash.UI
             if (!BackPressed()) return;
             if (settingsUI.IsRebinding) return;
             if (settingsUI.IsOpen) settingsUI.Close();
+            else if (multiplayerUI.IsOpen) multiplayerUI.Close();
             else if (rugDexUI.IsOpen) rugDexUI.Close();
             else if (confirmPanel.activeSelf) confirmPanel.SetActive(false);
         }

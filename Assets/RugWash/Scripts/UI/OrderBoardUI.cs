@@ -185,7 +185,7 @@ namespace RugWash.UI
             if (index < 0 || index >= list.Count) return;
             var result = orders.TryStart(list[index]);
             messageLabel.text = OrderManager.StartResultMessage(result);
-            if (result == OrderStartResult.Started) Close();
+            if (result == OrderStartResult.Started || result == OrderStartResult.Requested) Close();
             else Refresh();
         }
 

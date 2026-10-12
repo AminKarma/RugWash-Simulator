@@ -53,6 +53,8 @@ namespace RugWash.Player
         }
 
         public Vector3 Velocity => horizontalVelocity + Vector3.up * verticalVelocity;
+        /// <summary>Inclinaison de la caméra en degrés (positif = vers le bas).</summary>
+        public float Pitch => pitch;
         public bool IsGrounded => controller != null && controller.isGrounded;
 
         public bool IsConfigured(out string missing)

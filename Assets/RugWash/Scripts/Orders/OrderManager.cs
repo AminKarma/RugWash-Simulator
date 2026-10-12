@@ -29,6 +29,13 @@ namespace RugWash.Orders
         [SerializeField] AudioClip rewardClip;
 
         public OrderBook Book { get; private set; }
+
+        /// <summary>
+        /// Multijoueur, côté invité : les demandes (accepter, livrer, abandonner) partent vers l'hôte ; l'état revient par
+        /// les méthodes « Remote ». L'évaluation et le paiement n'ont jamais lieu chez un invité. Null : solo ou hôte.
+        /// </summary>
+        public IWorkshopRequests Remote { get; set; }
+        public bool IsReplica => Remote != null;
         public OrderDefinition ActiveOrder => Book?.Active;
         public float ElapsedSeconds { get; private set; }
         public OrderResult LastResult { get; private set; }
@@ -70,6 +77,13 @@ namespace RugWash.Orders
 
         public OrderStartResult TryStart(OrderDefinition order)
         {
+            if (Remote != null)
+            {
+                var check = Book.CanStart(order, reputation.Points);
+                if (check != OrderStartResult.Started) return check;
+                Remote.RequestStartOrder(order.id);
+                return OrderStartResult.Requested;
+            }
             var result = Book.Start(order, reputation.Points);
             if (result != OrderStartResult.Started) return result;
 
@@ -87,7 +101,7 @@ namespace RugWash.Orders
         public bool RestartActive()
         {
             var order = ActiveOrder;
-            if (order == null) return false;
+            if (order == null || IsReplica) return false;
             ElapsedSeconds = 0f;
             objectiveNotified = false;
             rug.LoadRug(order.rug, order.dirt, order.dirtSeed);
@@ -104,6 +118,11 @@ namespace RugWash.Orders
         {
             var order = ActiveOrder;
             if (order == null) return null;
+            if (Remote != null)
+            {
+                Remote.RequestDeliver();
+                return null;
+            }
 
             snapshots.CaptureAfter();
             var result = OrderEvaluator.Evaluate(order, rug.Grid.ComputeSummary(), ElapsedSeconds);
@@ -122,6 +141,12 @@ namespace RugWash.Orders
 
         public bool Abandon()
         {
+            if (Remote != null)
+            {
+                if (ActiveOrder == null) return false;
+                Remote.RequestAbandon();
+                return true;
+            }
             if (!Book.Abandon()) return false;
             ReturnToWorkshop();
             return true;
@@ -130,8 +155,67 @@ namespace RugWash.Orders
         /// <summary>Retour à l'atelier libre avec le tapis d'entraînement.</summary>
         public void ReturnToWorkshop()
         {
+            if (IsReplica)
+            {
+                // Invité : le tapis affiché est celui de l'hôte (réplication) ; on quitte seulement l'écran de résultats.
+                if (Book.Active == null && gameState.State != GameState.Workshop) gameState.SetState(GameState.Workshop);
+                Changed?.Invoke();
+                return;
+            }
             rug.LoadRug(practiceRug);
             gameState.SetState(GameState.Workshop);
+            Changed?.Invoke();
+        }
+
+        // ---------------------------------------------------------------- Multijoueur (invité)
+
+        /// <summary>Reproduit le démarrage décidé par l'hôte (le tapis est chargé par la réplication des surfaces).</summary>
+        public void ApplyRemoteStart(OrderDefinition order, float elapsedSeconds)
+        {
+            if (order == null) return;
+            Book.ForceActive(order);
+            ElapsedSeconds = Mathf.Max(0f, elapsedSeconds);
+            LastResult = null;
+            objectiveNotified = false;
+            if (gameState.State != GameState.ActiveOrder && gameState.State != GameState.Paused) gameState.SetState(GameState.ActiveOrder);
+            OrderStarted?.Invoke(order);
+            Changed?.Invoke();
+        }
+
+        /// <summary>Recale le chronomètre sur celui de l'hôte.</summary>
+        public void ApplyRemoteElapsed(float elapsedSeconds) => ElapsedSeconds = Mathf.Max(0f, elapsedSeconds);
+
+        /// <summary>
+        /// Affiche la livraison validée par l'hôte : le résultat est recalculé avec les mesures de l'hôte (même règle pure),
+        /// sans paiement local — l'argent et la réputation arrivent par la réplication de l'atelier.
+        /// </summary>
+        public OrderResult ApplyRemoteDelivery(OrderDefinition order, in RugCleaningSummary summary, float elapsedSeconds)
+        {
+            if (order == null) return null;
+            snapshots.CaptureAfter();
+            var result = OrderEvaluator.Evaluate(order, summary, elapsedSeconds);
+            if (Book.Active != order) Book.ForceActive(order);
+            Book.Complete(result);
+            LastResult = result;
+            if (audioManager != null && result.Accepted) audioManager.PlayInterface(rewardClip != null ? rewardClip : audioManager.ConfirmClip);
+            gameState.SetState(GameState.Results);
+            OrderFinished?.Invoke(result);
+            Changed?.Invoke();
+            return result;
+        }
+
+        /// <summary>Retour à l'atelier libre décidé par l'hôte (abandon).</summary>
+        public void ApplyRemoteReturn()
+        {
+            Book.ClearActive();
+            if (gameState.State == GameState.ActiveOrder) gameState.SetState(GameState.Workshop);
+            Changed?.Invoke();
+        }
+
+        /// <summary>Commandes terminées chez l'hôte (arrivée en cours de partie, livraison).</summary>
+        public void ApplyRemoteCompleted(IEnumerable<string> ids)
+        {
+            Book.MarkCompleted(ids);
             Changed?.Invoke();
         }
 
@@ -139,6 +223,7 @@ namespace RugWash.Orders
         {
             switch (result)
             {
+                case OrderStartResult.Requested: return "Demande envoyée à l'hôte…";
                 case OrderStartResult.Started: return "Commande acceptée";
                 case OrderStartResult.AnotherOrderActive: return "Terminez d'abord la commande en cours";
                 case OrderStartResult.NotAvailable: return "Commande déjà terminée";

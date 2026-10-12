@@ -13,8 +13,8 @@ namespace RugWash.Cleaning
 
     /// <summary>
     /// Grille de nettoyage d'un tapis : source de vérité du gameplay.
-    /// Maintient des totaux incrémentaux (pas de parcours complet par frame) et un rectangle
-    /// de cellules modifiées, consommé par le rendu pour des mises à jour localisées.
+    /// Maintient des totaux incrémentaux (pas de parcours complet par frame) et deux rectangles
+    /// de cellules modifiées : l'un consommé par le rendu, l'autre par la réplication réseau (multijoueur).
     /// </summary>
     public sealed class RugCleaningGrid
     {
@@ -26,6 +26,10 @@ namespace RugWash.Cleaning
         double totalDirt, totalMoisture, totalFoam, totalResidue, totalWear;
         int dirtyMinX, dirtyMinY, dirtyMaxX, dirtyMaxY;
         bool hasDirtyRect;
+        int netMinX, netMinY, netMaxX, netMaxY;
+        bool hasNetDirtyRect;
+        RectInt clip;
+        bool hasClip;
 
         public int Width { get; }
         public int Height { get; }
@@ -68,6 +72,21 @@ namespace RugWash.Cleaning
             Accumulate(value, 1);
             MarkDirty(x, y, x, y);
         }
+
+        /// <summary>Saleté de référence fixée par l'autorité réseau (réplique d'un client).</summary>
+        public void SetInitialDirt(float value) => InitialDirt = Mathf.Max(0f, value);
+
+        /// <summary>
+        /// Limite les opérations sur disque et ellipse au rectangle donné (rejeu de la prédiction d'un client sur la
+        /// seule zone que l'hôte vient de réécrire). <see cref="ClearClip"/> rétablit la grille entière.
+        /// </summary>
+        public void SetClip(RectInt cellRect)
+        {
+            clip = cellRect;
+            hasClip = true;
+        }
+
+        public void ClearClip() => hasClip = false;
 
         /// <summary>Fixe l'état courant comme référence « avant nettoyage ».</summary>
         public void CaptureInitialState()
@@ -122,6 +141,7 @@ namespace RugWash.Cleaning
             int maxX = Mathf.Min(Width - 1, Mathf.CeilToInt(cx + radiusMeters / cellW));
             int minY = Mathf.Max(0, Mathf.FloorToInt(cy - radiusMeters / cellH));
             int maxY = Mathf.Min(Height - 1, Mathf.CeilToInt(cy + radiusMeters / cellH));
+            ApplyClip(ref minX, ref minY, ref maxX, ref maxY);
             if (minX > maxX || minY > maxY) return 0;
 
             float r2 = radiusMeters * radiusMeters;
@@ -172,6 +192,7 @@ namespace RugWash.Cleaning
             int maxX = Mathf.Min(Width - 1, Mathf.CeilToInt(cx + extent / cellW));
             int minY = Mathf.Max(0, Mathf.FloorToInt(cy - extent / cellH));
             int maxY = Mathf.Min(Height - 1, Mathf.CeilToInt(cy + extent / cellH));
+            ApplyClip(ref minX, ref minY, ref maxX, ref maxY);
             if (minX > maxX || minY > maxY) return 0;
 
             float cos = Mathf.Cos(angleRadians), sin = Mathf.Sin(angleRadians);
@@ -288,6 +309,28 @@ namespace RugWash.Cleaning
             return true;
         }
 
+        /// <summary>Récupère puis réinitialise la zone modifiée depuis le dernier envoi réseau (indépendante du rendu).</summary>
+        public bool TryConsumeNetworkDirtyRect(out RectInt rect)
+        {
+            if (!hasNetDirtyRect)
+            {
+                rect = default;
+                return false;
+            }
+            rect = new RectInt(netMinX, netMinY, netMaxX - netMinX + 1, netMaxY - netMinY + 1);
+            hasNetDirtyRect = false;
+            return true;
+        }
+
+        void ApplyClip(ref int minX, ref int minY, ref int maxX, ref int maxY)
+        {
+            if (!hasClip) return;
+            minX = Mathf.Max(minX, clip.xMin);
+            minY = Mathf.Max(minY, clip.yMin);
+            maxX = Mathf.Min(maxX, clip.xMax - 1);
+            maxY = Mathf.Min(maxY, clip.yMax - 1);
+        }
+
         int Index(int x, int y)
         {
             if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
@@ -298,6 +341,18 @@ namespace RugWash.Cleaning
         void MarkDirty(int minX, int minY, int maxX, int maxY)
         {
             Version++;
+            if (!hasNetDirtyRect)
+            {
+                netMinX = minX; netMinY = minY; netMaxX = maxX; netMaxY = maxY;
+                hasNetDirtyRect = true;
+            }
+            else
+            {
+                netMinX = Mathf.Min(netMinX, minX);
+                netMinY = Mathf.Min(netMinY, minY);
+                netMaxX = Mathf.Max(netMaxX, maxX);
+                netMaxY = Mathf.Max(netMaxY, maxY);
+            }
             if (!hasDirtyRect)
             {
                 dirtyMinX = minX; dirtyMinY = minY; dirtyMaxX = maxX; dirtyMaxY = maxY;

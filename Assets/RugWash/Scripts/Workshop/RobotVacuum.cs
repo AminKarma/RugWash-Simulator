@@ -98,6 +98,28 @@ namespace RugWash.Workshop
 
         public event Action<string> Message;
 
+        /// <summary>
+        /// Multijoueur, côté invité : le robot est simulé par l'hôte ; ici il suit la pose et l'état reçus, et un appui
+        /// sur E envoie la demande à l'hôte. Null : solo ou hôte.
+        /// </summary>
+        public Core.IWorkshopRequests Remote { get; set; }
+        public bool IsReplica => Remote != null;
+        Vector3 remotePosition;
+        float remoteYaw;
+        bool hasRemotePose;
+
+        /// <summary>Applique l'état diffusé par l'hôte (mode, batterie) et la cible de position, suivie en douceur.</summary>
+        public void ApplyRemote(RobotState state)
+        {
+            if (!started) return;
+            brain.Restore(state.mode, state.battery, state.resumeAfterCharge);
+            remotePosition = new Vector3(state.x, FloorY, state.z);
+            remoteYaw = state.yaw;
+            if (!hasRemotePose) transform.SetPositionAndRotation(remotePosition, Quaternion.Euler(0f, remoteYaw, 0f));
+            hasRemotePose = true;
+            nav = Nav.Idle;
+        }
+
         Vector2 FlatPosition => new Vector2(transform.position.x, transform.position.z);
         Vector2 DockFlat => new Vector2(dock.position.x, dock.position.z);
         Vector3 DockForward => Vector3.ProjectOnPlane(dock.forward, Vector3.up).normalized;
@@ -202,6 +224,17 @@ namespace RugWash.Workshop
         {
             float dt = Time.deltaTime;
             if (!started || dt <= 0f) return;
+            if (IsReplica)
+            {
+                if (hasRemotePose)
+                {
+                    float k = 1f - Mathf.Exp(-12f * dt);
+                    transform.SetPositionAndRotation(Vector3.Lerp(transform.position, remotePosition, k),
+                        Quaternion.Slerp(transform.rotation, Quaternion.Euler(0f, remoteYaw, 0f), k));
+                }
+                UpdatePresentation(dt);
+                return;
+            }
 
             brain.Tick(dt, nav == Nav.Idle && IsAtDock);
             switch (brain.Mode)
@@ -539,6 +572,11 @@ namespace RugWash.Workshop
         /// <summary>Démarre ou arrête le robot ; retourne le message affiché au joueur.</summary>
         public string Toggle()
         {
+            if (Remote != null)
+            {
+                Remote.RequestRobotToggle();
+                return "Demande envoyée à l'hôte";
+            }
             switch (brain.Toggle())
             {
                 case RobotToggleResult.Started: return "Robot aspirateur démarré";

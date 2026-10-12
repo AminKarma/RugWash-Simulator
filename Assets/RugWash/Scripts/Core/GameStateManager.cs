@@ -26,6 +26,9 @@ namespace RugWash.Core
         public static bool ShouldShowCursor(bool locked, InputScheme scheme) => !locked && scheme != InputScheme.Gamepad;
 
         public static float TimeScaleFor(GameState state) => state == GameState.Paused ? 0f : 1f;
+
+        /// <summary>En partie à plusieurs, la pause est locale (menu, entrées coupées) : le temps partagé ne s'arrête pas.</summary>
+        public static float TimeScaleFor(GameState state, bool networked) => networked ? 1f : TimeScaleFor(state);
     }
 
     /// <summary>
@@ -44,6 +47,19 @@ namespace RugWash.Core
         bool started;
 
         public GameState State { get; private set; }
+
+        /// <summary>Partie en réseau : la pause n'arrête plus le temps (voir <see cref="GameStateRules.TimeScaleFor(GameState, bool)"/>).</summary>
+        public bool Networked
+        {
+            get => networked;
+            set
+            {
+                networked = value;
+                Apply();
+            }
+        }
+
+        bool networked;
         public int OpenModals => openModals;
         public bool IsPaused => State == GameState.Paused;
 
@@ -122,7 +138,7 @@ namespace RugWash.Core
             bool locked = GameStateRules.ShouldLockCursor(State, openModals);
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = GameStateRules.ShouldShowCursor(locked, inputMonitor != null ? inputMonitor.Scheme : InputScheme.KeyboardMouse);
-            Time.timeScale = GameStateRules.TimeScaleFor(State);
+            Time.timeScale = GameStateRules.TimeScaleFor(State, networked);
         }
 
         void OnApplicationFocus(bool hasFocus)

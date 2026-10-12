@@ -81,4 +81,9 @@ Jalon 4 (manette) : **terminé** — toutes les actions et tous les menus à la 
 reconfiguration, vibrations ; détail dans `PRODUCTION.md` et `VALIDATION.md` (section 11). Réutilise l'Input System et les
 actions existantes (liaisons manette ajoutées après les liaisons clavier), l'EventSystem et les fenêtres existantes.
 Non vérifié : une vraie manette (tests sur manette virtuelle).
-Les jalons suivants seront traités dans l'ordre de la roadmap, chacun compilé, testé et documenté avant le suivant.
+Jalon 5 (multijoueur et Steamworks) : **implémenté** — coopératif hôte autoritaire (NGO 2.13.3), réseau local testé entre
+deux processus du jeu compilé, Steam (salons, invitations, transport Steam Networking Sockets) implémenté mais **non testé
+en réel** (pas de client Steam lancé ni de second compte dans cet environnement). Détail : `MULTIPLAYER.md`,
+`PRODUCTION.md`, `VALIDATION.md` (section 12). Les hypothèses « un seul joueur » de la section 3 ont toutes été traitées
+(pause locale sans arrêt du temps, opérations envoyées à l'hôte, évaluation chez l'hôte, joueurs distants sans caméra,
+progression de l'hôte, effets locaux).

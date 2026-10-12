@@ -1,6 +1,7 @@
 using System;
 using RugWash.Audio;
 using RugWash.Cleaning;
+using RugWash.Core;
 using RugWash.Player;
 using UnityEngine;
 
@@ -21,6 +22,14 @@ namespace RugWash.Economy
         public WalletManager WalletManager => wallet;
 
         public event Action<UpgradeDefinition, PurchaseResult> PurchaseAttempted;
+
+        /// <summary>Multijoueur, côté invité : les achats sont demandés à l'hôte (argent partagé de l'atelier). Null : solo ou hôte.</summary>
+        public IWorkshopRequests Remote { get; set; }
+
+        /// <summary>Réponse de l'hôte à un achat demandé par ce joueur (message, succès).</summary>
+        public event Action<string, bool> RemoteResultReceived;
+
+        public void NotifyRemoteResult(string message, bool success) => RemoteResultReceived?.Invoke(message, success);
         public event Action<ProductDefinition, ProductPurchaseResult> ProductPurchaseAttempted;
 
         public bool IsConfigured(out string missing)
@@ -38,6 +47,11 @@ namespace RugWash.Economy
         public ProductPurchaseResult TryBuyProduct(ProductDefinition product)
         {
             var result = CheckProduct(product);
+            if (Remote != null && result == ProductPurchaseResult.Purchased)
+            {
+                Remote.RequestProduct(product.id);
+                return ProductPurchaseResult.Requested;
+            }
             if (result == ProductPurchaseResult.Purchased)
             {
                 if (!wallet.Wallet.TrySpend(product.packPrice)) result = ProductPurchaseResult.InsufficientFunds;
@@ -53,6 +67,13 @@ namespace RugWash.Economy
 
         public PurchaseResult TryPurchase(UpgradeDefinition upgrade)
         {
+            if (Remote != null)
+            {
+                var check = Check(upgrade);
+                if (check != PurchaseResult.Purchased) return check;
+                Remote.RequestUpgrade(upgrade.id);
+                return PurchaseResult.Requested;
+            }
             var result = ShopRules.TryPurchase(upgrade, upgrades.OwnedIds, wallet.Wallet);
             if (result == PurchaseResult.Purchased)
             {

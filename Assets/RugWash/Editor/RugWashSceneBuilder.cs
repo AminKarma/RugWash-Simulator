@@ -310,13 +310,14 @@ namespace RugWash.Editor
             AddText(CreateRect("Subtitle", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(94f, -200f), new Vector2(640f, 40f)),
                 "Atelier de nettoyage de tapis", 28, TextAnchor.MiddleLeft, Accent);
 
-            var column = CreateRect("Buttons", canvas.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(90f, -60f), new Vector2(460f, 510f));
+            var column = CreateRect("Buttons", canvas.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(90f, -90f), new Vector2(460f, 600f));
             AddVerticalLayout(column.gameObject, 14, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
             var play = CreateButton("Play", column, "Nouvelle partie", sprites.Rounded, new Vector2(460f, 70f));
             var resume = CreateButton("Continue", column, "Continuer", sprites.Rounded, new Vector2(460f, 70f));
             var summary = AddText(CreateRect("ContinueSummary", column, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(460f, 30f)),
                 string.Empty, 20, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f));
             summary.gameObject.AddComponent<LayoutElement>().preferredHeight = 30f;
+            var multiplayerMenuButton = CreateButton("Multiplayer", column, "Multijoueur", sprites.Rounded, new Vector2(460f, 70f));
             var rugDexMenuButton = CreateButton("RugDex", column, "RugDex", sprites.Rounded, new Vector2(460f, 70f));
             var settingsButton = CreateButton("Settings", column, "Paramètres", sprites.Rounded, new Vector2(460f, 70f));
             var quit = CreateButton("Quit", column, "Quitter", sprites.Rounded, new Vector2(460f, 70f));
@@ -348,8 +349,10 @@ namespace RugWash.Editor
 
             var rugDexUI = BuildRugDexUI(canvas, sprites);
             var settingsUI = BuildSettingsUI(canvas, sprites);
+            var multiplayerUI = BuildMultiplayerUI(canvas, sprites, content.Network);
 
             var controller = menu.AddComponent<MainMenuController>();
+            Wire(controller, ("multiplayerUI", multiplayerUI), ("multiplayerButton", multiplayerMenuButton), ("networkContent", content.Network));
             Wire(controller, ("rugDexUI", rugDexUI), ("rugDexButton", rugDexMenuButton), ("rugCatalog", content.Catalog),
                 ("dirtLibrary", content.DirtLibrary));
             WireList(controller, "orders", content.Orders);
@@ -1050,6 +1053,8 @@ namespace RugWash.Editor
             var economyPanel = CreateRect("EconomyPanel", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-24f, -22f), new Vector2(300f, 78f));
             AddImage(economyPanel, sprites.Rounded, PanelColor);
             var economy = AddText(Stretch("Label", economyPanel, 10f), "0 €", 24, TextAnchor.MiddleRight, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+            var players = AddText(CreateRect("Players", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-24f, -106f), new Vector2(720f, 30f)),
+                string.Empty, 19, TextAnchor.UpperRight, new Color(0.75f, 0.92f, 1f));
             var orderInfo = AddText(CreateRect("OrderInfo", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -106f), new Vector2(1000f, 60f)),
                 string.Empty, 21, TextAnchor.UpperCenter, Color.white);
 
@@ -1077,7 +1082,8 @@ namespace RugWash.Editor
             Wire(built.Hud, ("root", hudGroup), ("toolNameLabel", toolName), ("toolStatusLabel", toolStatus), ("resourceFill", resourceFill),
                 ("resourceBar", resourceBar.gameObject), ("cleanlinessLabel", cleanLabel), ("cleanlinessFill", cleanFill),
                 ("promptLabel", prompt), ("hintLabel", hint), ("toastLabel", toast), ("economyLabel", economy), ("orderLabel", orderInfo),
-                ("cleanlinessPanel", cleanPanel), ("scanLabel", scanLabel), ("scanFill", scanFill), ("workSurfaceLabel", workSurfaceLabel));
+                ("cleanlinessPanel", cleanPanel), ("scanLabel", scanLabel), ("scanFill", scanFill), ("workSurfaceLabel", workSurfaceLabel),
+                ("playersLabel", players));
 
             // ---- Barre d'outils
             // Huit emplacements entre le panneau d'outil (gauche) et le panneau de scan (droite).
@@ -1156,7 +1162,7 @@ namespace RugWash.Editor
             Wire(built.Pause, ("panel", pausePanel.gameObject), ("resumeButton", resume), ("resetRugButton", reset), ("nextRugButton", next),
                 ("quitButton", quit), ("subtitleLabel", subtitle), ("abandonOrderButton", abandon),
                 ("resetRugLabel", reset.GetComponentInChildren<Text>()), ("settingsButton", settingsButton), ("mainMenuButton", mainMenu),
-                ("rugDexButton", rugDexButton));
+                ("rugDexButton", rugDexButton), ("mainMenuLabel", mainMenu.GetComponentInChildren<Text>()));
 
             BuildGameLoopUI(canvas, sprites, built);
             built.RugDex = BuildRugDexUI(canvas, sprites);
@@ -1456,6 +1462,106 @@ namespace RugWash.Editor
             var stepper = row.gameObject.AddComponent<StepperView>();
             Wire(stepper, ("valueLabel", value), ("previousButton", previous), ("nextButton", next));
             return stepper;
+        }
+
+        /// <summary>Champ de saisie (pseudo, adresse) : fond arrondi, texte et texte indicatif.</summary>
+        static InputField CreateInputField(string name, Transform parent, Vector2 position, Vector2 size, string placeholder, UISprites sprites)
+        {
+            var rect = CreateRect(name, parent, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), position, size);
+            var background = AddImage(rect, sprites.Rounded, new Color(0.04f, 0.05f, 0.06f, 0.95f), raycast: true);
+            var text = AddText(Stretch("Text", rect, 12f), string.Empty, 24, TextAnchor.MiddleLeft, Color.white, shadow: false);
+            text.supportRichText = false;
+            var hint = AddText(Stretch("Placeholder", rect, 12f), placeholder, 22, TextAnchor.MiddleLeft, new Color(1f, 1f, 1f, 0.35f), FontStyle.Italic, shadow: false);
+            var field = rect.gameObject.AddComponent<InputField>();
+            field.targetGraphic = background;
+            field.textComponent = text;
+            field.placeholder = hint;
+            field.characterLimit = 40;
+            var colors = field.colors;
+            colors.selectedColor = FocusColor;
+            colors.highlightedColor = new Color(0.8f, 0.93f, 1f, 1f);
+            field.colors = colors;
+            return field;
+        }
+
+        static Button PlaceButton(string name, Transform parent, string label, Vector2 position, Vector2 size, UISprites sprites)
+        {
+            var button = CreateButton(name, parent, label, sprites.Rounded, size);
+            var rect = (RectTransform)button.transform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = position;
+            var text = button.GetComponentInChildren<Text>();
+            text.fontSize = 22;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = 14;
+            text.resizeTextMaxSize = 22;
+            return button;
+        }
+
+        /// <summary>
+        /// Fenêtre « Multijoueur » : Steam (salon, recherche, invitations, lancement) à gauche, connexion directe en réseau
+        /// local à droite, message d'état et « Se reconnecter » en bas.
+        /// </summary>
+        static MultiplayerMenuUI BuildMultiplayerUI(Canvas canvas, UISprites sprites, RugWash.Network.NetworkContent networkContent)
+        {
+            var window = BuildWindow(canvas.transform, "Multiplayer", new Vector2(1500f, 920f), sprites, "Multijoueur", out var panel, out var close);
+            Text Label(Transform parent, string text, Vector2 position, Vector2 size, int fontSize, Color color, FontStyle style = FontStyle.Normal)
+            {
+                var label = AddText(CreateRect("Label", parent, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), position, size),
+                    text, fontSize, TextAnchor.UpperLeft, color, style);
+                label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                return label;
+            }
+
+            // ---- Steam (Internet)
+            var steam = CreateRect("Steam", window, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(40f, -96f), new Vector2(760f, 760f));
+            Label(steam, "Steam (Internet)", Vector2.zero, new Vector2(760f, 40f), 28, Accent, FontStyle.Bold);
+            var status = Label(steam, "Steam : …", new Vector2(0f, -44f), new Vector2(760f, 52f), 19, Muted);
+            var createFriends = PlaceButton("CreateFriends", steam, "Créer une partie (amis)", new Vector2(0f, -102f), new Vector2(372f, 58f), sprites);
+            var createPublic = PlaceButton("CreatePublic", steam, "Créer une partie (publique)", new Vector2(388f, -102f), new Vector2(372f, 58f), sprites);
+            var search = PlaceButton("Search", steam, "Rechercher des parties", new Vector2(0f, -172f), new Vector2(372f, 58f), sprites);
+            var lobbyList = CreateScrollList(steam, "Lobbies", new Vector2(-10f, -240f), new Vector2(740f, 236f), sprites);
+            ((RectTransform)lobbyList.parent.parent).anchorMin = ((RectTransform)lobbyList.parent.parent).anchorMax = ((RectTransform)lobbyList.parent.parent).pivot = new Vector2(0f, 1f);
+            ((RectTransform)lobbyList.parent.parent).anchoredPosition = new Vector2(0f, -240f);
+            AddVerticalLayout(lobbyList.gameObject, 6, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
+            var lobbyRow = BuildRowTemplate(lobbyList, sprites, 740f, 78f, 110f);
+            var members = Label(steam, string.Empty, new Vector2(0f, -490f), new Vector2(760f, 170f), 20, Color.white);
+            var invite = PlaceButton("Invite", steam, "Inviter des amis", new Vector2(0f, -672f), new Vector2(245f, 58f), sprites);
+            var start = PlaceButton("Start", steam, "Lancer la partie", new Vector2(257f, -672f), new Vector2(245f, 58f), sprites);
+            var leave = PlaceButton("LeaveLobby", steam, "Quitter le salon", new Vector2(514f, -672f), new Vector2(246f, 58f), sprites);
+
+            // ---- Réseau local
+            var local = CreateRect("Local", window, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(860f, -96f), new Vector2(600f, 760f));
+            Label(local, "Réseau local (connexion directe)", Vector2.zero, new Vector2(600f, 40f), 28, Accent, FontStyle.Bold);
+            Label(local, "Pseudo", new Vector2(0f, -56f), new Vector2(600f, 30f), 21, Muted);
+            var nameField = CreateInputField("Name", local, new Vector2(0f, -88f), new Vector2(600f, 54f), "Votre nom", sprites);
+            Label(local, "Adresse de l'hôte (IPv4 et port)", new Vector2(0f, -160f), new Vector2(600f, 30f), 21, Muted);
+            var address = CreateInputField("Address", local, new Vector2(0f, -192f), new Vector2(600f, 54f), "192.168.1.20:7777", sprites);
+            var host = PlaceButton("HostDirect", local, "Héberger sur ce PC", new Vector2(0f, -268f), new Vector2(292f, 58f), sprites);
+            var join = PlaceButton("JoinDirect", local, "Rejoindre", new Vector2(308f, -268f), new Vector2(292f, 58f), sprites);
+            Label(local, "Pour jouer sur le même réseau (ou une adresse joignable, port 7777 ouvert). " +
+                "Pas d'invitation ni de recherche : l'hôte communique son adresse. Pour jouer par Internet sans ouvrir de port, utilisez Steam.",
+                new Vector2(0f, -346f), new Vector2(600f, 140f), 19, Muted);
+
+            // ---- État
+            var message = AddText(CreateRect("Message", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-150f, 28f), new Vector2(1100f, 56f)),
+                string.Empty, 21, TextAnchor.MiddleCenter, new Color(0.55f, 0.95f, 0.6f));
+            message.horizontalOverflow = HorizontalWrapMode.Wrap;
+            var reconnect = CreateButton("Reconnect", window, "Se reconnecter", sprites.Rounded, new Vector2(260f, 56f));
+            var reconnectRect = (RectTransform)reconnect.transform;
+            reconnectRect.anchorMin = reconnectRect.anchorMax = reconnectRect.pivot = new Vector2(1f, 0f);
+            reconnectRect.anchoredPosition = new Vector2(-40f, 28f);
+
+            var ui = window.parent.parent.gameObject.AddComponent<MultiplayerMenuUI>();
+            Wire(ui, ("panel", panel), ("content", networkContent), ("steamStatusLabel", status), ("createFriendsButton", createFriends),
+                ("createPublicButton", createPublic), ("searchButton", search), ("lobbyListRoot", lobbyList), ("lobbyRowTemplate", lobbyRow),
+                ("lobbyMembersLabel", members), ("inviteButton", invite), ("startButton", start), ("leaveLobbyButton", leave),
+                ("nameField", nameField), ("addressField", address), ("hostDirectButton", host), ("joinDirectButton", join),
+                ("reconnectButton", reconnect), ("messageLabel", message), ("closeButton", close));
+            panel.GetComponent<NavigationScope>().FirstSelected = host;
+            if (!ui.IsConfigured(out string missing)) throw new System.InvalidOperationException($"[RugWash] Fenêtre Multijoueur incomplète : {missing}");
+            panel.SetActive(false);
+            return ui;
         }
 
         /// <summary>

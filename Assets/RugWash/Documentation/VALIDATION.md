@@ -205,3 +205,38 @@ Correctif révélé par les tests : les sélecteurs ‹ › d'un onglet des para
 Non vérifié : une vraie manette. Tous les tests manette utilisent un périphérique virtuel de l'Input System (mêmes
 actions, même module d'interface) ; le ressenti des sticks, des vibrations et les noms des boutons sur une manette
 PlayStation réelle restent à essayer à la main.
+
+## 12. Revalidation après le jalon 5 (multijoueur coopératif et Steamworks)
+
+Exécutions réelles du 12/10/2026, même machine.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation | ✅ 0 erreur, 0 avertissement (NGO 2.13.3, Unity Transport 2.6.0, Steamworks.NET 2025.164.1) |
+| Tests EditMode | ✅ **153 / 153** (143 + 10 : tampons, codec des opérations et des cellules, valeurs trafiquées bornées, accusés, admission, adresses, messages de déconnexion, invitation au lancement, temps partagé) |
+| Tests PlayMode | ✅ **87 / 87** (84 + 3 : deux tapis convergents avec latence simulée et nettoyage simultané, vraie session hôte Netcode, captures `60`–`61`) |
+| Build Windows 64 bits | ✅ 127 Mo, 0 erreur, 0 avertissement |
+| Jeu compilé, solo : 11 contrôles | ✅ 11 / 11 — 488 / 448 / 469 / 543 FPS, 1 % ≥ 292 FPS (pas de régression) |
+| **Jeu compilé, deux processus (hôte + invité, connexion directe locale)** | ✅ **24 / 24** vérifications (détail ci-dessous) |
+
+**Scénario coopératif à deux processus** (`RugWash-CI.ps1 -Step multiplayer`) — chaque exemplaire écrit un rapport, le
+script les compare :
+
+| Hôte | Invité |
+|---|---|
+| Partie hébergée, atelier réseau prêt | Connecté et synchronisé ; tapis en réplique (l'hôte fait autorité) |
+| L'invité a rejoint l'atelier (2 joueurs) | Silhouette de l'hôte visible ; déplacement de l'hôte vu (≈ 1,3 m) |
+| Commande acceptée par l'hôte | Commande reçue (état partagé) |
+| Nettoyage de l'invité appliqué sur le tapis de l'hôte (597 opérations, 0 refusée) | Nettoyage visible immédiatement chez lui (prédiction), 0 opération en attente à la fin |
+| Livraison demandée **deux fois** par l'invité : validée une fois, **un seul versement** (168 €) | Résultats affichés (note S) |
+| Achat demandé par l'invité exécuté par l'hôte | Achat reçu (« Réservoir d'eau 60 L ») |
+| Robot démarré à la demande de l'invité | État du robot reçu |
+| Départ de l'invité géré (hôte toujours en partie) | Retour au menu ; **progression locale intacte** (rien de l'hôte sauvegardé) |
+| Progression de l'atelier sauvegardée chez l'hôte | — |
+| **Tapis identique chez les deux** : même empreinte des valeurs quantifiées | |
+
+Débit mesuré : invité → hôte 37,6 Ko pour 597 opérations (≈ 63 octets par opération) ; hôte → invité 249 Ko de cellules sur
+toute la partie, instantanés et tapis entièrement réécrit compris. 119 FPS des deux côtés (plafond du test à 120).
+
+**Non testé** (environnement : une machine, client Steam non lancé, un seul compte) : salons, recherche, invitations et
+transport Steam ; deux machines distinctes ; Internet. Procédure à suivre : `MULTIPLAYER.md` § 4.

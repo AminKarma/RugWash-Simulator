@@ -74,6 +74,26 @@ namespace RugWash.Cleaning
             return taken;
         }
 
+        /// <summary>
+        /// Consomme un produit précis, actif ou non (multijoueur : produit pulvérisé par un invité, prélevé sur le stock
+        /// partagé de l'atelier). Retourne la quantité réellement prélevée.
+        /// </summary>
+        public float ConsumeFrom(ProductDefinition product, float liters)
+        {
+            if (product == null || liters <= 0f) return 0f;
+            if (product == Active) return Consume(liters);
+            float have = StockOf(product);
+            float taken = Mathf.Min(have, liters);
+            if (taken <= 0f) return 0f;
+            stock[product.id] = have - taken;
+            if (have - taken <= 1e-4f)
+            {
+                stock[product.id] = 0f;
+                Changed?.Invoke();
+            }
+            return taken;
+        }
+
         /// <summary>Sélectionne un produit en stock (null = détergent standard). Faux si le produit n'est pas disponible.</summary>
         public bool Select(ProductDefinition product)
         {

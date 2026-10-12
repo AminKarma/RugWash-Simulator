@@ -15,7 +15,7 @@
       PlayMode    : Unity.exe -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults Logs/ci/playmode-results.xml -logFile Logs/ci/playmode.log
 #>
 param(
-    [ValidateSet('compile', 'bootstrap', 'scene', 'test', 'playmode', 'build', 'benchmark', 'all')]
+    [ValidateSet('compile', 'bootstrap', 'scene', 'test', 'playmode', 'build', 'benchmark', 'multiplayer', 'all')]
     [string]$Step = 'all',
     [string]$UnityPath
 )
@@ -101,6 +101,49 @@ if ($Step -in 'playmode', 'all') {
 if ($Step -eq 'build') {
     Invoke-Unity 'build' @('-quit', '-executeMethod', 'RugWash.Editor.RugWashBuild.BuildWindows')
     Write-Host "Build : $(Join-Path $ProjectPath 'Builds\Windows\RugWashSimulator.exe')"
+}
+if ($Step -eq 'multiplayer') {
+    # Deux processus du jeu compilé (hôte puis invité) en connexion directe locale, scénario automatique, rapports comparés.
+    $exe = Join-Path $ProjectPath 'Builds\Windows\RugWashSimulator.exe'
+    if (-not (Test-Path $exe)) { throw "Build absent : lancez d'abord -Step build." }
+    $port = '7795'
+    $roles = @('host', 'guest')
+    $processes = @{}
+    foreach ($role in $roles) {
+        $report = Join-Path $LogDir "mp-$role.json"
+        if (Test-Path $report) { Remove-Item $report }
+        $playerLog = Join-Path $LogDir "mp-$role.log"
+        $mpArgs = @('-rugwash-mp-test', $role, '-rugwash-mp-port', $port, '-rugwash-mp-report', "`"$report`"",
+            '-screen-width', '960', '-screen-height', '540', '-screen-fullscreen', '0', '-logFile', "`"$playerLog`"")
+        Write-Host "==> [multiplayer] $role : $exe $($mpArgs -join ' ')"
+        $processes[$role] = Start-Process -FilePath $exe -ArgumentList $mpArgs -PassThru
+        $null = $processes[$role].Handle
+        Start-Sleep -Seconds 3
+    }
+    $failed = $false
+    foreach ($role in $roles) {
+        if (-not $processes[$role].WaitForExit(420000)) { $processes[$role].Kill(); Write-Host "[multiplayer] $role : délai dépassé (7 min)."; $failed = $true }
+    }
+    $reports = @{}
+    foreach ($role in $roles) {
+        $report = Join-Path $LogDir "mp-$role.json"
+        if (-not (Test-Path $report)) { Write-Host "[multiplayer] $role : aucun rapport."; $failed = $true; continue }
+        $reports[$role] = Get-Content $report -Raw -Encoding UTF8 | ConvertFrom-Json
+        Write-Host "--- $role"
+        foreach ($check in $reports[$role].checks) {
+            $mark = if ($check.passed) { 'OK ' } else { 'ÉCHEC'; $failed = $true }
+            Write-Host ("  [{0}] {1} {2}" -f $mark, $check.name, $check.detail)
+        }
+        if ($reports[$role].fatal) { Write-Host "  Arrêt : $($reports[$role].fatal)"; $failed = $true }
+        $reports[$role].values.PSObject.Properties | ForEach-Object { Write-Host ("  {0} = {1}" -f $_.Name, $_.Value) }
+    }
+    if ($reports.ContainsKey('host') -and $reports.ContainsKey('guest')) {
+        $same = $reports['host'].values.empreinteTapis -eq $reports['guest'].values.empreinteTapis
+        Write-Host ("  [{0}] Tapis identique chez l'hôte et l'invité (empreinte {1} / {2})" -f ($(if ($same) { 'OK ' } else { 'ÉCHEC' })), $reports['host'].values.empreinteTapis, $reports['guest'].values.empreinteTapis)
+        if (-not $same) { $failed = $true }
+    }
+    if ($failed) { throw "[multiplayer] des vérifications ont échoué." }
+    Write-Host "==> [multiplayer] OK"
 }
 if ($Step -eq 'benchmark') {
     # Lance le jeu compilé (fenêtre visible) en mode vérification : parcours automatique + mesure en 1080p.

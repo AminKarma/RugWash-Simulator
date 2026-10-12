@@ -95,6 +95,7 @@ namespace RugWash.Core
         public RugDex.RugDexUI RugDexUI => rugDexUI;
         public ProductInventory Products => productInventory;
         public PlayerInputReader Input => input;
+        public IReadOnlyList<RugDefinition> AvailableRugs => availableRugs;
         public InputDeviceMonitor InputMonitor => inputMonitor;
         public UINavigator Navigator => navigator;
         public GamepadRumble Rumble => rumble;

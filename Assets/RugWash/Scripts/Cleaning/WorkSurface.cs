@@ -60,6 +60,7 @@ namespace RugWash.Cleaning
 
         void OnRunoff(RugCleaningController rug, RunoffEvent runoff)
         {
+            if (surface != null && surface.IsReplica) return;
             float weight = runoff.Dirt + runoff.Foam + runoff.Water;
             if (weight <= 0f) return;
             pendingPoint = pendingWeight <= 0f ? runoff.Point : Vector3.Lerp(pendingPoint, runoff.Point, weight / (pendingWeight + weight));
@@ -133,6 +134,8 @@ namespace RugWash.Cleaning
         {
             LastContamination = 0f;
             if (surface == null || surface.Grid == null || rug.Grid == null) return;
+            // Invité : la bordure souillée arrive avec les cellules de l'hôte.
+            if (rug.IsReplica) return;
             RefreshStatus(force: true);
             float amount = WorkSurfaceRules.ContaminationAmount(Status);
             if (amount <= 0f) return;

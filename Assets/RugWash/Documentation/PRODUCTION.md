@@ -181,6 +181,23 @@ Rapport : [AUDIT_V2.md](AUDIT_V2.md) — état réel du projet, cause du bug d'a
 | Correctif : les sélecteurs ‹ › d'un onglet de paramètres jamais affiché branchent leurs boutons (révélé par le test existant des paramètres) | Testé | `Settings_ChangedInUI_AreAppliedSavedAndRestored` |
 | Essai sur une vraie manette (Xbox, DualShock / DualSense), ressenti des sticks et des vibrations, lisibilité à distance d'un téléviseur | À vérifier à la main | Les tests utilisent une manette virtuelle de l'Input System ; aucun matériel n'a été branché |
 
+## Roadmap V2 — Jalon 5 (multijoueur coopératif et Steamworks)
+
+Architecture, configuration et procédure de test Steam : `MULTIPLAYER.md`. « Testé (2 processus) » = vérifié par l'étape
+`multiplayer` (deux exemplaires du jeu compilé, hôte et invité, connexion directe sur la même machine).
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 5.1 Choix techniques documentés : NGO 2.13.3 (3.x incompatible avec Unity 6000.5), Unity Transport, Steamworks.NET 2025.164.1, transport Steam Networking Sockets écrit pour NGO 2.x | Fait | `MULTIPLAYER.md` § 1 |
+| 5.2 Créer / rejoindre une partie en réseau local, état de connexion, départ, refus (version, partie complète), perte de l'hôte, retour au menu avec la raison, « Se reconnecter » | Testé (2 processus) + PlayMode | `HostSession_…`, `Approval_…`, `DisconnectMessages_…`, étape `multiplayer` |
+| 5.2.1 Steam : salon (amis/public, 4 places, données de version), recherche filtrée, membres du salon (distincts des joueurs connectés), invitations (fenêtre Steam, invitation acceptée jeu ouvert ou fermé « +connect_lobby »), lancement par l'hôte, connexion des membres via le transport Steam, salon fermé au départ de l'hôte | **Implémenté, non testé en réel** | Compilé ; sans client Steam, message clair et connexion directe disponible (`HostSession_…`). Procédure à deux comptes dans `MULTIPLAYER.md` § 4 |
+| 5.3 Joueurs : silhouette par joueur (position, orientation, tête, outil en main, effets et son d'outil, nom), caméra et entrées strictement locales, apparition par l'hôte après synchronisation, retrait au départ | Testé (2 processus) | « Silhouette de l'hôte visible », « Déplacement de l'hôte vu par l'invité », « Départ de l'invité géré », capture `61` |
+| 5.4 Nettoyage : hôte autoritaire, opérations des invités transmises (bornées, invalides ignorées), prédiction et rejeu des opérations non confirmées, cellules modifiées diffusées (rectangles compressés), instantané à chaque tapis et pour un arrivant ; mousse, eau, extraction, aire de lavage et sol passent par le même chemin ; deux joueurs sur la même zone | Testé (2 processus) + PlayMode | `TwoPlayersCleaningTheSameRug_…` (latence simulée : chaque opération appliquée une fois, pas de recul, tapis identiques), « Tapis identique chez l'hôte et l'invité (empreinte) », `Operations_…`, `CellCodec_…`, `ForgedOperationValues_…` |
+| 5.5 Commandes : état partagé, demandes des invités, évaluation et paiement uniquement chez l'hôte (une fois, même si la livraison est demandée deux fois), résultats affichés chez tous ; argent et réputation de l'atelier de l'hôte, partagés | Testé (2 processus) | « Récompense versée une seule fois (deux demandes de livraison) », « Résultats de la livraison affichés chez l'invité » |
+| 5.6 Atelier : boutique (achats demandés à l'hôte), produits (stock partagé, consommé chez l'hôte), robot (simulé chez l'hôte, demandes des invités), aire de lavage et sol | Testé (2 processus) sauf produits | « Achat demandé à l'hôte puis reçu », « Robot démarré via l'hôte » ; consommation de produit par un invité : non couverte par un test automatique |
+| 5.7 Fiabilité : aucune sauvegarde de progression chez un invité, progression de l'hôte sauvegardée, pause sans arrêt du temps partagé, messages réseau tronqués ou trafiqués refusés | Testé | « Progression locale de l'invité intacte », « Progression de l'atelier sauvegardée chez l'hôte », `SharedTime_…`, `ByteBuffer_…` |
+| 5.8 Deux machines distinctes via Internet, comptes Steam différents, invitations Steam | **Non testé** | Une seule machine et aucun client Steam lancé dans l'environnement de développement |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |
@@ -188,7 +205,8 @@ Rapport : [AUDIT_V2.md](AUDIT_V2.md) — état réel du projet, cause du bug d'a
 | Sons enregistrés définitifs | À faire (substituts synthétisés `tmp_*`) |
 | Modèles 3D réalisés par un artiste | À faire (modèles procéduraux) |
 | Génération de nouvelles commandes après les 10 du catalogue | À faire |
-| Mode coopératif | Non développé (architecture préparée, voir ci-dessous) |
+| Mode coopératif | Développé (jalon 5) — Steam à valider en réel, voir `MULTIPLAYER.md` |
+| Migration d'hôte, reconnexion automatique | Non prévues (l'hôte qui part ferme la partie ; reconnexion par bouton) |
 | Icônes de boutons de manette (images) | À faire : les indications sont textuelles (« A », « RT », « Croix »…) |
 | Sélection directe d'un outil à la manette | Non prévue : RB / LB font défiler les 8 outils |
 

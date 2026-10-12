@@ -4,8 +4,9 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 4** (game feel, scan, nouveaux outils, aire de lavage, robot aspirateur,
-> tapis de soie, nouvelles salissures, produits spécialisés, RugDex, prise en charge complète de la manette).
+> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5** (game feel, scan, nouveaux outils, aire de lavage, robot aspirateur,
+> tapis de soie, nouvelles salissures, produits spécialisés, RugDex, manette, **coopératif jusqu'à 4 joueurs** — réseau local testé,
+> Steam implémenté mais pas encore testé en réel, voir § Multijoueur).
 > Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
@@ -22,6 +23,8 @@ et voit le motif d'origine réapparaître progressivement.
 | Entrées | **Input System 1.20.0** (backend « Input System Package » uniquement) |
 | UI | uGUI 2.5.0 (police intégrée `LegacyRuntime.ttf`) |
 | Tests | Unity Test Framework 1.7.0 |
+| Réseau | **Netcode for GameObjects 2.13.3**, Unity Transport 2.6.0 (NGO 3.x exige Unity 6000.7) |
+| Steam | **Steamworks.NET 2025.164.1** (paquet UPM Git) — App ID de développement 480, voir `MULTIPLAYER.md` |
 | Plateforme cible | Windows 64 bits (DX11, DX12, Vulkan) |
 
 Aucun asset tiers : toutes les textures (motifs de tapis, fibres, béton, bois, bandes de sécurité…) sont
@@ -232,6 +235,23 @@ difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste
   distance, taille des flaques, quantité), `Surface_WorkSurface` / `Surface_Floor` (taille, résolution, séchage, saleté
   initiale du sol), composant `RobotVacuum` (vitesse, rayon, puissance, longueur des lignes).
 
+## 4 septies. Multijoueur coopératif
+
+Jusqu'à 4 joueurs dans le même atelier, sur les mêmes tapis. Détails (architecture, configuration Steam, procédure de
+test, limites) : [Assets/RugWash/Documentation/MULTIPLAYER.md](Assets/RugWash/Documentation/MULTIPLAYER.md).
+
+- **Menu principal → Multijoueur** :
+  - **Steam (Internet)** : créer un salon (amis ou public), inviter des amis par Steam, rechercher et rejoindre une partie, lancer
+    la partie ; accepter une invitation Steam ouvre le salon (même jeu fermé). Steam doit être lancé et connecté.
+  - **Réseau local** : « Héberger sur ce PC » ou « Rejoindre » une adresse IPv4:port (port UDP 7777 à autoriser chez l'hôte).
+- **Hôte** : joue avec sa progression (argent, réputation, achats, commandes) — elle est **partagée** par tous et sauvegardée
+  chez lui. **Invité** : sa propre progression n'est jamais modifiée ni sauvegardée pendant la partie.
+- Tout ce qui compte est validé par l'hôte : nettoyage (les invités voient leur effet immédiatement, puis se recalent sur
+  l'hôte), commandes, livraison et paiement (une seule fois), achats, robot. Chaque joueur garde sa caméra, ses contrôles et
+  ses réservoirs. La pause ne fige pas la partie. La liste des joueurs (et la latence) s'affiche en haut à droite.
+- « Quitter la partie » (pause) : un invité revient au menu ; l'hôte ferme la partie pour tous. Après une déconnexion, le
+  menu affiche la raison et propose « Se reconnecter ».
+
 ## 4 bis. Audio
 
 Les 33 sons (outils et **contact avec le tapis** propres à chaque outil, prise en main, interface, remplissage,
@@ -281,7 +301,9 @@ Assets/RugWash/
                  UpgradeManager (applique les effets), ShopManager
     Save/        SaveData (format versionné), SaveMigration, SaveFileStore (écriture atomique, secours),
                  SaveManager (chargement / sauvegarde), SettingsManager (application des paramètres)
-    Diagnostics/ Overlay F3, mesure des temps de frame
+    Network/     Multijoueur : MultiplayerSession (session, NetworkManager, Steam / connexion directe), SteamPlatform,
+                 SteamSocketsTransport, NetworkWorkshop (atelier partagé), NetworkPlayerAvatar, réplication des surfaces
+    Diagnostics/ Overlay F3, mesure des temps de frame, vérifications automatiques du build (solo et multijoueur)
   Editor/                  (assembly RugWash.Editor) bootstrap projet, génération de textures/contenu/scène, CI
   Shaders/                 RugSurface (URP PBR), TargetRing, ParticleSoft
   ScriptableObjects/       Rugs/, Tools/, DirtTypes/ — données modifiables dans l'Inspector
@@ -390,9 +412,10 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 ```
 
 Étapes : `compile`, `bootstrap`, `scene` (atelier + menu principal), `test` (EditMode, sans GPU),
-`playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows) et
-`benchmark` (lance le jeu compilé en mode vérification). `all` enchaîne les cinq premières étapes.
-État actuel : 143 tests EditMode et 84 tests PlayMode, tous réussis (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+`playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
+`benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
+en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
+État actuel : 153 tests EditMode et 87 tests PlayMode, tous réussis, et 24 / 24 vérifications multijoueur (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

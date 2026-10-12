@@ -61,6 +61,7 @@ namespace RugWash.UI
             shop = shopManager;
             rowTemplate.gameObject.SetActive(false);
             closeButton.onClick.AddListener(Close);
+            shop.RemoteResultReceived += OnRemoteResult;
             equipmentTabButton.onClick.AddListener(() => ShowTab(false));
             productsTabButton.onClick.AddListener(() => ShowTab(true));
             shop.WalletManager.Wallet.Changed += OnWalletChanged;
@@ -98,6 +99,15 @@ namespace RugWash.UI
         }
 
         /// <summary>Affiche l'onglet « Matériel » (améliorations) ou « Produits » (flacons de produits spécialisés).</summary>
+        /// <summary>Multijoueur (invité) : l'hôte a répondu à un achat demandé depuis cette boutique.</summary>
+        void OnRemoteResult(string message, bool success)
+        {
+            if (!IsOpen) return;
+            messageLabel.text = message;
+            messageLabel.color = success ? Ok : Warn;
+            Refresh();
+        }
+
         public void ShowTab(bool products)
         {
             ShowingProducts = products && shop.Products != null;

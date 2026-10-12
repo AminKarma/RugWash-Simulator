@@ -47,6 +47,8 @@ namespace RugWash.Editor
             /// <summary>Plan de travail de l'aire de lavage et sol de l'atelier (surfaces nettoyables).</summary>
             public RugDefinition WorkSurface, Floor;
             public CleaningTuning Tuning;
+            /// <summary>Multijoueur : réglages et préfabriqués réseau.</summary>
+            public RugWash.Network.NetworkContent Network;
             public readonly List<OrderDefinition> Orders = new List<OrderDefinition>();
             public readonly List<UpgradeDefinition> Upgrades = new List<UpgradeDefinition>();
             public readonly Dictionary<string, Material> Materials = new Dictionary<string, Material>();
@@ -153,6 +155,7 @@ namespace RugWash.Editor
 
             EnsureOrders(content);
             EnsureUpgrades(content);
+            content.Network = RugWashNetworkBuilder.Ensure(content);
 
             AssetDatabase.SaveAssets();
             return content;

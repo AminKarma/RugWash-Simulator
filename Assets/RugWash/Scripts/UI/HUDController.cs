@@ -33,6 +33,8 @@ namespace RugWash.UI
         [SerializeField] Text scanLabel;
         [SerializeField] Image scanFill;
         [SerializeField] Text workSurfaceLabel;
+        [Tooltip("Optionnel : joueurs présents en partie en ligne.")]
+        [SerializeField] Text playersLabel;
         [SerializeField] Color gainColor = new Color(0.75f, 1f, 0.85f, 1f);
         [SerializeField] float barSmoothing = 10f;
         [SerializeField] float refreshInterval = 0.1f;
@@ -194,6 +196,7 @@ namespace RugWash.UI
 
         /// <summary>Texte de l'alerte du plan de travail (vide s'il est propre).</summary>
         public string WorkSurfaceAlert => workSurfaceLabel.text;
+        public string PlayersText => playersLabel != null ? playersLabel.text : string.Empty;
         public string HintText => hintLabel.text;
         public string PromptText => promptLabel.text;
         public string OrderText => orderLabel.text;
@@ -317,9 +320,44 @@ namespace RugWash.UI
             RefreshAll(force: false);
         }
 
+        /// <summary>Partie en ligne : joueurs présents dans l'atelier (et latence vers l'hôte pour un invité).</summary>
+        void RefreshPlayers()
+        {
+            if (playersLabel == null) return;
+            var workshop = Network.NetworkWorkshop.Instance;
+            if (workshop == null || !workshop.IsSpawned)
+            {
+                if (playersLabel.text.Length > 0) playersLabel.text = string.Empty;
+                return;
+            }
+            var avatars = FindObjectsByType<Network.NetworkPlayerAvatar>();
+            int count = 0;
+            foreach (var avatar in avatars)
+                if (avatar.IsSpawned) count++;
+            playersBuilder.Clear();
+            playersBuilder.Append("Joueurs (").Append(count).Append(") : ");
+            bool first = true;
+            foreach (var avatar in avatars)
+            {
+                if (!avatar.IsSpawned) continue;
+                if (!first) playersBuilder.Append(" · ");
+                first = false;
+                playersBuilder.Append(avatar.DisplayName);
+                if (avatar.OwnerClientId == Unity.Netcode.NetworkManager.ServerClientId) playersBuilder.Append(" (hôte)");
+            }
+            var manager = workshop.NetworkManager;
+            if (manager != null && !manager.IsServer && manager.NetworkConfig.NetworkTransport != null)
+                playersBuilder.Append("   ·   ").Append(manager.NetworkConfig.NetworkTransport.GetCurrentRtt(Unity.Netcode.NetworkManager.ServerClientId)).Append(" ms");
+            string text = playersBuilder.ToString();
+            if (text != playersLabel.text) playersLabel.text = text;
+        }
+
+        readonly System.Text.StringBuilder playersBuilder = new System.Text.StringBuilder();
+
         void RefreshAll(bool force)
         {
             RefreshEconomy();
+            RefreshPlayers();
             CheckFiberWear();
             var tool = tools.ActiveTool;
 

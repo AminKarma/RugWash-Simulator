@@ -12,6 +12,8 @@ namespace RugWash.Orders
 
     public enum OrderStartResult
     {
+        /// <summary>Multijoueur (invité) : demande envoyée à l'hôte, qui décidera.</summary>
+        Requested = 100,
         Started,
         UnknownOrder,
         AnotherOrderActive,
@@ -53,6 +55,22 @@ namespace RugWash.Orders
             if (states[order.id] != OrderState.Available) return OrderStartResult.NotAvailable;
             if (IsLocked(order, reputation)) return OrderStartResult.ReputationTooLow;
             return OrderStartResult.Started;
+        }
+
+        /// <summary>Multijoueur (invité) : reproduit la commande démarrée par l'hôte, sans contrôle local.</summary>
+        public void ForceActive(OrderDefinition order)
+        {
+            if (order == null) return;
+            if (Active != null && Active != order) states[Active.id] = OrderState.Available;
+            Active = order;
+            states[order.id] = OrderState.Active;
+        }
+
+        /// <summary>Multijoueur (invité) : plus de commande active (abandon ou livraison décidés par l'hôte).</summary>
+        public void ClearActive()
+        {
+            if (Active != null && StateOf(Active) == OrderState.Active) states[Active.id] = OrderState.Available;
+            Active = null;
         }
 
         public OrderStartResult Start(OrderDefinition order, int reputation)

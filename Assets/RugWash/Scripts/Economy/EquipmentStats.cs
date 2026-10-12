@@ -58,6 +58,8 @@ namespace RugWash.Economy
         MissingPrerequisite,
         InsufficientFunds,
         Unknown,
+        /// <summary>Multijoueur (invité) : demande envoyée à l'hôte.</summary>
+        Requested = 100,
     }
 
     public enum ProductPurchaseResult
@@ -67,6 +69,8 @@ namespace RugWash.Economy
         StockFull,
         InsufficientFunds,
         Unknown,
+        /// <summary>Multijoueur (invité) : demande envoyée à l'hôte.</summary>
+        Requested = 100,
     }
 
     /// <summary>Règle d'achat pure : le solde n'est débité que si l'achat est entièrement valide.</summary>
@@ -105,6 +109,7 @@ namespace RugWash.Economy
             {
                 case ProductPurchaseResult.Purchased: return "Achat effectué";
                 case ProductPurchaseResult.StockFull: return "Stock plein";
+                case ProductPurchaseResult.Requested: return "Demande envoyée à l'hôte…";
                 case ProductPurchaseResult.InsufficientFunds: return "Fonds insuffisants";
                 default: return "Article inconnu";
             }
@@ -118,6 +123,7 @@ namespace RugWash.Economy
                 case PurchaseResult.AlreadyOwned: return "Déjà acheté";
                 case PurchaseResult.MissingPrerequisite: return "Amélioration précédente requise";
                 case PurchaseResult.InsufficientFunds: return "Fonds insuffisants";
+                case PurchaseResult.Requested: return "Demande envoyée à l'hôte…";
                 default: return "Article inconnu";
             }
         }

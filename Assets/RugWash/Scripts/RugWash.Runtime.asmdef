@@ -6,7 +6,11 @@
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.InputSystem",
         "Unity.Mathematics",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Unity.Netcode.Runtime",
+        "Unity.Networking.Transport",
+        "com.rlabrecque.steamworks.net",
+        "Unity.Collections"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

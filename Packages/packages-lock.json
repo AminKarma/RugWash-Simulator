@@ -1,5 +1,12 @@
 {
   "dependencies": {
+    "com.rlabrecque.steamworks.net": {
+      "version": "https://github.com/rlabrecque/Steamworks.NET.git?path=/com.rlabrecque.steamworks.net#2025.164.1",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "c21a8f0e31c56ae8707130967faf491f7dd7c0d8"
+    },
     "com.unity.burst": {
       "version": "1.8.30",
       "depth": 2,
@@ -51,9 +58,19 @@
       "source": "builtin",
       "dependencies": {}
     },
+    "com.unity.netcode.gameobjects": {
+      "version": "2.13.3",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.transport": "2.6.0",
+        "com.unity.nuget.mono-cecil": "1.11.4"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.nuget.mono-cecil": {
       "version": "1.11.6",
-      "depth": 3,
+      "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
@@ -122,6 +139,16 @@
         "com.unity.modules.jsonserialize": "1.0.0"
       },
       "url": "https://packages.unity.com"
+    },
+    "com.unity.transport": {
+      "version": "6.5.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.collections": "6.5.0",
+        "com.unity.burst": "1.8.24",
+        "com.unity.mathematics": "1.4.0"
+      }
     },
     "com.unity.ugui": {
       "version": "2.5.0",

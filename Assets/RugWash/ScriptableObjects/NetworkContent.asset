@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 92533e78a9396364da7d099e7f5e15d5, type: 3}
+  m_Name: NetworkContent
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Network.NetworkContent
+  workshopPrefab: {fileID: 1309810984782067814, guid: 6e7681692b2d10447b8c8ee9677bdc05, type: 3}
+  avatarPrefab: {fileID: 6991945246146891473, guid: f8ab677bb4d33444c9c81bd0aaba5e26, type: 3}
+  protocolVersion: rugwash-coop-1
+  maxPlayers: 4
+  defaultPort: 7777
+  steamAppId: 480
+  surfaceSendRate: 15

@@ -32,3 +32,6 @@
 .DS_Store
 Thumbs.db
 crashlytics-build.properties
+
+# Créé automatiquement par Steamworks.NET dans l'éditeur ; le jeu transmet l'App ID par variable d'environnement (NetworkContent).
+steam_appid.txt

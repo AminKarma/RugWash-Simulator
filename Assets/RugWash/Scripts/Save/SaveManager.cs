@@ -115,10 +115,17 @@ namespace RugWash.Save
             applied = true;
         }
 
+        /// <summary>
+        /// Multijoueur, côté invité : l'atelier affiché est celui de l'hôte. Seuls les paramètres sont écrits ; la progression
+        /// locale (argent, commandes, produits, RugDex, atelier) reste celle d'avant la session.
+        /// </summary>
+        public bool ProgressionLocked { get; set; }
+
         /// <summary>Recopie l'état courant des systèmes dans les données à sauvegarder.</summary>
         void Capture()
         {
             Current.settings = settings.Current.Clone();
+            if (ProgressionLocked) return;
             if (workshop != null) workshop.Capture(Current.workshop ??= new WorkshopSaveData());
             if (products != null)
             {
@@ -169,6 +176,7 @@ namespace RugWash.Save
 
         void OnOrderFinished(OrderResult result)
         {
+            if (ProgressionLocked) return;
             if (result.Accepted)
             {
                 Current.ordersDelivered++;
@@ -179,7 +187,7 @@ namespace RugWash.Save
 
         void OnPurchaseAttempted(UpgradeDefinition upgrade, PurchaseResult result)
         {
-            if (result == PurchaseResult.Purchased) SaveNow("achat");
+            if (result == PurchaseResult.Purchased && !ProgressionLocked) SaveNow("achat");
         }
 
         void OnApplicationQuit() => SaveNow("fermeture du jeu");
