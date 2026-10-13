@@ -215,13 +215,70 @@ namespace RugWash.Tests
             Assert.AreEqual(1.6f, WorkSurfaceRules.EdgeDepositPoint(new Vector2(5f, 0f), half, 0.1f, 0f).x, 1e-5f, "Point hors du tapis : bord le plus proche.");
         }
 
+        static WorkSurfaceStatus Soiled(float fraction) => new WorkSurfaceStatus(fraction, 0f, 0f, 0f, 0f);
+
         [Test]
-        public void Contamination_IsZeroWhenClean_AndBoundedOtherwise()
+        public void Contamination_IsZeroUpToFortyPercentDirt_ThenGrowsAndIsBounded()
         {
-            Assert.AreEqual(0f, WorkSurfaceRules.ContaminationAmount(new WorkSurfaceStatus(0.005f, 0f, 0f, 0f, 0f)));
-            Assert.AreEqual(0.05f, WorkSurfaceRules.ContaminationAmount(new WorkSurfaceStatus(0.012f, 0f, 0f, 0f, 0f)), 1e-5f);
-            Assert.AreEqual(WorkSurfaceRules.MaxContamination, WorkSurfaceRules.ContaminationAmount(new WorkSurfaceStatus(0.9f, 0f, 0f, 0f, 0f)));
+            Assert.AreEqual(0f, WorkSurfaceRules.ContaminationAmount(Soiled(0.005f), 0.4f));
+            Assert.AreEqual(0f, WorkSurfaceRules.ContaminationAmount(Soiled(0.4f), 0.4f), "Exactement 40 % : pas encore.");
+            Assert.AreEqual(WorkSurfaceRules.MinContamination, WorkSurfaceRules.ContaminationAmount(Soiled(0.4001f), 0.4f), 1e-3f);
+            float mid = WorkSurfaceRules.ContaminationAmount(Soiled(0.7f), 0.4f);
+            Assert.Greater(mid, WorkSurfaceRules.MinContamination);
+            Assert.Less(mid, WorkSurfaceRules.MaxContamination);
+            Assert.AreEqual(WorkSurfaceRules.MaxContamination, WorkSurfaceRules.ContaminationAmount(Soiled(1f), 0.4f), 1e-6f);
+            Assert.AreEqual(0f, WorkSurfaceRules.ContaminationRate(Soiled(0.4f), 0.4f, 0.02f));
+            Assert.AreEqual(0.01f, WorkSurfaceRules.ContaminationRate(Soiled(0.7f), 0.4f, 0.02f), 1e-6f);
             Assert.AreEqual(1f / (Mathf.PI * 0.5f), WorkSurfaceRules.PerCellAmount(1f, 1f), 1e-5f);
+        }
+
+        [Test]
+        public void ZoneConvention_CleanlinessIsOneMinusDirt_AndGatesNewOrdersAtTwentyFivePercent()
+        {
+            var status = Soiled(0.3f);
+            Assert.AreEqual(0.7f, status.Cleanliness01, 1e-6f, "Propreté = 1 − saleté.");
+            Assert.AreEqual(70, status.CleanlinessPercent);
+            Assert.AreEqual(24, Soiled(0.751f).CleanlinessPercent, "Arrondi vers le bas : 24,9 % s'affiche 24 %.");
+            Assert.IsTrue(WorkSurfaceRules.AllowsNewOrder(Soiled(0f), 0.25f));
+            Assert.IsTrue(WorkSurfaceRules.AllowsNewOrder(Soiled(0.75f), 0.25f), "Exactement 25 % de propreté : autorisé.");
+            Assert.IsFalse(WorkSurfaceRules.AllowsNewOrder(Soiled(0.76f), 0.25f));
+            Assert.IsFalse(WorkSurfaceRules.ContaminatesRug(Soiled(0.4f), 0.4f));
+            Assert.IsTrue(WorkSurfaceRules.ContaminatesRug(Soiled(0.41f), 0.4f), "Au-delà de 40 % de saleté (sous 60 % de propreté).");
+        }
+
+        [Test]
+        public void BorderContamination_NeverExceedsItsCap_AndKeepsTheCenterClean()
+        {
+            var grid = Grid(40, 30);
+            var bands = new RectInt[4];
+            WorkSurfaceRules.BorderBands(grid.Width, grid.Height, bands);
+            var mud = new BorderContaminationOperation { Amount = 0.1f, Cap = 0.3f };
+            for (int i = 0; i < 10; i++)
+                foreach (var band in bands) grid.ApplyRect(band, 1f, ref mud);
+            Assert.AreEqual(0.3f, grid.GetCell(0, 15).Dirt, 1e-5f, "Plafonné.");
+            Assert.AreEqual(0.3f, grid.GetCell(39, 0).Dirt, 1e-5f);
+            Assert.AreEqual(0f, grid.GetCell(20, 15).Dirt, "Le centre n'est pas touché.");
+            Assert.AreEqual(DirtType.Soil, grid.GetCell(0, 15).StainType);
+        }
+
+        [Test]
+        public void RugFinish_BelowOnePercentRemaining_ClearsTheResidue_ButKeepsWaterAndFoam()
+        {
+            Assert.IsFalse(RugFinishRules.IsFinished(1f, 100f, 0.01f), "Exactement 1 % : pas encore.");
+            Assert.IsTrue(RugFinishRules.IsFinished(0.99f, 100f, 0.01f));
+            Assert.IsFalse(RugFinishRules.IsFinished(0f, 0f, 0.01f), "Tapis propre dès le départ : rien à terminer.");
+
+            var grid = Grid(10, 10);
+            grid.SetCell(3, 3, new RugCell { Dust = 0.01f, Stain = 0.02f, Loosened = 0.01f, Moisture = 0.5f, Foam = 0.3f, Residue = 0.1f,
+                DustType = DirtType.Dust, StainType = DirtType.Soil });
+            var clear = new ClearDirtOperation();
+            grid.ApplyAll(ref clear);
+            var cell = grid.GetCell(3, 3);
+            Assert.AreEqual(0f, cell.Dirt);
+            Assert.AreEqual(0f, grid.TotalDirt);
+            Assert.AreEqual(0.5f, cell.Moisture, 1e-6f);
+            Assert.AreEqual(0.3f, cell.Foam, 1e-6f);
+            Assert.AreEqual(0.1f, cell.Residue, 1e-6f);
         }
 
         // ------------------------------------------------------------------ Sauvegarde

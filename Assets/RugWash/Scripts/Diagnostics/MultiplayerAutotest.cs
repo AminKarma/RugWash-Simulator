@@ -23,6 +23,9 @@ namespace RugWash.Diagnostics
     public static class MultiplayerAutotest
     {
         public const string Argument = "-rugwash-mp-test";
+        public const int HostStartMoney = 300;
+        public const int GuestStartMoney = 1500;
+        public const int GuestStartReputation = 2;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Initialize()
@@ -39,11 +42,14 @@ namespace RugWash.Diagnostics
                 if (args[i] == "-rugwash-mp-report") report = args[i + 1];
             }
 
-            // Sauvegarde temporaire propre à chaque rôle : jamais celle du joueur.
+            // Sauvegarde temporaire propre à chaque rôle : jamais celle du joueur. Chaque rôle part d'une carrière différente
+            // (argent, réputation) pour vérifier que la progression de l'un n'est jamais copiée chez l'autre.
             string sandbox = Path.Combine(Application.temporaryCachePath, $"mp-save-{role}");
             if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
             Directory.CreateDirectory(sandbox);
             SaveManager.DirectoryOverride = sandbox;
+            var seeded = new SaveData { money = role == "host" ? HostStartMoney : GuestStartMoney, reputation = role == "host" ? 0 : GuestStartReputation };
+            new SaveFileStore(sandbox, SaveManager.DefaultFileName).Save(seeded, out _);
 
             var go = new GameObject("[MultiplayerAutotest]");
             UnityEngine.Object.DontDestroyOnLoad(go);
@@ -195,6 +201,16 @@ namespace RugWash.Diagnostics
             Record("L'invité a rejoint l'atelier", AvatarCount() >= 2, $"{AvatarCount()} joueur(s)");
             if (AvatarCount() < 2) { fatal = "invité absent"; yield break; }
 
+            ulong guestId = 0;
+            foreach (ulong id in NetworkWorkshop.Instance.NetworkManager.ConnectedClientsIds)
+                if (id != NetworkWorkshop.Instance.NetworkManager.LocalClientId) guestId = id;
+            yield return WaitFor(() => NetworkWorkshop.Instance.CareerOf(guestId) != null, 30f);
+            var guestCareer = NetworkWorkshop.Instance.CareerOf(guestId);
+            Record("Carrière personnelle de l'invité reçue et validée par l'hôte", guestCareer != null && guestCareer.Money == MultiplayerAutotest.GuestStartMoney
+                && guestCareer.Reputation == MultiplayerAutotest.GuestStartReputation, guestCareer != null ? $"{guestCareer.Money} €, réputation {guestCareer.Reputation}" : "-");
+            Record("Progression de l'hôte non remplacée par celle de l'invité", game.Wallet.Balance == MultiplayerAutotest.HostStartMoney,
+                $"{game.Wallet.Balance} €");
+
             var order = game.Orders.Book.Orders[0];
             int ownedAtStart = game.Upgrades.OwnedIds.Count;
             // Gains suivis à chaque variation du solde : un double paiement serait vu même si un achat suit.
@@ -232,15 +248,32 @@ namespace RugWash.Diagnostics
             OrderResult delivered = null;
             game.Orders.OrderFinished += result => delivered = result;
             yield return WaitFor(() => delivered != null, 60f);
+            var afterDelivery = NetworkWorkshop.Instance.CareerOf(guestId);
             yield return new WaitForSeconds(4f);
             Record("Livraison demandée par l'invité, validée par l'hôte", delivered != null && delivered.Accepted,
                 delivered == null ? "aucune" : $"note {OrderEvaluator.GradeLabel(delivered.Grade)}");
             Record("Récompense versée une seule fois (deux demandes de livraison)", delivered != null && positiveChanges == 1 && gained == delivered.Reward,
                 delivered == null ? "-" : $"{positiveChanges} versement(s), {gained} € pour {delivered.Reward} €");
             values["argentHote"] = game.Wallet.Balance.ToString();
+            Record("Récompense versée aussi dans la carrière de l'invité (une fois)", delivered != null && afterDelivery != null
+                && afterDelivery.Money == MultiplayerAutotest.GuestStartMoney + delivered.Reward,
+                afterDelivery != null && delivered != null ? $"{afterDelivery.Money} € (départ {MultiplayerAutotest.GuestStartMoney} + {delivered.Reward})" : "-");
 
-            yield return WaitFor(() => game.Upgrades.OwnedIds.Count > ownedAtStart, 40f);
-            Record("Achat demandé par l'invité exécuté par l'hôte", game.Upgrades.OwnedIds.Count > ownedAtStart, string.Join(",", game.Upgrades.OwnedIds));
+            // Débris secs sur l'aire de lavage : le robot (que l'invité va démarrer) a réellement de quoi travailler.
+            var pad = game.WorkSurface.Surface.Grid;
+            var debris = new DepositOperation { Type = DirtType.Dust, Debris = 0.3f };
+            pad.ApplyRect(new RectInt(0, 0, pad.Width, 6), 1f, ref debris);
+            pad.ApplyRect(new RectInt(0, pad.Height - 6, pad.Width, 6), 1f, ref debris);
+
+            int hostMoneyBeforePurchase = game.Wallet.Balance;
+            var upgradeId = game.Upgrades.Catalog[0].id;
+            yield return WaitFor(() => NetworkWorkshop.Instance.CareerOf(guestId) != null && NetworkWorkshop.Instance.CareerOf(guestId).Upgrades.Contains(upgradeId), 40f);
+            var afterPurchase = NetworkWorkshop.Instance.CareerOf(guestId);
+            Record("Achat de l'invité validé par l'hôte et payé avec l'argent de l'invité (hôte inchangé)",
+                afterPurchase != null && afterPurchase.Upgrades.Contains(upgradeId) && game.Upgrades.OwnedIds.Count == ownedAtStart
+                && game.Wallet.Balance == hostMoneyBeforePurchase,
+                afterPurchase != null ? $"invité {afterPurchase.Money} €, hôte {game.Wallet.Balance} €, achats hôte {game.Upgrades.OwnedIds.Count}" : "-");
+            values["carriereInviteVueParHote"] = afterPurchase != null ? afterPurchase.Money.ToString() : "-";
             values["argentApresAchat"] = game.Wallet.Balance.ToString();
 
             yield return WaitFor(() => game.Robot.Mode != Workshop.RobotMode.Docked, 40f);
@@ -259,8 +292,8 @@ namespace RugWash.Diagnostics
             var result = new SaveFileStore(saveFolder, SaveManager.DefaultFileName).Load();
             var data = result.Data;
             bool loaded = data != null && File.Exists(Path.Combine(saveFolder, SaveManager.DefaultFileName));
-            Record("Progression de l'atelier sauvegardée chez l'hôte", loaded && data.money == game.Wallet.Balance && data.completedOrders.Contains(order.id),
-                loaded ? $"{data.money} €" : "illisible");
+            Record("Progression de l'atelier sauvegardée chez l'hôte", loaded && data.money == game.Wallet.Balance && data.completedOrders.Contains(order.id)
+                && !data.upgrades.Contains(upgradeId), loaded ? $"{data.money} €, achats {data.upgrades.Count}" : "illisible");
             session.Leave();
             yield return WaitFor(() => SceneManager.GetActiveScene().name == "MainMenu", 20f);
         }
@@ -287,6 +320,15 @@ namespace RugWash.Diagnostics
                 session.State.ToString());
             if (game == null) { fatal = "atelier invité"; yield break; }
             Record("Le tapis est une réplique (l'hôte fait autorité)", game.Rug.IsReplica);
+            Record("État de chargement affiché à l'arrivée (contrôles coupés)", NetworkWorkshop.Instance.ShowedLoading);
+            yield return WaitFor(() => NetworkWorkshop.Instance.GuestReady, 30f);
+            yield return new WaitForSeconds(0.3f);
+            string expectedMoney = Economy.WalletManager.Format(MultiplayerAutotest.GuestStartMoney);
+            Record("HUD initialisé dès l'arrivée avec la progression personnelle (pas celle de l'hôte)",
+                NetworkWorkshop.Instance.GuestReady && !game.GameState.Synchronizing && !game.Hud.IsLoading
+                && game.Wallet.Balance == MultiplayerAutotest.GuestStartMoney && game.Reputation.Points == MultiplayerAutotest.GuestStartReputation
+                && game.Hud.EconomyText.Contains(expectedMoney),
+                $"HUD « {game.Hud.EconomyText.Replace('\n', ' ')} » {GameplayState()}");
 
             yield return WaitFor(() => AvatarCount() >= 2, 20f);
             NetworkPlayerAvatar hostAvatar = null;
@@ -304,7 +346,7 @@ namespace RugWash.Diagnostics
             yield return UseTool(1, GuestArea, 5f);
             measuring = false;
             float after = DustAround(game.Rug.Grid, GuestArea, 8);
-            Record("Nettoyage de l'invité visible chez lui (prédiction)", after < before * 0.9f, $"{before:0.0} → {after:0.0}");
+            Record("Nettoyage de l'invité visible chez lui (prédiction)", after < before * 0.9f, $"{before:0.0} → {after:0.0} {GameplayState()}");
             values["operationsEnvoyees"] = NetworkWorkshop.Instance.ClientSync.Predictor.LastSequence.ToString();
 
             yield return new WaitForSeconds(2.5f);
@@ -320,15 +362,29 @@ namespace RugWash.Diagnostics
             yield return WaitFor(() => game.Results.IsVisible, 30f);
             Record("Résultats de la livraison affichés chez l'invité", game.Results.IsVisible && game.Orders.LastResult != null,
                 game.Orders.LastResult != null ? OrderEvaluator.GradeLabel(game.Orders.LastResult.Grade) : "-");
-            yield return new WaitForSeconds(2f);
+            int reward = game.Orders.LastResult != null ? game.Orders.LastResult.Reward : 0;
+            yield return WaitFor(() => game.Wallet.Balance == MultiplayerAutotest.GuestStartMoney + reward, 20f);
+            Record("Récompense reçue dans la carrière personnelle de l'invité", reward > 0 && game.Wallet.Balance == MultiplayerAutotest.GuestStartMoney + reward,
+                $"{game.Wallet.Balance} € (départ {MultiplayerAutotest.GuestStartMoney} + {reward})");
             values["argentVuParInvite"] = game.Wallet.Balance.ToString();
             game.Results.BackToWorkshop();
             yield return null;
 
             var upgrade = game.Upgrades.Catalog[0];
+            int moneyBeforePurchase = game.Wallet.Balance;
             var request = game.Shop.TryPurchase(upgrade);
             yield return WaitFor(() => game.Upgrades.IsOwned(upgrade), 30f);
-            Record("Achat demandé à l'hôte puis reçu", request == Economy.PurchaseResult.Requested && game.Upgrades.IsOwned(upgrade), upgrade.displayName);
+            Record("Achat demandé à l'hôte puis reçu, payé avec l'argent de l'invité", request == Economy.PurchaseResult.Requested && game.Upgrades.IsOwned(upgrade)
+                && game.Wallet.Balance == moneyBeforePurchase - upgrade.price, $"{upgrade.displayName} : {moneyBeforePurchase} € → {game.Wallet.Balance} €");
+            // Client modifié : nouvelle annonce de carrière avec une fortune et tous les achats. L'hôte l'ignore.
+            int honest = game.Wallet.Balance;
+            var forged = new Economy.PlayerCareer { Money = 999999, Reputation = 999 };
+            foreach (var any in game.Upgrades.Catalog) forged.Upgrades.Add(any.id);
+            NetworkWorkshop.Instance.SendForgedCareerForDiagnostics(forged);
+            yield return new WaitForSeconds(2f);
+            Record("Annonce de carrière forgée en cours de partie ignorée par l'hôte", game.Wallet.Balance == honest
+                && game.Upgrades.OwnedIds.Count == 1, $"{game.Wallet.Balance} €, {game.Upgrades.OwnedIds.Count} achat(s)");
+            values["argentInvite"] = game.Wallet.Balance.ToString();
             values["argentApresAchatVuParInvite"] = game.Wallet.Balance.ToString();
 
             game.Robot.Toggle();
@@ -346,12 +402,20 @@ namespace RugWash.Diagnostics
             session.Leave();
             yield return WaitFor(() => SceneManager.GetActiveScene().name == "MainMenu" && FindAnyObjectByType<MainMenuController>() != null, 20f);
             Record("Retour au menu après le départ", SceneManager.GetActiveScene().name == "MainMenu" && !session.InSession);
-            bool exists = File.Exists(Path.Combine(saveFolder, SaveManager.DefaultFileName));
-            var data = exists ? new SaveFileStore(saveFolder, SaveManager.DefaultFileName).Load().Data : null;
-            exists = data != null;
-            Record("Progression locale de l'invité intacte (rien de l'hôte n'est sauvegardé)", !exists || (data.money == 0 && data.completedOrders.Count == 0 && data.upgrades.Count == 0),
-                exists ? $"{data.money} €, {data.completedOrders.Count} commande(s)" : "aucune sauvegarde");
+            var data = new SaveFileStore(saveFolder, SaveManager.DefaultFileName).Load().Data;
+            bool exists = data != null;
+            Record("Progression personnelle de l'invité sauvegardée chez lui (argent, achat, commande livrée ; rien de l'atelier de l'hôte)",
+                exists && data.money.ToString() == values["argentInvite"] && data.upgrades.Contains(upgrade.id) && data.completedOrders.Count == 1
+                && string.IsNullOrEmpty(data.workshop.workSurface),
+                exists ? $"{data.money} €, achats {data.upgrades.Count}, commandes {data.completedOrders.Count}, aire de lavage « {data.workshop.workSurface.Length} car. »" : "illisible");
         }
+
+        /// <summary>Diagnostic : pourquoi le joueur contrôle (ou non) son personnage.</summary>
+        string GameplayState() =>
+            $"[prêt {NetworkWorkshop.Instance?.GuestReady}, synchro {game.GameState.Synchronizing}, chargement {game.Hud.IsLoading}, " +
+            $"actif {game.GameState.IsGameplayActive}, fenêtres {game.GameState.OpenModals}, état {game.GameState.State}, " +
+            $"outil {(game.ToolController.ActiveTool != null ? game.ToolController.ActiveTool.name : "-")}, " +
+            $"visée {(game.ToolController.CurrentAim.Rug != null ? game.ToolController.CurrentAim.Rug.name : "-")}]";
 
         float AverageFps()
         {

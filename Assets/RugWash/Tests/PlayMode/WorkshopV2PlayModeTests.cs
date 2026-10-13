@@ -33,6 +33,7 @@ namespace RugWash.Tests
         {
             TestSaveSandbox.Reset();
             yield return Load();
+            TestRugs.LoadDefault(game);
         }
 
         IEnumerator Load()
@@ -94,6 +95,18 @@ namespace RugWash.Tests
         }
 
         RugCleaningController Pad => game.WorkSurface.Surface;
+
+        /// <summary>Dépose des débris secs (aspirables) sur le pourtour de l'aire de lavage, hors du tapis.</summary>
+        void SeedDryDebrisAroundRug()
+        {
+            var grid = Pad.Grid;
+            var debris = new DepositOperation { Type = DirtType.Dust, Debris = 0.3f };
+            grid.ApplyRect(new RectInt(0, 0, grid.Width, 6), 1f, ref debris);
+            grid.ApplyRect(new RectInt(0, grid.Height - 6, grid.Width, 6), 1f, ref debris);
+            grid.ApplyRect(new RectInt(0, 6, 6, grid.Height - 12), 1f, ref debris);
+            grid.ApplyRect(new RectInt(grid.Width - 6, 6, 6, grid.Height - 12), 1f, ref debris);
+            game.WorkSurface.RefreshStatus(force: true);
+        }
 
         /// <summary>Salit une bande de l'aire de lavage devant le tapis (côté joueur).</summary>
         void SoilFrontOfWashArea(float mud = 0.4f)
@@ -196,7 +209,7 @@ namespace RugWash.Tests
             SoilFrontOfWashArea();
             Assert.IsFalse(game.WorkSurface.Status.IsClean);
             yield return null;
-            StringAssert.Contains("Aire de lavage sale", game.Hud.WorkSurfaceAlert);
+            StringAssert.Contains($"Aire de lavage : {game.WorkSurface.Status.CleanlinessPercent} % propre", game.Hud.WorkSurfaceAlert);
 
             Assert.IsTrue(tools.SelectSlot(7));
             Assert.IsInstanceOf<BroomTool>(tools.ActiveTool);
@@ -218,23 +231,38 @@ namespace RugWash.Tests
             game.WorkSurface.RefreshStatus(force: true);
             yield return null;
             Assert.IsTrue(game.WorkSurface.Status.IsClean);
-            Assert.AreEqual(string.Empty, game.Hud.WorkSurfaceAlert);
+            Assert.AreEqual("Aire de lavage : propre", game.Hud.WorkSurfaceAlert);
+        }
+
+        /// <summary>Salit une part donnée de l'aire de lavage (rangées complètes, boue et eau sale).</summary>
+        void SoilWashAreaFraction(float fraction)
+        {
+            var grid = Pad.Grid;
+            var deposit = new DepositOperation { Type = DirtType.Mud, Mud = 0.4f, Water = 0.3f };
+            int rows = Mathf.RoundToInt(grid.Height * fraction);
+            grid.ApplyRect(new RectInt(0, 0, grid.Width, rows), 1f, ref deposit);
+            game.WorkSurface.RefreshStatus(force: true);
         }
 
         [UnityTest]
-        public IEnumerator DirtyWashArea_NeverBlocksANewOrder_ButRecontaminatesTheRugEdges()
+        public IEnumerator WashAreaAboveFortyPercentDirt_RecontaminatesTheRugEdges_WithoutBlockingTheOrder()
         {
-            SoilFrontOfWashArea();
+            // 50 % de saleté = 50 % de propreté : la commande démarre (≥ 25 %), mais le tapis se salit (> 40 % de saleté).
+            SoilWashAreaFraction(0.5f);
+            Assert.AreEqual(0.5f, game.WorkSurface.Status.SoiledFraction, 0.02f);
+            Assert.IsTrue(game.WorkSurface.AllowsNewOrder);
+            Assert.IsTrue(game.WorkSurface.ContaminatesRug);
+            game.Orders.ReturnToWorkshop();
             Assert.IsTrue(game.OrderBoard.Open());
             yield return null;
             var header = game.OrderBoard.GetComponentsInChildren<Text>(true);
             bool warned = false;
-            foreach (var text in header) warned |= text.text.Contains("Aire de lavage sale");
-            Assert.IsTrue(warned, "Le comptoir prévient que l'aire de lavage est sale.");
+            foreach (var text in header) warned |= text.text.Contains("le tapis posé dessus se salit");
+            Assert.IsTrue(warned, "Le comptoir prévient que le tapis se salira.");
 
             game.OrderBoard.Rows[0].ActionButton.onClick.Invoke();
             yield return null;
-            Assert.AreEqual(GameState.ActiveOrder, game.GameState.State, "La commande démarre malgré l'aire sale.");
+            Assert.AreEqual(GameState.ActiveOrder, game.GameState.State, "Propreté ≥ 25 % : la commande démarre.");
             Assert.Greater(game.WorkSurface.LastContamination, 0f);
             var grid = game.Rug.Grid;
             float border = grid.GetCell(1, grid.Height / 2).Loosened;
@@ -245,14 +273,23 @@ namespace RugWash.Tests
         }
 
         [UnityTest]
-        public IEnumerator CleanWashArea_DoesNotTouchTheNextRug()
+        public IEnumerator WashAreaBelowFortyPercentDirt_DoesNotTouchTheNextRug()
         {
             Assert.IsTrue(game.WorkSurface.Status.IsClean);
+            // Sale mais sous le seuil : 30 % de saleté (70 % de propreté).
+            SoilWashAreaFraction(0.3f);
+            Assert.IsFalse(game.WorkSurface.Status.IsClean);
+            Assert.IsFalse(game.WorkSurface.ContaminatesRug);
+            game.Orders.ReturnToWorkshop();
             Assert.IsTrue(game.OrderBoard.Open());
             yield return null;
             game.OrderBoard.Rows[0].ActionButton.onClick.Invoke();
             yield return null;
+            Assert.AreEqual(GameState.ActiveOrder, game.GameState.State);
             Assert.AreEqual(0f, game.WorkSurface.LastContamination);
+            float dirt = game.Rug.Grid.TotalDirt;
+            yield return new WaitForSeconds(1f);
+            Assert.AreEqual(dirt, game.Rug.Grid.TotalDirt, 1e-4f, "Aucune saleté ajoutée en continu sous le seuil.");
         }
 
         // ------------------------------------------------------------------ 2.3 Balais et brosses
@@ -314,32 +351,65 @@ namespace RugWash.Tests
         // ------------------------------------------------------------------ Traces de pas
 
         [UnityTest]
-        public IEnumerator WalkingThroughMud_LeavesFootprintsOnTheFloor()
+        public IEnumerator WalkingThroughMud_LeavesFootprintsOnTheWashArea_NeverOnTheRoomFloor()
         {
+            game.Rug.Unload();
             var deposit = new DepositOperation { Type = DirtType.Mud, Mud = 0.8f, Water = 0.5f };
             Pad.Grid.ApplyRect(new RectInt(78, 0, 13, 72), 1f, ref deposit);
-            var floor = game.Robot.Floor;
-            float floorMudBefore = SumLoosened(floor.Grid);
+            var floor = game.RoomFloor;
+            Assert.AreEqual(0f, floor.Grid.TotalDirt, "Le sol de la salle n'a plus de saleté décorative.");
             var trail = Object.FindAnyObjectByType<FootprintTrail>();
 
-            // Marche le long de la bande boueuse (semelles chargées), puis pas chassé vers le sol de l'atelier.
+            // Marche le long de la bande boueuse (semelles chargées), puis vers l'intérieur propre de l'aire.
             game.PlayerController.Teleport(new Vector3(1.95f, 0.08f, -0.7f), 0f, 20f);
             yield return new WaitForSeconds(0.2f);
             yield return Hold(Key.W, 1f);
             Assert.Greater(trail.MudLoad, 0.05f, "Les semelles se chargent de boue.");
-            yield return Hold(Key.D, 1.3f);
+            float padMud = SumLoosened(Pad.Grid);
+            int prints = trail.FootprintsLeft;
+            yield return Hold(Key.A, 1.2f);
+            Assert.Greater(trail.FootprintsLeft, prints, "Empreintes sur l'aire de lavage.");
 
+            // Puis sortie de l'aire : le sol de la salle reste intact.
+            yield return Hold(Key.D, 2.6f);
             Assert.Greater(game.PlayerController.transform.position.x, 2.6f, "Le joueur est sorti de l'aire de lavage.");
-            Assert.Greater(trail.FootprintsLeft, 0);
-            Assert.Greater(SumLoosened(floor.Grid), floorMudBefore + 0.05f, "Empreintes boueuses sur le sol de l'atelier.");
+            Assert.AreEqual(0f, floor.Grid.TotalDirt + floor.Grid.TotalMoisture + floor.Grid.TotalFoam, 1e-6f,
+                "Aucune trace ni eau hors de la zone de nettoyage.");
+            Assert.Greater(padMud, 0f);
+        }
+
+        [UnityTest]
+        public IEnumerator RoomFloor_IsOutsideTheCleaningZone_ToolsAndDepositsDoNothing()
+        {
+            var floor = game.RoomFloor;
+            Assert.IsFalse(floor.AcceptsDirt);
+            Assert.AreEqual(0f, floor.Grid.TotalDirt, "Plus de poussière décorative sur le sol.");
+            var deposit = new DepositOperation { Type = DirtType.Mud, Mud = 1f, Water = 1f, Foam = 1f, Debris = 1f };
+            Assert.AreEqual(0, floor.ApplyOperation(new Vector3(-3f, 0f, 2f), 0.5f, 2f, ref deposit), "Aucune opération sur le sol.");
+            Assert.AreEqual(0f, floor.Grid.TotalDirt + floor.Grid.TotalMoisture + floor.Grid.TotalFoam, 1e-6f);
+
+            // Rinçage dirigé vers le sol : la visée n'en fait pas une cible (seul l'effet visuel du jet existe).
+            AimAt(new Vector3(-3f, 0f, 2f), 0f, 1.5f);
+            tools.SelectSlot(4);
+            yield return new WaitForSeconds(0.2f);
+            Assert.IsTrue(tools.CurrentAim.HasHit);
+            Assert.IsNull(tools.CurrentAim.Rug, "Le sol n'est pas une cible de nettoyage.");
+            yield return Use(0.6f);
+            Assert.AreEqual(0f, floor.Grid.TotalMoisture, 1e-6f);
         }
 
         // ------------------------------------------------------------------ 2.5 Robot aspirateur
 
         [UnityTest]
-        public IEnumerator Robot_StartsFromItsDock_CleansTheFloor_AvoidsObstacles_AndReturnsWhenStopped()
+        public IEnumerator Robot_StartsFromItsDock_CleansTheWashArea_AvoidsTheRug_AndReturnsWhenStopped()
         {
             var robot = game.Robot;
+            SeedDryDebrisAroundRug();
+            float debrisBefore = Pad.Grid.TotalDirt;
+            Assert.AreEqual(Pad, robot.Floor, "Le robot travaille sur l'aire de lavage.");
+            // Le tapis posé est un obstacle de la grille d'occupation.
+            var rugCell = robot.Occupancy.WorldToCell(new Vector2(game.Rug.transform.position.x, game.Rug.transform.position.z));
+            Assert.IsTrue(robot.Occupancy.IsBlocked(rugCell), "Le tapis posé est un obstacle.");
             Assert.AreEqual(RobotMode.Docked, robot.Mode);
             Assert.IsTrue(robot.IsAtDock);
             var dock = Object.FindAnyObjectByType<RobotDock>();
@@ -355,9 +425,11 @@ namespace RugWash.Tests
                 yield return null;
                 var cell = robot.Occupancy.WorldToCell(new Vector2(robot.transform.position.x, robot.transform.position.z));
                 Assert.IsFalse(robot.Occupancy.IsBlocked(cell), $"Le robot est entré dans une case bloquée : {cell}");
+                Assert.IsTrue(Pad.TryWorldToUV(robot.transform.position, out _), "Le robot reste sur l'aire de lavage.");
             }
             Assert.Greater(Vector3.Distance(start, robot.transform.position), 0.3f, "Le robot s'est éloigné de sa base.");
-            Assert.Greater(robot.TotalCleaned, 0f, "Il a réellement aspiré le sol.");
+            Assert.Greater(robot.TotalCleaned, 0f, "Il a réellement aspiré les débris de l'aire de lavage.");
+            Assert.Less(Pad.Grid.TotalDirt, debrisBefore);
 
             StringAssert.Contains("arrêté", robot.Toggle());
             Assert.AreEqual(RobotMode.Returning, robot.Mode);
@@ -371,6 +443,7 @@ namespace RugWash.Tests
         public IEnumerator Robot_StopsForThePlayer_ThenCarriesOn()
         {
             var robot = game.Robot;
+            SeedDryDebrisAroundRug();
             robot.Toggle();
             // Attend un trajet en ligne droite d'au moins 0,8 m, robot déjà orienté vers son prochain point.
             Vector2 heading = default;
@@ -405,6 +478,7 @@ namespace RugWash.Tests
         public IEnumerator Robot_LowBattery_ReturnsToCharge_ThenRestartsByItself()
         {
             var robot = game.Robot;
+            SeedDryDebrisAroundRug();
             robot.Toggle();
             yield return new WaitForSeconds(1.5f);
             robot.Brain.Restore((int)RobotMode.Cleaning, 0.201f, false);
@@ -426,6 +500,7 @@ namespace RugWash.Tests
         public IEnumerator RobotAndWashArea_AreSavedAndRestored()
         {
             var robot = game.Robot;
+            SeedDryDebrisAroundRug();
             robot.Toggle();
             yield return new WaitForSeconds(4f);
             SoilFrontOfWashArea();
@@ -503,15 +578,17 @@ namespace RugWash.Tests
 
             // Robot : sur sa base, puis en nettoyage (trace propre dans la poussière).
             var robot = game.Robot;
+            SeedDryDebrisAroundRug();
             tools.SelectSlot(2);
-            game.PlayerController.Teleport(new Vector3(1.6f, 0.06f, -3.5f), 210f, 42f);
+            var dockView = robot.transform.position + new Vector3(1.2f, 0f, -1.1f);
+            game.PlayerController.Teleport(new Vector3(dockView.x, 0.06f, dockView.z), Quaternion.LookRotation(robot.transform.position - dockView).eulerAngles.y, 42f);
             yield return new WaitForSeconds(0.4f);
             yield return Capture(camera, hud, Path.Combine(folder, "35_robot_docked.png"));
             robot.Toggle();
             yield return new WaitForSeconds(20f);
             Vector3 r = robot.transform.position;
-            // Recul vers le centre de la pièce (zone dégagée), regard vers le robot.
-            Vector3 toCenter = new Vector3(-r.x, 0f, -2f - r.z).normalized;
+            // Recul vers le centre de l'aire de lavage, regard vers le robot.
+            Vector3 toCenter = new Vector3(-r.x, 0f, 0.8f - r.z).normalized;
             Vector3 eye = r + toCenter * 1.3f;
             float yaw = Quaternion.LookRotation(-toCenter).eulerAngles.y;
             game.PlayerController.Teleport(new Vector3(eye.x, 0.06f, eye.z), yaw, 48f);

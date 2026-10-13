@@ -109,8 +109,8 @@ namespace RugWash.UI
         void Refresh()
         {
             headerLabel.text = $"Solde : {WalletManager.Format(wallet.Balance)}     Réputation : {orders.Reputation}";
-            if (workSurface != null && !workSurface.Status.IsClean)
-                headerLabel.text += $"     ⚠ Aire de lavage sale ({workSurface.Status.SoiledPercent} %) : le prochain tapis aura les bords recontaminés";
+            if (orders.BoardReputation != orders.Reputation) headerLabel.text += $"     Tableau de l'hôte (réputation {orders.BoardReputation})";
+            headerLabel.text += WorkAreaWarning();
             var list = orders.Book.Orders;
             while (rows.Count < list.Count)
             {
@@ -133,7 +133,7 @@ namespace RugWash.UI
         void FillRow(ListRowView row, OrderDefinition order)
         {
             var state = orders.Book.StateOf(order);
-            bool locked = orders.Book.IsLocked(order, orders.Reputation);
+            bool locked = orders.Book.IsLocked(order, orders.BoardReputation);
             string stars = new string('★', order.difficulty) + new string('☆', Mathf.Max(0, 4 - order.difficulty));
             string details = $"{order.clientName} · {order.rug.displayName} · {stars} · {WalletManager.Format(order.baseReward)}\n{DescribeObjectives(order)}";
 
@@ -145,12 +145,28 @@ namespace RugWash.UI
             else if (locked) { status = $"Verrouillée (réputation {order.requiredReputation})"; statusColor = Muted; background = RowLocked; }
             else
             {
-                status = "Disponible";
-                statusColor = Ok;
+                bool areaReady = orders.WorkAreaAllowsNewOrder;
+                status = areaReady ? "Disponible" : "Aire de lavage à nettoyer";
+                statusColor = areaReady ? Ok : Warn;
                 action = "Accepter";
+                // Le bouton reste cliquable si seule l'aire bloque : le refus explique alors la raison.
                 interactable = orders.ActiveOrder == null;
             }
             row.Set(order.title, details, status, statusColor, action, interactable, background);
+        }
+
+        /// <summary>État de l'aire de lavage, avec la raison d'un refus (propreté sous le seuil) ou d'une recontamination.</summary>
+        string WorkAreaWarning()
+        {
+            if (workSurface == null || workSurface.Surface == null || workSurface.Surface.Grid == null) return string.Empty;
+            var status = workSurface.Status;
+            if (!workSurface.AllowsNewOrder)
+                return $"\n⚠ Aire de lavage trop sale : {status.CleanlinessPercent} % propre, {workSurface.MinCleanlinessPercent} % requis " +
+                       "— nettoyez-la (lance, balai) avant d'accepter une commande";
+            if (workSurface.ContaminatesRug)
+                return $"\n⚠ Aire de lavage sale ({status.CleanlinessPercent} % propre) : au-delà de {workSurface.DirtyThresholdPercent} % de saleté, " +
+                       "le tapis posé dessus se salit";
+            return status.IsClean ? string.Empty : $"\nAire de lavage : {status.CleanlinessPercent} % propre";
         }
 
         static string DescribeObjectives(OrderDefinition order)

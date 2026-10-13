@@ -11,15 +11,17 @@ namespace RugWash.Orders
 {
     /// <summary>
     /// Cycle d'une commande : acceptation → nettoyage (état ActiveOrder, chronomètre) → livraison
-    /// (évaluation centralisée, paiement unique, réputation) → résultats → retour à l'atelier.
+    /// (évaluation centralisée, paiement unique, réputation) → résultats → retour à l'atelier, sans tapis posé
+    /// (il n'y a plus de tapis d'entraînement : un tapis n'apparaît qu'avec une commande). Une nouvelle commande ne démarre
+    /// que si l'aire de lavage atteint la propreté minimale.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class OrderManager : MonoBehaviour
     {
         [SerializeField] List<OrderDefinition> orders = new List<OrderDefinition>();
-        [Tooltip("Tapis d'entraînement présenté hors commande.")]
-        [SerializeField] RugDefinition practiceRug;
         [SerializeField] RugCleaningController rug;
+        [Tooltip("Aire de lavage : propreté minimale exigée avant une nouvelle commande (optionnel : sans elle, aucune condition).")]
+        [SerializeField] WorkSurface workSurface;
         [SerializeField] RugSnapshotService snapshots;
         [SerializeField] GameStateManager gameState;
         [SerializeField] WalletManager wallet;
@@ -50,10 +52,12 @@ namespace RugWash.Orders
         public bool ObjectiveNotified => objectiveNotified;
         public event Action Changed;
 
+        /// <summary>Aire de lavage utilisée pour la condition de démarrage (peut être nulle).</summary>
+        public WorkSurface WorkSurface => workSurface;
+
         public bool IsConfigured(out string missing)
         {
             missing = orders.Count == 0 || orders.Contains(null) ? nameof(orders)
-                : practiceRug == null ? nameof(practiceRug)
                 : rug == null ? nameof(rug)
                 : snapshots == null ? nameof(snapshots)
                 : gameState == null ? nameof(gameState)
@@ -63,6 +67,27 @@ namespace RugWash.Orders
         }
 
         void Awake() => Book = new OrderBook(orders);
+
+        void OnEnable()
+        {
+            if (rug != null) rug.Finished += OnRugFinished;
+        }
+
+        void OnDisable()
+        {
+            if (rug != null) rug.Finished -= OnRugFinished;
+        }
+
+        /// <summary>Tapis terminé (moins de 1 % de saleté) : l'objectif de propreté est forcément atteint.</summary>
+        void OnRugFinished(RugCleaningController finished)
+        {
+            if (ActiveOrder == null || objectiveNotified) return;
+            objectiveNotified = true;
+            ObjectiveReached?.Invoke(ActiveOrder);
+        }
+
+        /// <summary>Vrai si l'aire de lavage permet d'accepter une commande (toujours vrai sans aire configurée).</summary>
+        public bool WorkAreaAllowsNewOrder => workSurface == null || workSurface.AllowsNewOrder;
 
         void Update()
         {
@@ -79,12 +104,15 @@ namespace RugWash.Orders
         {
             if (Remote != null)
             {
-                var check = Book.CanStart(order, reputation.Points);
+                var check = Book.CanStart(order, BoardReputation);
+                if (check == OrderStartResult.Started && !WorkAreaAllowsNewOrder) check = OrderStartResult.WorkAreaTooDirty;
                 if (check != OrderStartResult.Started) return check;
                 Remote.RequestStartOrder(order.id);
                 return OrderStartResult.Requested;
             }
-            var result = Book.Start(order, reputation.Points);
+            var allowed = Book.CanStart(order, BoardReputation);
+            if (allowed == OrderStartResult.Started && !WorkAreaAllowsNewOrder) return OrderStartResult.WorkAreaTooDirty;
+            var result = Book.Start(order, BoardReputation);
             if (result != OrderStartResult.Started) return result;
 
             ElapsedSeconds = 0f;
@@ -152,7 +180,7 @@ namespace RugWash.Orders
             return true;
         }
 
-        /// <summary>Retour à l'atelier libre avec le tapis d'entraînement.</summary>
+        /// <summary>Retour à l'atelier libre : le tapis livré ou abandonné est retiré (aucun tapis hors commande).</summary>
         public void ReturnToWorkshop()
         {
             if (IsReplica)
@@ -162,8 +190,23 @@ namespace RugWash.Orders
                 Changed?.Invoke();
                 return;
             }
-            rug.LoadRug(practiceRug);
+            rug.Unload();
             gameState.SetState(GameState.Workshop);
+            Changed?.Invoke();
+        }
+
+        /// <summary>
+        /// Réputation qui déverrouille les commandes du tableau. Solo et hôte : celle du joueur. Invité : celle de l'hôte,
+        /// propriétaire du tableau de la session (fournie par la réplication), sans toucher à la réputation personnelle.
+        /// </summary>
+        public int BoardReputation => boardReputationOverride >= 0 ? boardReputationOverride : reputation.Points;
+
+        int boardReputationOverride = -1;
+
+        /// <summary>Invité : réputation de l'hôte pour le tableau de la session (-1 = celle du joueur).</summary>
+        public void SetBoardReputation(int points)
+        {
+            boardReputationOverride = points;
             Changed?.Invoke();
         }
 
@@ -228,6 +271,7 @@ namespace RugWash.Orders
                 case OrderStartResult.AnotherOrderActive: return "Terminez d'abord la commande en cours";
                 case OrderStartResult.NotAvailable: return "Commande déjà terminée";
                 case OrderStartResult.ReputationTooLow: return "Réputation insuffisante";
+                case OrderStartResult.WorkAreaTooDirty: return "Aire de lavage trop sale : nettoyez-la avant d'accepter une commande";
                 default: return "Commande inconnue";
             }
         }

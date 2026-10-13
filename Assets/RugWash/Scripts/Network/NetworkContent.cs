@@ -11,7 +11,7 @@ namespace RugWash.Network
         [Tooltip("Silhouette d'un joueur vue par les autres (position, outil, effets).")]
         public GameObject avatarPrefab;
         [Tooltip("Version du protocole : un joueur d'une autre version est refusé avec un message clair.")]
-        public string protocolVersion = "rugwash-coop-1";
+        public string protocolVersion = "rugwash-coop-2";
         [Range(2, 4)] public int maxPlayers = 4;
         [Tooltip("Port de la connexion directe (réseau local).")]
         public ushort defaultPort = 7777;

@@ -10,6 +10,8 @@ namespace RugWash.Network
     {
         public const byte Delta = 1;
         public const byte Snapshot = 2;
+        /// <summary>Surface retirée (aucun tapis posé) : l'invité retire aussi la sienne.</summary>
+        public const byte Empty = 3;
     }
 
     /// <summary>Identité d'une surface chargée : définition et éventuelle commande (saleté de la commande).</summary>
@@ -55,13 +57,18 @@ namespace RugWash.Network
             var entry = new Entry { Id = id, Surface = surface };
             entry.OnLoaded = _ => { entry.Epoch = (entry.Epoch + 1) & 0xFFFF; entry.NeedsSnapshot = true; };
             surface.RugLoaded += entry.OnLoaded;
+            surface.RugUnloaded += entry.OnLoaded;
             entries.Add(entry);
         }
 
         public void Unregister()
         {
             foreach (var entry in entries)
-                if (entry.Surface != null) entry.Surface.RugLoaded -= entry.OnLoaded;
+                if (entry.Surface != null)
+                {
+                    entry.Surface.RugLoaded -= entry.OnLoaded;
+                    entry.Surface.RugUnloaded -= entry.OnLoaded;
+                }
             entries.Clear();
         }
 
@@ -115,7 +122,13 @@ namespace RugWash.Network
         public bool TryWriteUpdate(int index, ByteWriter writer)
         {
             var entry = entries[index];
-            if (entry.Surface.Grid == null) return false;
+            if (entry.Surface.Grid == null)
+            {
+                if (!entry.NeedsSnapshot) return false;
+                entry.NeedsSnapshot = false;
+                WriteSnapshot(entry, writer);
+                return true;
+            }
             if (entry.NeedsSnapshot)
             {
                 entry.NeedsSnapshot = false;
@@ -140,6 +153,14 @@ namespace RugWash.Network
         void WriteSnapshot(Entry entry, ByteWriter writer)
         {
             var grid = entry.Surface.Grid;
+            if (grid == null)
+            {
+                writer.Byte(SurfaceMessage.Empty);
+                writer.Byte(entry.Id);
+                writer.UShort(entry.Epoch);
+                Acks.Write(writer);
+                return;
+            }
             var identity = identify != null ? identify(entry.Id) : default;
             writer.Byte(SurfaceMessage.Snapshot);
             writer.Byte(entry.Id);
@@ -258,6 +279,16 @@ namespace RugWash.Network
                     var rect = SurfaceCellCodec.Read(ref reader, entry.Surface.Grid);
                     entry.Surface.Grid.SetInitialDirt(initialDirt);
                     Predictor.Replay(entry.Id, entry.Surface, rect);
+                }
+                else if (kind == SurfaceMessage.Empty)
+                {
+                    if (epoch != entry.Epoch)
+                    {
+                        if (loadSurface != null && !loadSurface(entry.Id, new SurfaceIdentity(string.Empty, string.Empty))) return Reject();
+                        Predictor.Clear(entry.Id);
+                        entry.Epoch = epoch;
+                    }
+                    Predictor.Acknowledge(ack);
                 }
                 else if (kind == SurfaceMessage.Delta)
                 {

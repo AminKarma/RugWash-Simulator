@@ -15,6 +15,9 @@ namespace RugWash.Save
         [SerializeField] RugCleaningController floor;
         [SerializeField] RobotVacuum robot;
 
+        /// <summary>Sol de la salle (hors zone de nettoyage).</summary>
+        public RugCleaningController RoomFloor => floor;
+
         public bool IsConfigured(out string missing)
         {
             missing = workSurface == null ? nameof(workSurface) : floor == null ? nameof(floor) : robot == null ? nameof(robot) : null;
@@ -25,7 +28,8 @@ namespace RugWash.Save
         {
             if (data == null) return;
             if (workSurface != null && workSurface.Grid != null) data.workSurface = SurfaceStateCodec.Encode(workSurface.Grid);
-            if (floor != null && floor.Grid != null) data.floor = SurfaceStateCodec.Encode(floor.Grid);
+            // Sol hors zone de nettoyage : rien à conserver (il ne se salit plus).
+            data.floor = floor != null && floor.Grid != null && floor.AcceptsDirt ? SurfaceStateCodec.Encode(floor.Grid) : string.Empty;
             if (robot == null) return;
             var state = robot.CaptureState();
             data.hasRobot = true;
@@ -44,7 +48,10 @@ namespace RugWash.Save
             if (workSurface != null && workSurface.Grid != null && !string.IsNullOrEmpty(data.workSurface)
                 && !SurfaceStateCodec.TryDecode(data.workSurface, workSurface.Grid))
                 Debug.LogWarning("[RugWash] État du plan de travail illisible : plan de travail propre.");
-            if (floor != null && floor.Grid != null && !string.IsNullOrEmpty(data.floor) && !SurfaceStateCodec.TryDecode(data.floor, floor.Grid))
+            // Ancienne sauvegarde (v0.1.1) : le sol de la salle pouvait être sale ; il est hors zone de nettoyage désormais,
+            // son état sauvegardé est ignoré (sol propre).
+            if (floor != null && floor.Grid != null && floor.AcceptsDirt && !string.IsNullOrEmpty(data.floor)
+                && !SurfaceStateCodec.TryDecode(data.floor, floor.Grid))
                 Debug.LogWarning("[RugWash] État du sol illisible : sol dans son état initial.");
             if (robot != null && data.hasRobot)
                 robot.ApplyState(new RobotState

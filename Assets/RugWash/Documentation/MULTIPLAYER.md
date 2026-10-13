@@ -1,4 +1,4 @@
-# Multijoueur coopératif — RugWash Simulator (jalon 5)
+# Multijoueur coopératif — RugWash Simulator (jalon 5 V2, mis à jour en v0.1.2)
 
 Ce document décrit les choix techniques, l'architecture, la configuration Steam, la procédure de test et les limites du
 mode coopératif. **Ce qui a été réellement testé et ce qui reste à vérifier** est détaillé à la fin (et dans `VALIDATION.md`).
@@ -21,11 +21,19 @@ des opérations et reçoivent l'état. Les effets visuels et sonores sont produi
 |---|---|---|
 | Tapis, aire de lavage, sol (grilles de nettoyage) | Grilles de référence ; applique ses opérations et celles des invités ; diffuse les cellules modifiées (15/s) et un instantané après chaque chargement de tapis | Répliques : ses outils envoient chaque opération (outil, zone, paramètres) à l'hôte **et** l'appliquent tout de suite (prédiction) ; les cellules reçues remplacent les valeurs locales, puis les opérations pas encore confirmées sont rejouées sur cette zone |
 | Simulation lente (mousse qui retombe, séchage), ruissellement vers l'aire de lavage, recontamination | Oui | Non (arrive avec les cellules) |
-| Commandes (accepter, livrer, abandonner), évaluation, paiement | Oui, une seule fois par commande | Demande à l'hôte ; reçoit l'état et les mesures de livraison de l'hôte pour afficher le même résultat |
-| Argent, réputation, améliorations, produits | Atelier de l'hôte (**partagé**) | Copie en lecture ; achats demandés à l'hôte |
-| Robot aspirateur | Simulé chez l'hôte | Suit la position et l'état reçus ; E envoie la demande |
+| Commandes (accepter, livrer, abandonner), évaluation | Oui, une seule fois par commande (tableau de l'hôte, déverrouillé par sa réputation) | Demande à l'hôte ; reçoit l'état et les mesures de livraison de l'hôte pour afficher le même résultat |
+| Carrière (argent, réputation, améliorations, produits) — **personnelle** (v0.1.2) | Sa propre carrière ; tient aussi la carrière de chaque invité : bornée à l'arrivée, puis achats, consommations et récompenses appliqués par lui seul | Annonce à l'arrivée la carrière de SA sauvegarde ; achats demandés à l'hôte ; reçoit sa carrière validée et la sauvegarde chez lui |
+| Livraison payée | Récompense et réputation complètes pour **chaque joueur présent**, chacun dans sa carrière | Reçoit sa récompense (aucun paiement local) |
+| Robot aspirateur (limité à l'aire de lavage) | Simulé chez l'hôte | Suit la position et l'état reçus ; E envoie la demande |
 | Joueurs | Fait apparaître une silhouette par joueur | Chaque joueur garde sa caméra, ses entrées, ses réservoirs (eau, détergent, cuve) |
-| Sauvegarde | Sauvegarde son atelier comme en solo | **Ne sauvegarde jamais la progression** pendant une partie en ligne (seulement ses paramètres) |
+| Arrivée | Envoie les instantanés des surfaces et la carrière validée | « Synchronisation » (contrôles coupés, HUD en chargement, aucune valeur provisoire) jusqu'à réception de tout |
+| Sauvegarde | Son atelier et sa carrière | **Sa carrière seulement** (argent, réputation, achats, produits, RugDex, commandes livrées) ; l'atelier de l'hôte n'est jamais écrit chez lui |
+
+**Silhouettes (v0.1.2)** : chaque silhouette porte le **même modèle détaillé** que la vue à la première personne, au même
+décalage devant ses yeux. Le point visé est retrouvé localement par le même rayon (position, lacet, tangage déjà
+transmis) et l'outil y est posé avec la même règle que chez soi (`ToolPose` : manche télescopique des outils de contact,
+orientation des buses). Le jet, la brume ou la mousse partent de la bouche de cet outil ; les bras (deux segments) se
+referment sur la poignée, les jambes suivent la vitesse. Aucune donnée réseau supplémentaire.
 
 **Pourquoi des opérations et pas des positions de souris** : une opération est exactement ce que l'outil applique
 (disque ou éventail, puissance, durée, produit) ; l'hôte l'applique sur sa grille avec la même règle que le solo. Les
@@ -66,10 +74,14 @@ au-delà de quelques centaines d'octets) ; jamais les particules ni les sons. Me
 2. Les autres saisissent l'adresse IPv4 de l'hôte (ex. `192.168.1.20:7777`) et cliquent **Rejoindre**.
 3. Port UDP 7777 (modifiable dans `NetworkContent`) : à autoriser dans le pare-feu de l'hôte. Pas d'invitation ni de recherche.
 
-**Steam (Internet)** — Steam lancé et connecté sur chaque PC :
+**Steam (Internet)** — Steam lancé et connecté sur chaque PC **avant** de lancer le jeu. Steam est initialisé dès le menu
+principal (invitations reçues sans ouvrir la fenêtre Multijoueur) :
 1. **Créer une partie (amis)** ou **(publique)** : un salon Steam est créé (4 places).
-2. **Inviter des amis** ouvre la fenêtre d'invitation de Steam. Un ami peut aussi **Rechercher des parties**, ou accepter
-   l'invitation depuis Steam (jeu lancé ou non : Steam lance le jeu avec `+connect_lobby`).
+2. **Inviter des amis** ouvre la fenêtre d'invitation de Steam. Un ami peut aussi **Rechercher des parties** (salons
+   publics uniquement), ou accepter l'invitation depuis Steam. Jeu ouvert : depuis le menu ou en pleine partie solo (la
+   partie solo est sauvegardée, la commande en cours abandonnée, puis le salon est rejoint depuis le menu). Jeu fermé :
+   Steam lance le jeu avec `+connect_lobby` — **avec l'App ID de test 480, Steam lance « Spacewar » et non RugWash** :
+   pour les tests, accepter l'invitation avec le jeu déjà ouvert.
 3. Les membres apparaissent « dans le salon » ; l'hôte clique **Lancer la partie** : la partie démarre, chaque membre se
    connecte au jeu (transport Steam) et entre dans l'atelier. Les retardataires rejoignent en cours de partie.
 
@@ -104,6 +116,9 @@ partie »). Après une perte de connexion, le menu affiche la raison et propose 
 - Connexion directe testée **entre deux processus sur la même machine** (127.0.0.1), pas entre deux machines.
 - Pas de migration d'hôte : si l'hôte quitte, la partie s'arrête pour tous (la progression de l'hôte est sauvegardée).
 - Reconnexion manuelle (bouton), pas automatique.
-- Silhouettes simples, sans animation de marche ; pas de collision entre joueurs.
-- Les découvertes du RugDex et les achats faits en tant qu'invité ne sont pas conservés chez l'invité (progression de l'hôte).
+- Silhouettes procédurales (placeholders : tenue de travail, gants, casquette), animation de marche simple ; pas de
+  collision entre joueurs.
+- Pas de serveur dédié : la carrière qu'un invité annonce à son arrivée provient de sa sauvegarde locale (bornée et
+  filtrée par l'hôte) ; pendant la partie, seul l'hôte la modifie.
+- Le tableau des commandes d'une session est celui de l'hôte (les commandes terminées de l'invité ne le modifient pas).
 - 4 joueurs au maximum ; version de protocole identique requise (message clair sinon).

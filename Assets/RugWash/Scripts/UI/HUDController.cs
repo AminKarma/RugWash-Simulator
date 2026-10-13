@@ -65,6 +65,7 @@ namespace RugWash.UI
 
         float nextRefresh;
         float toastUntil;
+        string loadingMessage;
         int lastCleanPercent = -1;
         string lastPrompt, lastStatus, lastBlock;
         CleaningToolBase lastTool;
@@ -130,6 +131,7 @@ namespace RugWash.UI
             scanner.Scanned += OnScanned;
             scanner.Denied += OnScanDenied;
             progress.MilestoneReached += OnMilestone;
+            progress.RugFinished += OnRugFinished;
         }
 
         void OnScanned(DirtScanResult result) => ShowToast(DirtScan.Describe(result));
@@ -137,7 +139,10 @@ namespace RugWash.UI
         void OnLockedToolRequested(CleaningToolBase tool) =>
             ShowToast($"{tool.Definition.displayName} : à acheter au meuble « Matériel & boutique »");
 
-        /// <summary>État du plan de travail de l'aire de lavage (ligne d'alerte quand il est sale).</summary>
+        /// <summary>
+        /// Indicateur permanent de l'aire de lavage (zone de nettoyage) : propreté, recontamination du tapis au-delà du seuil
+        /// de saleté, et blocage des nouvelles commandes sous la propreté minimale.
+        /// </summary>
         public void BindWorkSurface(WorkSurface surface)
         {
             workSurface = surface;
@@ -148,14 +153,34 @@ namespace RugWash.UI
 
         void OnWorkSurfaceChanged(WorkSurfaceStatus status)
         {
-            workSurfaceLabel.text = status.IsClean ? string.Empty
-                : $"Aire de lavage sale ({status.SoiledPercent} %) — rincez (4) puis balayez vers le caniveau (7)";
+            workSurfaceLabel.text = DescribeWorkSurface(status);
             if (status.IsClean && !workSurfaceWasClean) ShowToast("Aire de lavage propre");
             workSurfaceWasClean = status.IsClean;
         }
 
+        string DescribeWorkSurface(in WorkSurfaceStatus status)
+        {
+            if (loadingMessage != null || workSurface == null || workSurface.Surface == null || workSurface.Surface.Grid == null) return string.Empty;
+            if (status.IsClean) return "Aire de lavage : propre";
+            const string how = "rincez (outil 4) puis balayez vers le caniveau (outil 7)";
+            if (!workSurface.AllowsNewOrder)
+                return $"Aire de lavage trop sale : {status.CleanlinessPercent} % propre ({workSurface.MinCleanlinessPercent} % requis " +
+                       $"pour une nouvelle commande) — {how}";
+            if (workSurface.ContaminatesRug)
+                return $"Aire de lavage sale : {status.CleanlinessPercent} % propre — le tapis posé dessus se salit ! {how}";
+            return $"Aire de lavage : {status.CleanlinessPercent} % propre — {how}";
+        }
+
         void OnContaminated(float amount) =>
             ShowToast("Tapis posé sur une aire de lavage sale : ses bords sont recontaminés");
+
+        void OnRugFinished()
+        {
+            pulse = 1f;
+            gainFlash = 1f;
+            string deliver = input != null ? input.Label("Interact") : "E";
+            ShowToast($"Tapis terminé : plus aucune saleté ! Séchez-le si besoin puis livrez-le au comptoir ({deliver})");
+        }
 
         /// <summary>Produits spécialisés : message au changement de produit et à l'épuisement.</summary>
         public void BindProducts(ProductStockBook book)
@@ -195,7 +220,24 @@ namespace RugWash.UI
         }
 
         /// <summary>Texte de l'alerte du plan de travail (vide s'il est propre).</summary>
+        /// <summary>
+        /// Multijoueur (invité) : message affiché tant que l'état de l'hôte n'est pas reçu ; null quand tout est prêt. Pendant
+        /// le chargement, aucune valeur provisoire (propreté, aire de lavage) n'est affichée.
+        /// </summary>
+        public void SetLoading(string message)
+        {
+            loadingMessage = string.IsNullOrEmpty(message) ? null : message;
+            RefreshVisibility();
+            if (workSurface != null) workSurfaceLabel.text = DescribeWorkSurface(workSurface.Status);
+            lastCleanPercent = int.MinValue;
+            if (tools != null) RefreshAll(force: true);
+        }
+
+        public bool IsLoading => loadingMessage != null;
         public string WorkSurfaceAlert => workSurfaceLabel.text;
+        public string EconomyText => economyLabel.text;
+        public string CleanlinessText => cleanlinessLabel.text;
+        public string ToastText => toastLabel.text;
         public string PlayersText => playersLabel != null ? playersLabel.text : string.Empty;
         public string HintText => hintLabel.text;
         public string PromptText => promptLabel.text;
@@ -233,9 +275,11 @@ namespace RugWash.UI
             economyLabel.text = $"{WalletManager.Format(wallet.Balance)}\nRéputation {reputation.Points}";
             var order = orders.ActiveOrder;
             string interact = input != null ? input.Label("Interact") : "E";
+            bool finished = rug != null && rug.IsFinished;
             orderLabel.text = order == null
                 ? $"Aucune commande — comptoir de réception ({interact})"
-                : $"{order.title} · objectif {order.objectives.targetCleanliness * 100f:0} % · {OrderEvaluator.FormatTime(orders.ElapsedSeconds)}\n" +
+                : $"{order.title} · " + (finished ? "tapis terminé" : $"objectif {order.objectives.targetCleanliness * 100f:0} %") +
+                  $" · {OrderEvaluator.FormatTime(orders.ElapsedSeconds)}\n" +
                   $"Livrer au comptoir de réception ({interact})";
         }
 
@@ -261,7 +305,11 @@ namespace RugWash.UI
                 scanner.Scanned -= OnScanned;
                 scanner.Denied -= OnScanDenied;
             }
-            if (progress != null) progress.MilestoneReached -= OnMilestone;
+            if (progress != null)
+            {
+                progress.MilestoneReached -= OnMilestone;
+                progress.RugFinished -= OnRugFinished;
+            }
             if (gameState != null)
             {
                 gameState.StateChanged -= OnStateChanged;
@@ -280,7 +328,7 @@ namespace RugWash.UI
         void RefreshVisibility()
         {
             if (gameState == null) return;
-            root.alpha = gameState.IsGameplayActive ? 1f : 0.35f;
+            root.alpha = gameState.IsGameplayActive || loadingMessage != null ? 1f : 0.35f;
         }
 
         void Update()
@@ -361,12 +409,16 @@ namespace RugWash.UI
             CheckFiberWear();
             var tool = tools.ActiveTool;
 
-            int percent = Mathf.FloorToInt((rug != null ? rug.Cleanliness01 : 0f) * 100f);
+            bool hasRug = rug != null && rug.IsLoaded;
+            int percent = loadingMessage != null ? -2 : hasRug ? Mathf.FloorToInt(rug.Cleanliness01 * 100f) : -1;
             if (force || percent != lastCleanPercent)
             {
                 lastCleanPercent = percent;
-                cleanlinessLabel.text = $"Propreté du tapis : {percent} %";
+                cleanlinessLabel.text = loadingMessage != null ? "Synchronisation avec l'hôte…"
+                    : !hasRug ? "Aucun tapis — acceptez une commande au comptoir"
+                    : rug.IsFinished ? "Propreté du tapis : 100 % — terminé" : $"Propreté du tapis : {percent} %";
             }
+
 
             if (force || tool != lastTool)
             {
@@ -406,6 +458,7 @@ namespace RugWash.UI
 
         string BuildPrompt(CleaningToolBase tool)
         {
+            if (loadingMessage != null) return loadingMessage;
             if (interactor.Current != null)
                 return $"[{input.GetBindingLabel("Interact")}] {interactor.Current.GetPrompt(interactor)}";
             string block = tool?.GetBlockReason();

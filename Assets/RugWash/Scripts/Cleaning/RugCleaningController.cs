@@ -61,12 +61,28 @@ namespace RugWash.Cleaning
         [SerializeField] CleaningTuning tuning;
         [Tooltip("Produits spécialisés reconnus dans la mousse (optionnel).")]
         [SerializeField] ProductLibrary productLibrary;
+        [Tooltip("Charge la définition au démarrage (aire de lavage, sol). Faux pour le tapis des commandes : " +
+                 "il n'apparaît qu'avec une commande (aucun tapis d'entraînement).")]
+        [SerializeField] bool loadOnAwake = true;
 
         Mesh generatedMesh;
         float agingTimer;
 
         public RugCleaningGrid Grid { get; private set; }
-        public RugDefinition Definition => definition;
+        /// <summary>Définition du tapis chargé ; null si aucun tapis n'est posé.</summary>
+        public RugDefinition Definition => Grid != null ? definition : null;
+        /// <summary>Un tapis (ou une surface) est chargé.</summary>
+        public bool IsLoaded => Grid != null;
+        /// <summary>
+        /// Vrai : surface de la zone de nettoyage (tapis, aire de lavage). Faux : surface décorative (sol de la salle) qui
+        /// n'accumule rien et n'est ni visée par les outils ni marquée par les pas.
+        /// </summary>
+        public bool AcceptsDirt => definition == null || definition.accumulatesDirt;
+        /// <summary>
+        /// Tapis terminé : il restait moins de <see cref="CleaningTuning.rugFinishedRemaining"/> de la saleté initiale ; le
+        /// reliquat a été retiré (propreté 100 %). Remis à zéro à chaque chargement.
+        /// </summary>
+        public bool IsFinished { get; private set; }
         public DirtTypeTable DirtTable { get; private set; }
         /// <summary>Effets des produits spécialisés (toujours présent : au minimum le détergent standard).</summary>
         public ProductTable Products { get; private set; }
@@ -75,11 +91,17 @@ namespace RugWash.Cleaning
         public float Cleanliness01 => Grid != null ? Grid.Cleanliness01 : 0f;
         public SurfaceKind Kind => definition != null ? definition.surfaceKind : SurfaceKind.Rug;
         public CleaningTuning Tuning => tuning;
-        /// <summary>Taille de la surface en mètres (X, Z locaux).</summary>
-        public Vector2 SizeMeters => definition != null ? definition.sizeMeters : Vector2.zero;
+        /// <summary>Taille de la surface en mètres (X, Z locaux) ; zéro si aucun tapis n'est posé.</summary>
+        public Vector2 SizeMeters => Definition != null ? definition.sizeMeters : Vector2.zero;
 
         /// <summary>Déclenché après chaque chargement ou réinitialisation de tapis.</summary>
         public event Action<RugCleaningController> RugLoaded;
+
+        /// <summary>Le tapis a été retiré (commande livrée ou abandonnée) : plus aucun tapis n'est posé.</summary>
+        public event Action<RugCleaningController> RugUnloaded;
+
+        /// <summary>Le tapis vient d'être terminé (moins de 1 % de saleté restante, reliquat retiré).</summary>
+        public event Action<RugCleaningController> Finished;
 
         /// <summary>Ce qu'une opération a fait ruisseler hors de la surface (eau sale, mousse, débris).</summary>
         public event Action<RugCleaningController, RunoffEvent> Runoff;
@@ -108,12 +130,19 @@ namespace RugWash.Cleaning
         void Awake()
         {
             if (tuning == null) tuning = CleaningTuning.CreateDefault();
-            if (Grid == null && definition != null) LoadRug(definition);
+            if (Grid == null && definition != null && loadOnAwake) LoadRug(definition);
+            else if (Grid == null) Hide();
         }
 
         void Update()
         {
-            if (Grid == null || Time.deltaTime <= 0f || IsReplica) return;
+            if (Grid == null || Time.deltaTime <= 0f) return;
+            if (IsReplica)
+            {
+                // Invité : le reliquat est retiré par l'hôte ; la fin est constatée à l'arrivée des cellules.
+                if (!IsFinished && Kind == SurfaceKind.Rug && Grid.InitialDirt > 1e-5f && Grid.TotalDirt <= 1e-4f) MarkFinished();
+                return;
+            }
             agingTimer += Time.deltaTime;
             if (agingTimer < tuning.agingInterval) return;
             Age(agingTimer);
@@ -164,7 +193,9 @@ namespace RugWash.Cleaning
 
             Vector2Int resolution = rug.GridResolution;
             Grid = new RugCleaningGrid(resolution.x, resolution.y, rug.sizeMeters);
-            DirtGenerator.Generate(Grid, dirtOverride ?? rug.defaultDirt, seedOverride ?? rug.dirtSeed, DirtTable);
+            // Surface décorative (sol de la salle) : jamais de saleté, même si la définition en déclare.
+            if (rug.accumulatesDirt) DirtGenerator.Generate(Grid, dirtOverride ?? rug.defaultDirt, seedOverride ?? rug.dirtSeed, DirtTable);
+            IsFinished = false;
 
             if (generatedMesh != null) UnityObjectUtility.SafeDestroy(generatedMesh);
             generatedMesh = RugMeshBuilder.Build(rug.sizeMeters, rug.thickness, rug.hasFringe);
@@ -178,12 +209,56 @@ namespace RugWash.Cleaning
             dirtRenderer.Bind(Grid, DirtTable, rug);
             FoamDwellLoosened = 0f;
             agingTimer = 0f;
+            surfaceCollider.enabled = true;
+            if (dirtRenderer.TryGetComponent(out Renderer surfaceRenderer)) surfaceRenderer.enabled = true;
             RugLoaded?.Invoke(this);
         }
 
+        /// <summary>Recharge le tapis posé (saleté par défaut). Sans tapis posé, rien ne se passe.</summary>
         public void ResetRug()
         {
-            if (definition != null) LoadRug(definition);
+            if (Grid != null && definition != null) LoadRug(definition);
+        }
+
+        /// <summary>
+        /// Retire le tapis (fin ou abandon d'une commande) : plus de grille, plus de collision, plus de rendu. Les outils
+        /// ne peuvent plus le viser ; la réplication réseau annonce une surface vide aux invités.
+        /// </summary>
+        public void Unload()
+        {
+            if (Grid == null) return;
+            Grid = null;
+            IsFinished = false;
+            FoamDwellLoosened = 0f;
+            Hide();
+            RugUnloaded?.Invoke(this);
+        }
+
+        void Hide()
+        {
+            if (surfaceCollider != null) surfaceCollider.enabled = false;
+            if (dirtRenderer != null && dirtRenderer.TryGetComponent(out Renderer surfaceRenderer)) surfaceRenderer.enabled = false;
+        }
+
+        /// <summary>
+        /// Fin du tapis (autorité : solo ou hôte) : s'il reste moins de 1 % de la saleté initiale, le reliquat (cellules
+        /// isolées, traces invisibles, arrondis) est retiré pour que la propreté atteigne exactement 100 % — le tapis ne
+        /// reste jamais bloqué à 99 %. Le résultat est diffusé aux invités avec les cellules.
+        /// </summary>
+        void CheckFinished()
+        {
+            if (IsFinished || Grid == null || Kind != SurfaceKind.Rug || IsReplica) return;
+            float threshold = tuning != null ? tuning.rugFinishedRemaining : 0.01f;
+            if (!RugFinishRules.IsFinished(Grid.TotalDirt, Grid.InitialDirt, threshold)) return;
+            var clear = new ClearDirtOperation();
+            Grid.ApplyAll(ref clear);
+            MarkFinished();
+        }
+
+        void MarkFinished()
+        {
+            IsFinished = true;
+            Finished?.Invoke(this);
         }
 
         /// <summary>Convertit un point monde en UV du dessus du tapis. Faux si le point est hors du tapis.</summary>
@@ -238,7 +313,8 @@ namespace RugWash.Cleaning
         /// </summary>
         public int ApplyLocal<T>(in SurfaceOpGeometry geometry, bool allowRunoff, ref T operation) where T : struct, ICellOperation
         {
-            if (Grid == null) return 0;
+            // Surface décorative : rien ne s'y dépose et rien n'y est nettoyé (aucune logique de salissure hors zone).
+            if (Grid == null || !AcceptsDirt) return 0;
             TryWorldToUV(geometry.Point, out Vector2 uv);
             DirtType type = DirtType.None;
             bool tracksRunoff = allowRunoff && !geometry.Runoff.IsNone && Runoff != null;
@@ -272,6 +348,7 @@ namespace RugWash.Cleaning
                 };
                 if (runoffEvent.Dirt > 0f || runoffEvent.Foam > 0f || runoffEvent.Water > 0f) Runoff(this, runoffEvent);
             }
+            if (touched > 0) CheckFinished();
             return touched;
         }
 

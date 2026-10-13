@@ -20,11 +20,12 @@ namespace RugWash.Workshop
     }
 
     /// <summary>
-    /// Robot aspirateur de l'atelier. Il aspire réellement la poussière et les traces sèches du sol (données de la surface
-    /// « sol »), choisit les zones les plus sales, s'y rend par un chemin calculé sur une grille d'occupation (murs,
-    /// meubles et objets posés au sol sont évités, la zone autorisée n'est jamais quittée), s'arrête devant le joueur,
-    /// rentre à sa base quand sa batterie faiblit ou quand on l'arrête, puis repart une fois rechargé.
-    /// Voyant : vert = nettoyage, bleu = retour, ambre = charge, blanc = prêt, rouge = bloqué.
+    /// Robot aspirateur de l'atelier. Il travaille uniquement sur la zone de nettoyage (aire de lavage, surface
+    /// <see cref="floor"/>) : il y aspire réellement la poussière, les débris et les traces sèches (pas l'eau ni les taches),
+    /// choisit les zones les plus sales, s'y rend par un chemin calculé sur une grille d'occupation qui couvre la zone et
+    /// elle seule (bordures, objets et tapis posé évités ; la grille est recalculée quand un tapis arrive ou repart),
+    /// s'arrête devant le joueur, rentre à sa base quand sa batterie faiblit ou quand on l'arrête, puis repart une fois
+    /// rechargé. Voyant : vert = nettoyage, bleu = retour, ambre = charge, blanc = prêt, rouge = bloqué.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class RobotVacuum : MonoBehaviour, IInteractable
@@ -35,7 +36,10 @@ namespace RugWash.Workshop
         enum Nav { Idle, Undocking, Following, Docking, Waiting }
 
         [Header("Références")]
+        [Tooltip("Surface de travail du robot : la zone de nettoyage (aire de lavage). Il ne la quitte jamais.")]
         [SerializeField] RugCleaningController floor;
+        [Tooltip("Tapis des commandes posé sur la zone : obstacle quand il est présent (grille recalculée à chaque pose/retrait).")]
+        [SerializeField] RugCleaningController orderRug;
         [Tooltip("Pose de la base : position de recharge, axe Z vers la pièce.")]
         [SerializeField] Transform dock;
         [Tooltip("Racine des objets de l'atelier pris en compte comme obstacles au sol (même sans collider).")]
@@ -136,6 +140,20 @@ namespace RugWash.Workshop
         {
             ledBlock = new MaterialPropertyBlock();
             brain.ModeChanged += OnModeChanged;
+            if (orderRug != null)
+            {
+                orderRug.RugLoaded += OnRugChanged;
+                orderRug.RugUnloaded += OnRugChanged;
+            }
+        }
+
+        /// <summary>Un tapis arrive ou repart : la grille d'occupation est recalculée et le trajet en cours replanifié.</summary>
+        void OnRugChanged(RugCleaningController rug)
+        {
+            if (!started) return;
+            BuildOccupancy();
+            path.Clear();
+            if (nav == Nav.Following) nav = Nav.Idle;
         }
 
         void Start()
@@ -152,7 +170,15 @@ namespace RugWash.Workshop
             else SnapToDock();
         }
 
-        void OnDestroy() => brain.ModeChanged -= OnModeChanged;
+        void OnDestroy()
+        {
+            brain.ModeChanged -= OnModeChanged;
+            if (orderRug != null)
+            {
+                orderRug.RugLoaded -= OnRugChanged;
+                orderRug.RugUnloaded -= OnRugChanged;
+            }
+        }
 
         // ------------------------------------------------------------------ Carte des obstacles
 
@@ -192,8 +218,9 @@ namespace RugWash.Workshop
         bool IsBlockedAt(Vector2 xz, float floorY)
         {
             float half = cellSize * 0.5f + radius;
-            var center = new Vector3(xz.x, floorY + 0.075f, xz.y);
-            var extents = new Vector3(half, 0.055f, half);
+            // Volume testé à partir de 5 mm au-dessus de la surface : un tapis fin (1 cm) est bien un obstacle.
+            var center = new Vector3(xz.x, floorY + 0.065f, xz.y);
+            var extents = new Vector3(half, 0.06f, half);
             int count = Physics.OverlapBoxNonAlloc(center, extents, overlapBuffer, Quaternion.identity, obstacleMask, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < count; i++)
             {
@@ -303,7 +330,7 @@ namespace RugWash.Workshop
         {
             if (!TryFindDirtySpot(out Vector2 target))
             {
-                Notify("Robot aspirateur : sol propre, retour à la base");
+                Notify("Robot aspirateur : aire de lavage propre, retour à la base");
                 brain.FinishCleaning();
                 return false;
             }
@@ -537,7 +564,10 @@ namespace RugWash.Workshop
             yaw = transform.eulerAngles.y,
         };
 
-        /// <summary>Restaure l'état sauvegardé : sur la base, ou à sa position s'il travaillait (position invalide → base).</summary>
+        /// <summary>
+        /// Restaure l'état sauvegardé : sur la base, ou à sa position s'il travaillait. Une position invalide ou hors de la zone
+        /// (ancienne sauvegarde : le robot circulait sur le sol de la salle) le ramène sur sa base.
+        /// </summary>
         public void ApplyState(RobotState state)
         {
             if (!started)

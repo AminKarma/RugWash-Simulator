@@ -4,10 +4,14 @@ using UnityEngine;
 namespace RugWash.Cleaning
 {
     /// <summary>
-    /// Plan de travail de l'aire de lavage. Ce qui ruisselle du tapis (eau sale du rinçage, mousse évacuée, débris balayés)
-    /// se dépose autour du tapis, du côté où le joueur travaille ; la surface se nettoie ensuite avec les outils habituels
-    /// (lance, balai, extracteur). Un plan de travail resté sale ne bloque jamais une commande : il recontamine la bordure
-    /// du tapis suivant, ce qui est annoncé au comptoir et dans le HUD.
+    /// Plan de travail de l'aire de lavage (seule zone de nettoyage de la salle). Ce qui ruisselle du tapis (eau sale du
+    /// rinçage, mousse évacuée, débris balayés) se dépose autour du tapis, du côté où le joueur travaille ; la surface se
+    /// nettoie ensuite avec les outils habituels (lance, balai, extracteur).
+    /// <para>Convention : saleté = part de la surface souillée ; propreté = 1 − saleté (voir <see cref="WorkSurfaceStatus"/>).
+    /// Sous <see cref="CleaningTuning.zoneMinCleanlinessToStart"/> de propreté, aucune nouvelle commande ne démarre.
+    /// Au-delà de <see cref="CleaningTuning.zoneDirtyThreshold"/> de saleté, le tapis posé dessus se salit : bordure
+    /// recontaminée à la pose, puis saleté ajoutée en continu tant que l'aire reste trop sale (sans dépasser la saleté
+    /// d'origine de la bordure, et jamais sur un tapis terminé).</para>
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class WorkSurface : MonoBehaviour
@@ -25,6 +29,7 @@ namespace RugWash.Cleaning
         float flushTimer, statusTimer;
         int depositCount;
         int lastVersion = -1;
+        readonly RectInt[] bands = new RectInt[4];
 
         public RugCleaningController Surface => surface;
         public WorkSurfaceStatus Status { get; private set; }
@@ -35,6 +40,22 @@ namespace RugWash.Cleaning
         public event Action<WorkSurfaceStatus> StatusChanged;
         /// <summary>Un tapis vient d'être posé sur un plan de travail sale (quantité par cellule de bordure).</summary>
         public event Action<float> Contaminated;
+
+        /// <summary>Saleté ajoutée en continu à la bordure du tapis depuis son chargement (aire trop sale).</summary>
+        public float ContinuousContamination { get; private set; }
+
+        float MinCleanlinessToStart => surface != null && surface.Tuning != null ? surface.Tuning.zoneMinCleanlinessToStart : 0.25f;
+        float DirtyThreshold => surface != null && surface.Tuning != null ? surface.Tuning.zoneDirtyThreshold : 0.4f;
+
+        /// <summary>
+        /// Une nouvelle commande peut démarrer (propreté ≥ seuil). Sans grille (scène incomplète, état illisible), la réponse
+        /// est oui : une donnée ancienne ou invalide ne bloque jamais le joueur.
+        /// </summary>
+        public bool AllowsNewOrder => surface == null || surface.Grid == null || WorkSurfaceRules.AllowsNewOrder(Status, MinCleanlinessToStart);
+        /// <summary>Le tapis posé sur l'aire se salit (saleté au-delà du seuil).</summary>
+        public bool ContaminatesRug => surface != null && surface.Grid != null && WorkSurfaceRules.ContaminatesRug(Status, DirtyThreshold);
+        public int MinCleanlinessPercent => Mathf.RoundToInt(MinCleanlinessToStart * 100f);
+        public int DirtyThresholdPercent => Mathf.RoundToInt(DirtyThreshold * 100f);
 
         public bool IsConfigured(out string missing)
         {
@@ -86,9 +107,30 @@ namespace RugWash.Cleaning
             statusTimer += Time.unscaledDeltaTime;
             if (statusTimer >= statusInterval)
             {
+                float elapsed = statusTimer;
                 statusTimer = 0f;
                 RefreshStatus(force: false);
+                ContaminateResidentRug(elapsed);
             }
+        }
+
+        /// <summary>
+        /// Aire trop sale : la bordure du tapis posé dessus reprend de la boue, proportionnellement à l'excès de saleté.
+        /// Hôte ou solo uniquement (les invités reçoivent les cellules). Rien sur un tapis terminé.
+        /// </summary>
+        public void ContaminateResidentRug(float seconds)
+        {
+            if (orderRug == null || orderRug.Grid == null || orderRug.IsReplica || orderRug.IsFinished || seconds <= 0f) return;
+            var tuning = surface.Tuning;
+            float perSecond = tuning != null ? tuning.zoneContaminationPerSecond : 0.015f;
+            float rate = WorkSurfaceRules.ContaminationRate(Status, DirtyThreshold, perSecond);
+            if (rate <= 0f) return;
+            var grid = orderRug.Grid;
+            WorkSurfaceRules.BorderBands(grid.Width, grid.Height, bands);
+            float before = grid.TotalDirt;
+            var mud = new BorderContaminationOperation { Amount = rate * seconds, Cap = WorkSurfaceRules.MaxContamination };
+            for (int i = 0; i < bands.Length; i++) grid.ApplyRect(bands[i], 1f, ref mud);
+            ContinuousContamination += Mathf.Max(0f, grid.TotalDirt - before);
         }
 
         /// <summary>Dépose immédiatement le ruissellement en attente (utilisé aussi par les tests).</summary>
@@ -133,20 +175,18 @@ namespace RugWash.Cleaning
         void OnRugLoaded(RugCleaningController rug)
         {
             LastContamination = 0f;
+            ContinuousContamination = 0f;
             if (surface == null || surface.Grid == null || rug.Grid == null) return;
             // Invité : la bordure souillée arrive avec les cellules de l'hôte.
             if (rug.IsReplica) return;
             RefreshStatus(force: true);
-            float amount = WorkSurfaceRules.ContaminationAmount(Status);
+            float amount = WorkSurfaceRules.ContaminationAmount(Status, DirtyThreshold);
             if (amount <= 0f) return;
 
             var grid = rug.Grid;
-            int band = Mathf.Max(1, Mathf.RoundToInt(Mathf.Min(grid.Width, grid.Height) * WorkSurfaceRules.ContaminationBand));
+            WorkSurfaceRules.BorderBands(grid.Width, grid.Height, bands);
             var mud = new DepositOperation { Type = DirtType.Soil, Mud = amount };
-            grid.ApplyRect(new RectInt(0, 0, grid.Width, band), 1f, ref mud);
-            grid.ApplyRect(new RectInt(0, grid.Height - band, grid.Width, band), 1f, ref mud);
-            grid.ApplyRect(new RectInt(0, band, band, grid.Height - 2 * band), 1f, ref mud);
-            grid.ApplyRect(new RectInt(grid.Width - band, band, band, grid.Height - 2 * band), 1f, ref mud);
+            for (int i = 0; i < bands.Length; i++) grid.ApplyRect(bands[i], 1f, ref mud);
             // La bordure souillée fait partie du travail à faire : la propreté est mesurée à partir de cet état.
             grid.CaptureInitialState();
             LastContamination = amount;

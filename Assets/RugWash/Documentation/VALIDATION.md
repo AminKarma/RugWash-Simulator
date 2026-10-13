@@ -214,7 +214,7 @@ Exécutions réelles du 12/10/2026, même machine.
 |---|---|
 | Compilation | ✅ 0 erreur, 0 avertissement (NGO 2.13.3, Unity Transport 2.6.0, Steamworks.NET 2025.164.1) |
 | Tests EditMode | ✅ **153 / 153** (143 + 10 : tampons, codec des opérations et des cellules, valeurs trafiquées bornées, accusés, admission, adresses, messages de déconnexion, invitation au lancement, temps partagé) |
-| Tests PlayMode | ✅ **87 / 87** (84 + 3 : deux tapis convergents avec latence simulée et nettoyage simultané, vraie session hôte Netcode, captures `60`–`61`) |
+| Tests PlayMode | ✅ **88 / 88** (84 + 4 : deux tapis convergents avec latence simulée et nettoyage simultané, vraie session hôte Netcode, Steam initialisé dès le menu et invitation acceptée en partie solo (sauvegarde puis menu), captures `60`–`61`) |
 | Build Windows 64 bits | ✅ 127 Mo, 0 erreur, 0 avertissement |
 | Jeu compilé, solo : 11 contrôles | ✅ 11 / 11 — 488 / 448 / 469 / 543 FPS, 1 % ≥ 292 FPS (pas de régression) |
 | **Jeu compilé, deux processus (hôte + invité, connexion directe locale)** | ✅ **24 / 24** vérifications (détail ci-dessous) |
@@ -240,3 +240,46 @@ toute la partie, instantanés et tapis entièrement réécrit compris. 119 FPS d
 
 **Non testé** (environnement : une machine, client Steam non lancé, un seul compte) : salons, recherche, invitations et
 transport Steam ; deux machines distinctes ; Internet. Procédure à suivre : `MULTIPLAYER.md` § 4.
+
+## 13. Update v0.1.2 — jalon 1 (correctifs fondamentaux)
+
+Exécutions réelles du 13/10/2026, même machine. Décisions et conventions : `AUDIT_V012.md`.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation | ✅ 0 erreur, 0 avertissement |
+| Tests EditMode | ✅ **165 / 165** (153 + 12 : carrière personnelle et son format réseau, portée télescopique et pose des outils, conventions et seuils de l'aire de lavage, recontamination plafonnée, fin du tapis) |
+| Tests PlayMode | ✅ **98 / 98** (nouvelle suite `V012PlayModeTests` : 9 tests ; tests existants adaptés à l'absence de tapis d'entraînement, au sol inerte et au robot sur l'aire de lavage) |
+| Build Windows 64 bits | ✅ 129 Mo, 0 erreur, 0 avertissement |
+| Jeu compilé, solo : 11 contrôles | ✅ 11 / 11 |
+| **Jeu compilé, deux processus (hôte + invité)** | ✅ **32 / 32** vérifications, **8 passages consécutifs réussis** après correction (voir ci-dessous) |
+
+**Performance (référence avant le jalon 2)**, build 1080p, vSync désactivé, trois mesures du 13/10 : repos 413–436 FPS,
+rinçage 373–394, savon + brosse 388–398, tour de l'atelier 472–482 ; 1 % le plus lent ≥ 217 FPS. C'est 8 à 15 % de moins
+que les mesures du 12/10 (488 / 448 / 469 / 543) ; aucune des modifications du jalon 1 n'ajoute de coût par image
+notable en solo et la baisse touche aussi la vue au repos, mais elle **n'a pas été attribuée** (pas de mesure
+comparative avec l'ancien build sur la même session). Le profilage du jalon 2 la confirmera ou l'écartera.
+
+**Scénario à deux processus** : carrières de départ différentes (hôte 300 €, invité 1 500 € et réputation 2) :
+
+| Hôte | Invité |
+|---|---|
+| Carrière de l'invité reçue et bornée (1 500 €, réputation 2) ; la sienne reste à 300 € | État de chargement affiché ; HUD prêt avec **1 500 €, réputation 2** (sa progression) |
+| Livraison payée une fois à l'hôte (168 €) **et** dans la carrière de l'invité (1 668 €) | Récompense reçue (1 668 €) |
+| Achat de l'invité payé avec l'argent de l'invité (1 518 €), achats et argent de l'hôte inchangés | Achat reçu ; annonce forgée (999 999 €, tous les achats) **ignorée** |
+| Robot démarré à la demande de l'invité (débris sur l'aire) | État du robot reçu |
+| Sauvegarde de l'hôte : 468 €, aucun achat de l'invité | Sauvegarde de l'invité : 1 518 €, 1 achat, 1 commande, **aucun état de l'atelier de l'hôte** |
+| Carrière de l'invité identique chez l'hôte et chez l'invité ; tapis identique (même empreinte) | |
+
+**Défaut trouvé et corrigé pendant la validation** : 3 passages sur 14 restaient bloqués en « synchronisation » chez
+l'invité. Cause : un invité connecté pendant que l'hôte chargeait encore l'atelier recevait les instantanés des surfaces
+avant d'avoir enregistré leur réception ; ils étaient perdus et jamais renvoyés. Correction : l'invité redemande l'état
+complet dès qu'il peut le recevoir (et toutes les 3 s s'il manque quelque chose) ; l'hôte ne répond qu'à un invité
+synchronisé et n'accepte qu'une annonce de carrière par invité. Après correction : 8 / 8 passages réussis. Autre défaut
+corrigé : l'objet réseau apparaissait avant l'application de la sauvegarde de l'invité (carrière annoncée vide).
+
+**Vérifications visuelles** (captures `Logs/ci/screens`) : `64_tool_reach_*` (tête de l'outil sur le réticule),
+`61`–`63` (silhouette distante : outil détaillé, gant sur la poignée, tête sur le tapis, jet depuis la buse).
+
+**Non testé** : Steam en réel, deux machines distinctes (inchangé) ; perte d'un message réseau autre qu'au démarrage
+(seul le cas de l'arrivée pendant le chargement de l'hôte a été reproduit et corrigé).

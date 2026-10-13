@@ -116,8 +116,11 @@ namespace RugWash.Editor
             var workSurface = game.AddComponent<WorkSurface>();
             Wire(workSurface, ("surface", workSurfaceArea), ("orderRug", rug));
 
-            // Robot aspirateur et sa base (contre le mur avant, entre la porte et le comptoir).
-            var dockParts = RugWashWorkshopModels.Dock(gameplay, meshes, content, new Vector3(0.8f, 0f, -RoomHalfZ + 0.3f), Quaternion.identity);
+            // Robot aspirateur et sa base : dans le coin arrière gauche de l'aire de lavage (zone de nettoyage), qu'il ne quitte
+            // jamais ; la base fait face à l'avant de l'aire.
+            var dockPosition = WashPadCenter + new Vector3(-WashPadSize.x * 0.5f + 0.35f, WashPadSize.y + content.WorkSurface.thickness,
+                WashPadSize.z * 0.5f - 0.3f);
+            var dockParts = RugWashWorkshopModels.Dock(gameplay, meshes, content, dockPosition, Quaternion.Euler(0f, 180f, 0f));
             var robotParts = RugWashWorkshopModels.Robot(gameplay, meshes, content);
             robotParts.Root.position = dockParts.Root.position;
             robotParts.Root.rotation = Quaternion.LookRotation(-dockParts.Root.forward);
@@ -131,7 +134,7 @@ namespace RugWash.Editor
             motor.minDistance = 0.6f;
             motor.maxDistance = 9f;
             var robot = robotParts.Root.gameObject.AddComponent<RobotVacuum>();
-            Wire(robot, ("floor", floorSurface), ("dock", dockParts.Root), ("obstacleRoot", environment), ("audioManager", audio),
+            Wire(robot, ("floor", workSurfaceArea), ("orderRug", rug), ("dock", dockParts.Root), ("obstacleRoot", environment), ("audioManager", audio),
                 ("motorSource", motor), ("startClip", Clip(RugWashAudioGenerator.RobotStart)), ("stopClip", Clip(RugWashAudioGenerator.RobotStop)),
                 ("bumpClip", Clip(RugWashAudioGenerator.RobotBump)), ("dockedClip", Clip(RugWashAudioGenerator.RobotDocked)),
                 ("ledRenderer", robotParts.Led), ("sideBrush", robotParts.SideBrush), ("turret", robotParts.Turret));
@@ -151,7 +154,7 @@ namespace RugWash.Editor
             var shop = game.AddComponent<ShopManager>();
             Wire(shop, ("wallet", wallet), ("upgrades", upgrades), ("audioManager", audio), ("products", productInventory));
             var orders = game.AddComponent<OrderManager>();
-            Wire(orders, ("practiceRug", content.Oriental), ("rug", rug), ("snapshots", snapshots), ("gameState", gameState),
+            Wire(orders, ("rug", rug), ("workSurface", workSurface), ("snapshots", snapshots), ("gameState", gameState),
                 ("wallet", wallet), ("reputation", reputation), ("audioManager", audio), ("rewardClip", Clip(RugWashAudioGenerator.Reward)));
 
             // Retours de nettoyage : scan de saleté (touche R) et paliers de propreté.
@@ -356,7 +359,6 @@ namespace RugWash.Editor
             Wire(controller, ("rugDexUI", rugDexUI), ("rugDexButton", rugDexMenuButton), ("rugCatalog", content.Catalog),
                 ("dirtLibrary", content.DirtLibrary));
             WireList(controller, "orders", content.Orders);
-            WireList(controller, "practiceRugs", new[] { content.Oriental, content.Classic, content.Shag });
             Wire(controller, ("inputMonitor", menuNavigator.Monitor));
             Wire(controller, ("save", save), ("settings", settings), ("audioManager", audio), ("settingsUI", settingsUI),
                 ("playButton", play), ("continueButton", resume), ("settingsButton", settingsButton), ("quitButton", quit),
@@ -632,6 +634,8 @@ namespace RugWash.Editor
             Wire(dirtRenderer, ("targetRenderer", renderer), ("rugMaterialTemplate", c["RugSurface"]), ("fringeMaterialTemplate", c["RugFringe"]));
             Wire(rug, ("definition", definition), ("dirtLibrary", c.DirtLibrary), ("dirtRenderer", dirtRenderer),
                 ("meshFilter", filter), ("surfaceCollider", collider), ("tuning", c.Tuning), ("productLibrary", c.ProductLibrary));
+            // Pas de tapis d'entraînement : le tapis n'apparaît qu'avec une commande (la définition sert d'aperçu dans l'éditeur).
+            SetBool(rug, "loadOnAwake", false);
             return rug;
         }
 
@@ -805,6 +809,13 @@ namespace RugWash.Editor
             var tool = go.AddComponent<T>();
             Wire(tool, ("definition", definition), ("viewModel", model.Root), ("aimTip", model.Tip), ("toolAudio", toolAudio),
                 ("cleanFeedback", ctx.CleanPool));
+            if (model.Head != null && model.Shaft != null)
+            {
+                // Outil de contact : manche télescopique jusqu'à la portée de l'outil.
+                Wire(tool, ("reachHead", model.Head), ("reachShaft", model.Shaft));
+                SetFloat(tool, "reachShaftLength", model.ShaftLength);
+                SetFloat(tool, "maxReachExtension", definition.range);
+            }
             return tool;
         }
 
@@ -1150,8 +1161,7 @@ namespace RugWash.Editor
             var subtitle = AddText(CreateRect("Subtitle", box, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(460f, 40f)), string.Empty, 22, TextAnchor.MiddleCenter, Muted);
             subtitle.gameObject.AddComponent<LayoutElement>().preferredHeight = 44f;
             var resume = CreateButton("Resume", box, "Reprendre", sprites.Rounded, new Vector2(460f, 64f));
-            var reset = CreateButton("ResetRug", box, "Recommencer ce tapis", sprites.Rounded, new Vector2(460f, 64f));
-            var next = CreateButton("NextRug", box, "Tapis d'entraînement suivant", sprites.Rounded, new Vector2(460f, 64f));
+            var reset = CreateButton("ResetRug", box, "Recommencer la commande", sprites.Rounded, new Vector2(460f, 64f));
             var abandon = CreateButton("AbandonOrder", box, "Abandonner la commande", sprites.Rounded, new Vector2(460f, 64f));
             var rugDexButton = CreateButton("RugDex", box, "RugDex (collection)", sprites.Rounded, new Vector2(460f, 64f));
             var settingsButton = CreateButton("Settings", box, "Paramètres", sprites.Rounded, new Vector2(460f, 64f));
@@ -1159,7 +1169,7 @@ namespace RugWash.Editor
             var quit = CreateButton("Quit", box, "Quitter le jeu", sprites.Rounded, new Vector2(460f, 64f));
             pausePanel.gameObject.AddComponent<NavigationScope>().FirstSelected = resume;
             built.Pause = pauseRoot.gameObject.AddComponent<PauseMenuUI>();
-            Wire(built.Pause, ("panel", pausePanel.gameObject), ("resumeButton", resume), ("resetRugButton", reset), ("nextRugButton", next),
+            Wire(built.Pause, ("panel", pausePanel.gameObject), ("resumeButton", resume), ("resetRugButton", reset),
                 ("quitButton", quit), ("subtitleLabel", subtitle), ("abandonOrderButton", abandon),
                 ("resetRugLabel", reset.GetComponentInChildren<Text>()), ("settingsButton", settingsButton), ("mainMenuButton", mainMenu),
                 ("rugDexButton", rugDexButton), ("mainMenuLabel", mainMenu.GetComponentInChildren<Text>()));

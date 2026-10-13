@@ -48,6 +48,7 @@ namespace RugWash.Core
         [SerializeField] RugDex.RugDexUI rugDexUI;
         [SerializeField] ProductInventory productInventory;
         [SerializeField] DirtTypeLibrary dirtLibrary;
+        [Tooltip("Définitions de tapis connues de la scène (réplication réseau : un invité recharge le tapis annoncé par l'hôte).")]
         [SerializeField] List<RugDefinition> availableRugs = new List<RugDefinition>();
 
         [Header("Commandes et économie")]
@@ -96,6 +97,8 @@ namespace RugWash.Core
         public ProductInventory Products => productInventory;
         public PlayerInputReader Input => input;
         public IReadOnlyList<RugDefinition> AvailableRugs => availableRugs;
+        /// <summary>Sol de la salle : surface décorative hors zone de nettoyage (ne se salit jamais).</summary>
+        public RugCleaningController RoomFloor => workshopState != null ? workshopState.RoomFloor : null;
         public InputDeviceMonitor InputMonitor => inputMonitor;
         public UINavigator Navigator => navigator;
         public GamepadRumble Rumble => rumble;
@@ -211,10 +214,10 @@ namespace RugWash.Core
             robot.Message += hud.ShowToast;
             orderBoard.SetWorkSurface(workSurface);
             hud.BindProducts(productInventory.Book);
-            rugDexUI.Bind(rugDex.Catalog, rugDex.Book, orders.Book.Orders, availableRugs, dirtLibrary, gameState);
+            rugDexUI.Bind(rugDex.Catalog, rugDex.Book, orders.Book.Orders, dirtLibrary, gameState);
             pauseMenu.BindRugDex(rugDexUI);
             rugDex.NewRugDiscovered += OnNewRugDiscovered;
-            pauseMenu.Bind(gameState, rug, orders, availableRugs, settingsUI, saveManager);
+            pauseMenu.Bind(gameState, rug, orders, settingsUI, saveManager);
             settingsUI.Bind(settingsManager, saveManager, gameState);
             saveManager.Saved += OnSaved;
             orders.ObjectiveReached += OnObjectiveReached;
@@ -235,6 +238,18 @@ namespace RugWash.Core
             gameState.StateChanged += OnGameStateChanged;
             gameState.ModalsChanged += SyncGameplayInput;
             SyncGameplayInput();
+
+            // Invitation Steam acceptée pendant une partie solo : sortie propre par le menu pause (sauvegarde, menu).
+            session = Network.MultiplayerSession.Find();
+            if (session != null) session.SoloExitRequested += OnSoloExitRequested;
+        }
+
+        Network.MultiplayerSession session;
+
+        void OnSoloExitRequested()
+        {
+            if (session != null && session.InSession) return;
+            pauseMenu.ReturnToMainMenu();
         }
 
         void OnSaved(bool success, string message) => hud.ShowToast(message);
@@ -243,7 +258,8 @@ namespace RugWash.Core
 
         void OnObjectiveReached(OrderDefinition order)
         {
-            hud.ShowToast("Objectif de propreté atteint — livrez la commande au comptoir");
+            // Tapis terminé d'un coup (moins de 1 % restant) : le HUD affiche déjà « Tapis terminé ».
+            if (!rug.IsFinished) hud.ShowToast("Objectif de propreté atteint — livrez la commande au comptoir");
             audioManager.PlayInterface(audioManager.ObjectiveClip);
         }
 
@@ -254,6 +270,7 @@ namespace RugWash.Core
             if (upgrades != null && toolbar != null) upgrades.Changed -= toolbar.Refresh;
             if (robot != null && hud != null) robot.Message -= hud.ShowToast;
             if (rugDex != null) rugDex.NewRugDiscovered -= OnNewRugDiscovered;
+            if (session != null) session.SoloExitRequested -= OnSoloExitRequested;
             if (gameState == null) return;
             gameState.StateChanged -= OnGameStateChanged;
             gameState.ModalsChanged -= SyncGameplayInput;

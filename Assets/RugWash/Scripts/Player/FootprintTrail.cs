@@ -7,9 +7,8 @@ namespace RugWash.Player
 {
     /// <summary>
     /// Traces de pas : en marchant dans l'eau sale, la mousse ou la boue du plan de travail, les semelles se chargent ;
-    /// chaque pas suivant laisse une empreinte (de moins en moins marquée) sur le plan de travail ou le sol de l'atelier.
-    /// Les tapis ne sont jamais salis par les pas. Les empreintes sont de vraies données de surface (nettoyables par les
-    /// outils et par le robot aspirateur).
+    /// chaque pas suivant laisse une empreinte (de moins en moins marquée) sur le plan de travail. Ni les tapis, ni le sol
+    /// de la salle (hors zone de nettoyage) ne sont marqués. Les empreintes sont de vraies données de surface, nettoyables.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class FootprintTrail : MonoBehaviour
@@ -54,7 +53,7 @@ namespace RugWash.Player
             leftFoot = !leftFoot;
             if (!Physics.Raycast(foot + Vector3.up * 0.3f, Vector3.down, out RaycastHit hit, 0.7f, surfaceMask, QueryTriggerInteraction.Ignore)) return;
             var surface = Resolve(hit.collider);
-            if (surface == null || surface.Kind == SurfaceKind.Rug) return;
+            if (surface == null || surface.Kind == SurfaceKind.Rug || !surface.AcceptsDirt) return;
 
             if (MudLoad + WaterLoad + FoamLoad > 0.02f)
             {

@@ -49,6 +49,12 @@ namespace RugWash.Network
 
         /// <summary>État, message ou membres modifiés (pour l'interface).</summary>
         public event Action Changed;
+
+        /// <summary>
+        /// Invitation Steam acceptée pendant une partie solo : l'atelier solo doit être quitté proprement (commande en cours
+        /// abandonnée, progression sauvegardée, retour au menu) ; la connexion au salon suit au chargement du menu.
+        /// </summary>
+        public event Action SoloExitRequested;
         public event Action<List<LobbySummary>> LobbiesFound;
 
         public static MultiplayerSession Find() => FindAnyObjectByType<MultiplayerSession>();
@@ -78,6 +84,19 @@ namespace RugWash.Network
         }
 
         void Update() => Steam?.RunCallbacks();
+
+        void OnEnable() => SceneManager.sceneLoaded += OnUnitySceneLoaded;
+
+        void OnDisable() => SceneManager.sceneLoaded -= OnUnitySceneLoaded;
+
+        /// <summary>Menu principal chargé : rejoint le salon d'une invitation acceptée pendant le jeu.</summary>
+        void OnUnitySceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (scene.name != MainMenuScene || pendingLobbyJoin == 0) return;
+            ulong lobby = pendingLobbyJoin;
+            pendingLobbyJoin = 0;
+            JoinSteamLobby(lobby);
+        }
 
         // ---------------------------------------------------------------- NetworkManager
 
@@ -226,7 +245,7 @@ namespace RugWash.Network
                 Steam.LobbyMembersChanged += () => Changed?.Invoke();
                 Steam.LobbyDataChanged += OnLobbyDataChanged;
                 Steam.LobbyListReceived += list => LobbiesFound?.Invoke(list);
-                Steam.JoinRequested += OnJoinRequested;
+                Steam.JoinRequested += AcceptInvite;
                 Steam.Error += message => Fail(message);
             }
             if (Steam.IsInitialized) return true;
@@ -305,13 +324,26 @@ namespace RugWash.Network
             StartClient();
         }
 
-        void OnJoinRequested(ulong lobbyId)
+        /// <summary>
+        /// Invitation Steam acceptée (ou « Rejoindre la partie » d'un ami) pendant que le jeu tourne : la partie en cours,
+        /// en ligne ou solo, est quittée proprement, puis le salon est rejoint depuis le menu principal.
+        /// </summary>
+        public void AcceptInvite(ulong lobbyId)
         {
-            // Invitation acceptée depuis Steam pendant que le jeu tourne : on quitte proprement la partie en cours.
+            if (lobbyId == 0) return;
             if (InSession)
             {
                 pendingLobbyJoin = lobbyId;
                 Leave("Invitation acceptée : connexion au salon de votre ami…");
+                return;
+            }
+            if (SceneManager.GetActiveScene().name != MainMenuScene)
+            {
+                pendingLobbyJoin = lobbyId;
+                Message = "Invitation acceptée : partie solo sauvegardée, connexion au salon…";
+                Changed?.Invoke();
+                if (SoloExitRequested != null) SoloExitRequested.Invoke();
+                else SceneManager.LoadScene(MainMenuScene);
                 return;
             }
             JoinSteamLobby(lobbyId);
@@ -421,7 +453,12 @@ namespace RugWash.Network
 
         void ReturnToMenu()
         {
-            if (SceneManager.GetActiveScene().name != MainMenuScene) SceneManager.LoadScene(MainMenuScene);
+            // Une invitation en attente est traitée une fois le menu chargé (OnUnitySceneLoaded).
+            if (SceneManager.GetActiveScene().name != MainMenuScene)
+            {
+                SceneManager.LoadScene(MainMenuScene);
+                return;
+            }
             if (pendingLobbyJoin != 0)
             {
                 ulong lobby = pendingLobbyJoin;

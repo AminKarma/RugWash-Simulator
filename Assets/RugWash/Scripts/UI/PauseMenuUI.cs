@@ -11,7 +11,7 @@ namespace RugWash.UI
 {
     /// <summary>
     /// Menu pause (Échap). Les boutons proposés dépendent du contexte et exécutent tous une action réelle :
-    /// en commande → recommencer / abandonner la commande ; hors commande → recommencer / changer de tapis d'entraînement.
+    /// en commande → recommencer / abandonner la commande. Hors commande, aucun tapis n'est posé (plus d'entraînement).
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class PauseMenuUI : MonoBehaviour
@@ -19,7 +19,6 @@ namespace RugWash.UI
         [SerializeField] GameObject panel;
         [SerializeField] Button resumeButton;
         [SerializeField] Button resetRugButton;
-        [SerializeField] Button nextRugButton;
         [SerializeField] Button abandonOrderButton;
         [SerializeField] Button settingsButton;
         [SerializeField] Button rugDexButton;
@@ -33,7 +32,6 @@ namespace RugWash.UI
         GameStateManager gameState;
         RugCleaningController rug;
         OrderManager orders;
-        IReadOnlyList<RugDefinition> availableRugs;
         SettingsUI settingsUI;
         SaveManager save;
 
@@ -49,7 +47,6 @@ namespace RugWash.UI
             missing = panel == null ? nameof(panel)
                 : resumeButton == null ? nameof(resumeButton)
                 : resetRugButton == null ? nameof(resetRugButton)
-                : nextRugButton == null ? nameof(nextRugButton)
                 : abandonOrderButton == null ? nameof(abandonOrderButton)
                 : settingsButton == null ? nameof(settingsButton)
                 : rugDexButton == null ? nameof(rugDexButton)
@@ -60,7 +57,7 @@ namespace RugWash.UI
             return missing == null;
         }
 
-        public void Bind(GameStateManager state, RugCleaningController rugController, OrderManager orderManager, IReadOnlyList<RugDefinition> rugs,
+        public void Bind(GameStateManager state, RugCleaningController rugController, OrderManager orderManager,
             SettingsUI settingsWindow, SaveManager saveManager)
         {
             settingsUI = settingsWindow;
@@ -70,11 +67,9 @@ namespace RugWash.UI
             gameState = state;
             rug = rugController;
             orders = orderManager;
-            availableRugs = rugs;
 
             resumeButton.onClick.AddListener(gameState.Resume);
             resetRugButton.onClick.AddListener(ResetRug);
-            nextRugButton.onClick.AddListener(NextRug);
             abandonOrderButton.onClick.AddListener(AbandonOrder);
             quitButton.onClick.AddListener(Quit);
 
@@ -100,36 +95,21 @@ namespace RugWash.UI
             var session = Network.MultiplayerSession.Find();
             bool online = session != null && session.InSession;
             bool guest = online && session.IsGuest;
-            subtitleLabel.text = (inOrder
-                ? $"Commande en cours : {orders.ActiveOrder.title}"
-                : rug.Definition != null ? $"Entraînement : {rug.Definition.displayName}" : string.Empty)
+            subtitleLabel.text = (inOrder ? $"Commande en cours : {orders.ActiveOrder.title}" : "Aucune commande en cours")
                 + (online ? (guest ? "\nPartie en ligne — le jeu continue pendant la pause" : "\nVous êtes l'hôte — le jeu continue pendant la pause") : string.Empty);
-            resetRugLabel.text = inOrder ? "Recommencer la commande" : "Recommencer ce tapis";
-            // Invité : le tapis et la commande appartiennent à l'hôte.
-            resetRugButton.gameObject.SetActive(!guest);
-            nextRugButton.gameObject.SetActive(!guest && !inOrder && availableRugs != null && availableRugs.Count > 1);
+            resetRugLabel.text = "Recommencer la commande";
+            // Invité : le tapis et la commande appartiennent à l'hôte. Hors commande, il n'y a pas de tapis à recommencer.
+            resetRugButton.gameObject.SetActive(!guest && inOrder);
             abandonOrderButton.gameObject.SetActive(inOrder);
             if (mainMenuLabel != null) mainMenuLabel.text = online ? "Quitter la partie" : "Menu principal";
             resumeButton.Select();
         }
 
+        /// <summary>Recommence la commande en cours (saleté régénérée). Sans commande, rien ne se passe.</summary>
         public void ResetRug()
         {
-            if (rug.IsReplica) return;
-            if (orders.ActiveOrder != null) orders.RestartActive();
-            else rug.ResetRug();
-            gameState.Resume();
-        }
-
-        /// <summary>Tapis d'entraînement suivant (indisponible pendant une commande).</summary>
-        public void NextRug()
-        {
-            if (rug.IsReplica) return;
-            if (orders.ActiveOrder != null || availableRugs == null || availableRugs.Count == 0) return;
-            int index = 0;
-            for (int i = 0; i < availableRugs.Count; i++)
-                if (availableRugs[i] == rug.Definition) index = (i + 1) % availableRugs.Count;
-            rug.LoadRug(availableRugs[index]);
+            if (rug.IsReplica || orders.ActiveOrder == null) return;
+            orders.RestartActive();
             gameState.Resume();
         }
 
@@ -145,8 +125,9 @@ namespace RugWash.UI
             var session = Network.MultiplayerSession.Find();
             if (session != null && session.InSession)
             {
-                // En ligne : l'hôte sauvegarde son atelier, puis la session se ferme (retour au menu pour tous ses invités).
-                if (session.IsHost) save.SaveNow("fin de la partie en ligne");
+                // En ligne : chacun sauvegarde sa propre progression (l'hôte : son atelier et sa carrière ; l'invité : sa
+                // carrière seule), puis la session se ferme (l'hôte qui part ramène ses invités au menu).
+                save.SaveNow(session.IsHost ? "fin de la partie en ligne" : "départ de la partie en ligne");
                 session.Leave();
                 return;
             }

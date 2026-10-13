@@ -35,6 +35,9 @@ namespace RugWash.Cleaning
         public SurfaceKind surfaceKind = SurfaceKind.Rug;
         [Tooltip("Humidité évaporée par seconde (0 = ne sèche pas seule, cas des tapis).")]
         [Range(0f, 0.2f)] public float dryingPerSecond;
+        [Tooltip("Faux : surface hors de la zone de nettoyage (sol de la salle). Elle n'accumule ni poussière, ni eau, ni " +
+                 "mousse, ni résidus ; elle n'est jamais visée par les outils et ne reçoit pas de traces de pas.")]
+        public bool accumulatesDirt = true;
 
         [Header("Matière")]
         [Tooltip("Fragilité des fibres (0 = robuste, 1 = très délicate) : le brossage à sec et les produits agressifs les usent.")]

@@ -47,7 +47,6 @@ namespace RugWash.UI
         [SerializeField] RugDex.RugCatalog rugCatalog;
         [SerializeField] Cleaning.DirtTypeLibrary dirtLibrary;
         [SerializeField] System.Collections.Generic.List<Orders.OrderDefinition> orders = new System.Collections.Generic.List<Orders.OrderDefinition>();
-        [SerializeField] System.Collections.Generic.List<Cleaning.RugDefinition> practiceRugs = new System.Collections.Generic.List<Cleaning.RugDefinition>();
 
         readonly RugDex.RugDexBook rugDexBook = new RugDex.RugDexBook();
 
@@ -103,7 +102,7 @@ namespace RugWash.UI
             confirmYesButton.onClick.AddListener(StartNewGame);
             confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
             rugDexBook.Restore(save.Current.rugDex);
-            rugDexUI.Bind(rugCatalog, rugDexBook, orders, practiceRugs, dirtLibrary, null);
+            rugDexUI.Bind(rugCatalog, rugDexBook, orders, dirtLibrary, null);
             rugDexButton.onClick.AddListener(() => rugDexUI.Open());
             multiplayerButton.onClick.AddListener(() => multiplayerUI.Open());
             audioManager.RegisterButtons(multiplayerUI);
@@ -114,21 +113,25 @@ namespace RugWash.UI
             confirmPanel.SetActive(false);
             loadingPanel.SetActive(false);
             Refresh();
+            // Steam est initialisé dès le menu principal : invitations reçues et overlay disponibles sans ouvrir la
+            // fenêtre Multijoueur. Sans client Steam lancé, l'échec est silencieux ici (expliqué dans la fenêtre Multijoueur).
+            Network.MultiplayerSession.GetOrCreate(networkContent).EnsureSteam();
             ShowSessionOutcome();
         }
 
         /// <summary>
         /// Retour d'une partie en ligne (départ, hôte parti, erreur réseau) : le message est affiché ; s'il y avait une erreur,
-        /// la fenêtre Multijoueur s'ouvre avec « Se reconnecter ». Invitation Steam acceptée jeu fermé : connexion au salon.
+        /// la fenêtre Multijoueur s'ouvre avec « Se reconnecter ». Invitation Steam acceptée (jeu fermé ou pendant une
+        /// partie) : la fenêtre Multijoueur s'ouvre et montre la connexion au salon.
         /// </summary>
         void ShowSessionOutcome()
         {
             var session = Network.MultiplayerSession.Find();
-            bool launchedByInvite = Network.SteamPlatform.LobbyFromCommandLine(System.Environment.GetCommandLineArgs()) != 0;
-            if (session == null && launchedByInvite) session = Network.MultiplayerSession.GetOrCreate(networkContent);
             if (session == null) return;
+            bool launchedByInvite = Network.SteamPlatform.LobbyFromCommandLine(System.Environment.GetCommandLineArgs()) != 0;
+            bool joining = session.State == Network.SessionState.JoiningLobby || session.State == Network.SessionState.InLobby;
             if (!string.IsNullOrEmpty(session.Message)) messageLabel.text = session.Message;
-            if (session.LastEndedWithError || launchedByInvite) multiplayerUI.Open();
+            if (session.LastEndedWithError || launchedByInvite || joining) multiplayerUI.Open();
         }
 
         void Refresh()

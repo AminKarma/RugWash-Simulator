@@ -60,11 +60,28 @@ namespace RugWash.Core
         }
 
         bool networked;
+        bool synchronizing;
         public int OpenModals => openModals;
         public bool IsPaused => State == GameState.Paused;
 
-        /// <summary>Vrai si le joueur contrôle son personnage (pas de pause ni de fenêtre ouverte).</summary>
-        public bool IsGameplayActive => GameStateRules.ShouldLockCursor(State, openModals);
+        /// <summary>
+        /// Multijoueur, invité qui arrive : l'état autoritaire de l'hôte (atelier, tapis, carrière validée) n'est pas encore
+        /// reçu. Le joueur ne contrôle pas encore son personnage et le HUD affiche un état de chargement.
+        /// </summary>
+        public bool Synchronizing
+        {
+            get => synchronizing;
+            set
+            {
+                if (synchronizing == value) return;
+                synchronizing = value;
+                Apply();
+                ModalsChanged?.Invoke();
+            }
+        }
+
+        /// <summary>Vrai si le joueur contrôle son personnage (pas de pause, de fenêtre ouverte ni de synchronisation).</summary>
+        public bool IsGameplayActive => GameStateRules.ShouldLockCursor(State, openModals) && !synchronizing;
 
         public event Action<GameState, GameState> StateChanged;
         public event Action ModalsChanged;
@@ -135,7 +152,7 @@ namespace RugWash.Core
         void Apply()
         {
             if (!started) return;
-            bool locked = GameStateRules.ShouldLockCursor(State, openModals);
+            bool locked = GameStateRules.ShouldLockCursor(State, openModals) && !synchronizing;
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = GameStateRules.ShouldShowCursor(locked, inputMonitor != null ? inputMonitor.Scheme : InputScheme.KeyboardMouse);
             Time.timeScale = GameStateRules.TimeScaleFor(State, networked);

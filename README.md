@@ -4,9 +4,12 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5** (game feel, scan, nouveaux outils, aire de lavage, robot aspirateur,
-> tapis de soie, nouvelles salissures, produits spécialisés, RugDex, manette, **coopératif jusqu'à 4 joueurs** — réseau local testé,
-> Steam implémenté mais pas encore testé en réel, voir § Multijoueur).
+> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 jalon 1** (game feel, scan, nouveaux
+> outils, aire de lavage, robot aspirateur, tapis de soie, nouvelles salissures, produits spécialisés, RugDex, manette,
+> **coopératif jusqu'à 4 joueurs** — réseau local testé, Steam implémenté mais pas encore testé en réel, voir § Multijoueur).
+> v0.1.2 jalon 1 : outils posés sur le point visé (manche télescopique), modèles détaillés chez les autres joueurs,
+> progression personnelle en ligne, salissures limitées à l'aire de lavage, plus de tapis d'entraînement, seuils de l'aire
+> (25 % / 40 %), tapis terminé sous 1 % — audit et décisions : [AUDIT_V012.md](Assets/RugWash/Documentation/AUDIT_V012.md).
 > Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
@@ -201,7 +204,7 @@ partir de ces valeurs (`ProductTable.Describe`) : il n'annonce rien que le code 
 
 Collection des tapis (menu principal ou pause → « RugDex »). Les entrées viennent du catalogue
 `ScriptableObjects/RugCatalog` (aucune entrée codée en dur) :
-- tapis **découvert** dès qu'il est chargé dans l'atelier (commande ou entraînement) ; message « Nouveau tapis dans le RugDex » ;
+- tapis **découvert** dès qu'il est chargé dans l'atelier (avec une commande) ; message « Nouveau tapis dans le RugDex » ;
 - fiche : visuel, numéro, nom, catégorie (type de velours), dimensions et épaisseur, fragilité des fibres, salissures
   rencontrées (couches du tapis et de ses commandes), commandes associées, nombre de livraisons et meilleure note
   (commandes acceptées uniquement), description ;
@@ -214,26 +217,30 @@ Contenu modifiable sans code : `ScriptableObjects/Orders` (commandes), `Scriptab
 **Créer une commande** : `Create → RugWash → Commande`, renseigner tapis, couches de saleté et graine,
 difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste `orders` de `[Game] → OrderManager`.
 
-## 4 quinquies. Aire de lavage, sol et robot aspirateur
+## 4 quinquies. Aire de lavage (zone de nettoyage) et robot aspirateur
 
-- **Plan de travail de l'aire de lavage** : ce qui ruisselle du tapis s'y dépose réellement, autour du tapis et du côté où
-  l'on travaille — eau sale et mousse évacuées par le rinçage, débris chassés par le balai. Il se nettoie avec les mêmes
-  outils (lance, balai qui pousse l'eau et la boue, extracteur) ; l'eau claire sèche seule. Le HUD affiche
-  « Aire de lavage sale (x %) » tant qu'il reste plus de 1 % de surface souillée, puis « Aire de lavage propre ».
-- **Jamais bloquant** : une nouvelle commande peut toujours être acceptée. Le comptoir prévient que l'aire est sale et le
-  tapis suivant arrive avec ses **bords recontaminés** (boue proportionnelle à la saleté de l'aire), à nettoyer en plus.
+- **Pas de tapis d'entraînement** (v0.1.2) : l'atelier démarre sans tapis ; un tapis n'apparaît qu'en acceptant une
+  commande au comptoir et repart à la livraison ou à l'abandon.
+- **Plan de travail de l'aire de lavage** — la **seule zone de nettoyage** de la salle : ce qui ruisselle du tapis s'y dépose
+  réellement, autour du tapis et du côté où l'on travaille — eau sale et mousse évacuées par le rinçage, débris chassés par
+  le balai. Il se nettoie avec les mêmes outils (lance, balai qui pousse l'eau et la boue, extracteur) ; l'eau claire sèche
+  seule. Le HUD affiche en permanence « Aire de lavage : x % propre ».
+- **Seuils** (convention : saleté = part de la surface souillée, propreté = 1 − saleté) : sous **25 % de propreté**, aucune
+  nouvelle commande ne démarre (le comptoir et le HUD expliquent pourquoi) ; au-delà de **40 % de saleté**, le tapis posé
+  dessus se salit (bordure recontaminée à la pose, puis en continu tant que l'aire reste trop sale).
+- **Tapis terminé** : quand il reste moins de 1 % de la saleté initiale, le reliquat est retiré — propreté 100 %,
+  « Tapis terminé », objectif atteint ; séchage et résidus restent notés à la livraison.
 - **Traces de pas** : marcher dans la boue, l'eau ou la mousse charge les semelles, qui laissent des empreintes de plus en
-  plus légères sur l'aire de lavage et le sol. Les tapis ne sont jamais salis par les pas.
-- **Sol de l'atelier** : surface nettoyable (poussière plus marquée le long des murs, poils, empreintes), avec les outils
-  ou par le robot.
-- **Robot aspirateur** (base contre le mur avant, entre la porte et le comptoir) : **E** sur le robot ou sa base pour le
-  démarrer ou l'arrêter. Il aspire réellement la poussière et les traces sèches du sol, choisit les zones sales par longues
-  lignes, contourne murs, meubles et objets posés au sol (grille d'occupation + chemin A*), ne sort jamais de la pièce,
-  s'arrête devant le joueur, rentre seul se recharger (batterie faible, arrêt demandé ou sol propre) puis repart.
+  plus légères sur l'aire de lavage. Ni les tapis ni le sol de la salle ne sont salis par les pas.
+- **Sol de la salle** : hors zone de nettoyage, il ne se salit jamais (ni poussière, ni eau, ni mousse) et n'est pas une
+  cible des outils.
+- **Robot aspirateur** (base dans le coin arrière gauche de l'aire de lavage) : **E** sur le robot ou sa base pour le
+  démarrer ou l'arrêter. Il aspire réellement poussière, débris et traces sèches de l'aire (pas l'eau), choisit les zones
+  sales par longues lignes, contourne bordures, objets et le tapis posé (grille d'occupation recalculée à chaque tapis +
+  chemin A*), ne quitte jamais l'aire, s'arrête devant le joueur, rentre seul se recharger puis repart.
   Voyant : vert = nettoyage, bleu = retour, ambre = charge, blanc = prêt, rouge clignotant = obstacle.
-- **Réglages** centralisés : `ScriptableObjects/CleaningTuning` (mousse : retombée, action au repos ; ruissellement :
-  distance, taille des flaques, quantité), `Surface_WorkSurface` / `Surface_Floor` (taille, résolution, séchage, saleté
-  initiale du sol), composant `RobotVacuum` (vitesse, rayon, puissance, longueur des lignes).
+- **Réglages** centralisés : `ScriptableObjects/CleaningTuning` (mousse, ruissellement, seuils de l'aire, fin du tapis),
+  `Surface_WorkSurface` (taille, résolution, séchage), composant `RobotVacuum` (vitesse, rayon, puissance).
 
 ## 4 septies. Multijoueur coopératif
 
@@ -242,10 +249,16 @@ test, limites) : [Assets/RugWash/Documentation/MULTIPLAYER.md](Assets/RugWash/Do
 
 - **Menu principal → Multijoueur** :
   - **Steam (Internet)** : créer un salon (amis ou public), inviter des amis par Steam, rechercher et rejoindre une partie, lancer
-    la partie ; accepter une invitation Steam ouvre le salon (même jeu fermé). Steam doit être lancé et connecté.
+    la partie. Steam (lancé et connecté avant le jeu) est initialisé dès le menu principal : une invitation acceptée pendant
+    une partie solo sauvegarde la partie puis rejoint le salon.
   - **Réseau local** : « Héberger sur ce PC » ou « Rejoindre » une adresse IPv4:port (port UDP 7777 à autoriser chez l'hôte).
-- **Hôte** : joue avec sa progression (argent, réputation, achats, commandes) — elle est **partagée** par tous et sauvegardée
-  chez lui. **Invité** : sa propre progression n'est jamais modifiée ni sauvegardée pendant la partie.
+- **Progression personnelle** (v0.1.2) : chaque joueur garde **sa** carrière (argent, réputation, achats, produits, RugDex,
+  commandes livrées), sauvegardée chez lui. L'hôte la valide pendant la partie (achats payés avec l'argent de l'invité,
+  récompense complète versée à chaque joueur présent) ; elle n'est jamais remplacée par celle de l'hôte. L'atelier
+  (tapis, aire de lavage, robot, tableau des commandes) est celui de l'hôte et n'est sauvegardé que chez lui.
+- **Arrivée d'un invité** : « Connexion à l'atelier de l'hôte — synchronisation… » (contrôles coupés) jusqu'à réception de
+  l'atelier et de sa carrière validée ; le HUD affiche ensuite directement ses propres valeurs.
+- **Autres joueurs** : même modèle d'outil détaillé que le sien, posé sur le point qu'ils visent, jet depuis leur buse.
 - Tout ce qui compte est validé par l'hôte : nettoyage (les invités voient leur effet immédiatement, puis se recalent sur
   l'hôte), commandes, livraison et paiement (une seule fois), achats, robot. Chaque joueur garde sa caméra, ses contrôles et
   ses réservoirs. La pause ne fige pas la partie. La liste des joueurs (et la latence) s'affiche en haut à droite.
@@ -415,7 +428,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel : 153 tests EditMode et 87 tests PlayMode, tous réussis, et 24 / 24 vérifications multijoueur (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel : 165 tests EditMode et 98 tests PlayMode, tous réussis, et 32 / 32 vérifications multijoueur (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

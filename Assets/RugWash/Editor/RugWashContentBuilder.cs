@@ -148,10 +148,15 @@ namespace RugWash.Editor
             content.WorkSurface = EnsureSurface(WorkSurfacePath, "work_surface", "Plan de travail de l'aire de lavage", SurfaceKind.WorkSurface,
                 new Vector2(4.6f, 3.6f), 20, drying: 0.012f, fiberTiles: 0.7f, seed: 5);
             content.Floor = EnsureSurface(FloorSurfacePath, "floor", "Sol de l'atelier", SurfaceKind.Floor,
-                new Vector2(RugWashSceneBuilder.RoomHalfX * 2f, RugWashSceneBuilder.RoomHalfZ * 2f), 16, drying: 0.02f, fiberTiles: 0.5f, seed: 9,
-                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.8f, 0.35f, 0.6f),
-                new DirtLayer(DirtType.Dust, DirtPattern.Edges, 0.6f, 0.5f, 0.5f),
-                new DirtLayer(DirtType.HairDebris, DirtPattern.Blotches, 0.15f, 0.35f, 0.35f));
+                new Vector2(RugWashSceneBuilder.RoomHalfX * 2f, RugWashSceneBuilder.RoomHalfZ * 2f), 16, drying: 0.02f, fiberTiles: 0.5f, seed: 9);
+            // v0.1.2 : seule l'aire de lavage est une zone de nettoyage. Le sol de la salle n'a plus de poussière
+            // décorative et n'accumule rien (mise à jour aussi d'un asset existant).
+            if (content.Floor.accumulatesDirt || content.Floor.defaultDirt.Count > 0)
+            {
+                content.Floor.accumulatesDirt = false;
+                content.Floor.defaultDirt.Clear();
+                EditorUtility.SetDirty(content.Floor);
+            }
 
             EnsureOrders(content);
             EnsureUpgrades(content);
@@ -640,6 +645,15 @@ namespace RugWash.Editor
             content.Materials["Cardboard"] = EnsureLit("M_Cardboard", new Color(0.6f, 0.45f, 0.3f), 0.1f);
             content.Materials["DoorPaint"] = EnsureLit("M_DoorPaint", new Color(0.2f, 0.3f, 0.42f), 0.4f);
             content.Materials["Signage"] = EnsureLit("M_Signage", new Color(0.1f, 0.13f, 0.16f), 0.3f);
+            // Gants et silhouettes des joueurs (placeholders procéduraux : tenue de travail, peau, bottes, casquette).
+            content.Materials["Glove"] = EnsureLit("M_Glove", new Color(0.86f, 0.52f, 0.18f), 0.18f);
+            content.Materials["GloveCuff"] = EnsureLit("M_GloveCuff", new Color(0.16f, 0.2f, 0.28f), 0.2f);
+            content.Materials["Workwear"] = EnsureLit("M_Workwear", new Color(0.16f, 0.24f, 0.36f), 0.15f);
+            content.Materials["Shirt"] = EnsureLit("M_Shirt", new Color(0.66f, 0.69f, 0.72f), 0.2f);
+            content.Materials["Skin"] = EnsureLit("M_Skin", new Color(0.86f, 0.67f, 0.53f), 0.35f);
+            content.Materials["Boot"] = EnsureLit("M_Boot", new Color(0.2f, 0.13f, 0.08f), 0.3f);
+            content.Materials["CapFabric"] = EnsureLit("M_CapFabric", new Color(0.74f, 0.2f, 0.14f), 0.15f);
+            content.Materials["Reflective"] = EnsureLit("M_Reflective", new Color(0.85f, 0.88f, 0.4f), 0.5f);
             content.Materials["LampPanel"] = EnsureEmissive("M_LampPanel", new Color(1f, 0.95f, 0.85f), 4f);
             content.Materials["Window"] = EnsureEmissive("M_Window", new Color(0.55f, 0.7f, 0.88f), 0.75f);
             content.Materials["ScreenGlow"] = EnsureEmissive("M_ScreenGlow", new Color(0.35f, 0.75f, 0.85f), 1.2f);

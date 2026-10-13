@@ -62,9 +62,18 @@ namespace RugWash.Save
             if (result.Message != null) Debug.LogWarning($"[RugWash] {result.Message} ({store.MainPath})");
         }
 
+        /// <summary>
+        /// Applique la sauvegarde chargée si ce n'est pas déjà fait (sans effet ensuite). En ligne, l'atelier réseau peut
+        /// apparaître avant le Start de la scène : il appelle cette méthode avant de lire la carrière du joueur.
+        /// </summary>
+        public void EnsureApplied()
+        {
+            if (!applied) ApplyLoadedData();
+        }
+
         void Start()
         {
-            ApplyLoadedData();
+            EnsureApplied();
             settings.Changed += OnSettingsChanged;
             if (orders != null) orders.OrderFinished += OnOrderFinished;
             if (shop != null)
@@ -93,7 +102,11 @@ namespace RugWash.Save
         void ApplyLoadedData()
         {
             settings.Apply(Current.settings);
-            if (workshop != null) workshop.Restore(Current.workshop);
+            // Invité en ligne : l'atelier affiché (aire de lavage, sol, robot, tableau des commandes) est celui de l'hôte ;
+            // il arrive par le réseau. Seule la carrière personnelle de ce joueur est chargée.
+            var session = Network.MultiplayerSession.Find();
+            GuestCareerMode = session != null && session.IsGuest;
+            if (workshop != null && !GuestCareerMode) workshop.Restore(Current.workshop);
             if (products != null)
             {
                 var entries = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, float>>();
@@ -110,23 +123,23 @@ namespace RugWash.Save
                 wallet.Wallet.Restore(Current.money);
                 reputation.Restore(Current.reputation);
                 upgrades.Restore(Current.upgrades);
-                orders.Book.MarkCompleted(Current.completedOrders);
+                if (!GuestCareerMode) orders.Book.MarkCompleted(Current.completedOrders);
             }
             applied = true;
         }
 
         /// <summary>
-        /// Multijoueur, côté invité : l'atelier affiché est celui de l'hôte. Seuls les paramètres sont écrits ; la progression
-        /// locale (argent, commandes, produits, RugDex, atelier) reste celle d'avant la session.
+        /// Multijoueur, côté invité : la progression de carrière reste celle de CE joueur (argent, réputation, améliorations,
+        /// produits, RugDex, commandes livrées), validée par l'hôte puis sauvegardée ici. L'atelier de l'hôte (aire de
+        /// lavage, sol, robot, tableau des commandes) n'est jamais écrit dans la sauvegarde de l'invité.
         /// </summary>
-        public bool ProgressionLocked { get; set; }
+        public bool GuestCareerMode { get; set; }
 
         /// <summary>Recopie l'état courant des systèmes dans les données à sauvegarder.</summary>
         void Capture()
         {
             Current.settings = settings.Current.Clone();
-            if (ProgressionLocked) return;
-            if (workshop != null) workshop.Capture(Current.workshop ??= new WorkshopSaveData());
+            if (workshop != null && !GuestCareerMode) workshop.Capture(Current.workshop ??= new WorkshopSaveData());
             if (products != null)
             {
                 Current.products = new System.Collections.Generic.List<ProductStockData>();
@@ -138,7 +151,8 @@ namespace RugWash.Save
             Current.money = wallet.Balance;
             Current.reputation = reputation.Points;
             Current.upgrades = new System.Collections.Generic.List<string>(upgrades.OwnedIds);
-            Current.completedOrders = new System.Collections.Generic.List<string>(orders.Book.CompletedIds());
+            // Invité : ses commandes livrées sont ajoutées à sa liste (OnOrderFinished), le tableau de l'hôte n'est pas copié.
+            if (!GuestCareerMode) Current.completedOrders = new System.Collections.Generic.List<string>(orders.Book.CompletedIds());
         }
 
         public bool SaveNow(string reason)
@@ -176,18 +190,20 @@ namespace RugWash.Save
 
         void OnOrderFinished(OrderResult result)
         {
-            if (ProgressionLocked) return;
             if (result.Accepted)
             {
                 Current.ordersDelivered++;
                 Current.totalEarned += result.Reward;
+                // Invité : la commande de session livrée entre dans SON historique de carrière.
+                if (GuestCareerMode && result.Order != null && !Current.completedOrders.Contains(result.Order.id))
+                    Current.completedOrders.Add(result.Order.id);
             }
             SaveNow("commande livrée");
         }
 
         void OnPurchaseAttempted(UpgradeDefinition upgrade, PurchaseResult result)
         {
-            if (result == PurchaseResult.Purchased && !ProgressionLocked) SaveNow("achat");
+            if (result == PurchaseResult.Purchased) SaveNow("achat");
         }
 
         void OnApplicationQuit() => SaveNow("fermeture du jeu");

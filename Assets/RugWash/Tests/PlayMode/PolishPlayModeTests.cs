@@ -25,6 +25,7 @@ namespace RugWash.Tests
             yield return null;
             game = Object.FindAnyObjectByType<GameBootstrap>();
             Assert.IsTrue(game != null && game.IsReady);
+            TestRugs.LoadDefault(game);
             yield return null;
         }
 

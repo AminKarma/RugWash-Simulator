@@ -75,15 +75,34 @@ namespace RugWash.Effects
 
         void OnEnable()
         {
-            if (rug != null) rug.RugLoaded += OnRugLoaded;
+            if (rug != null)
+            {
+                rug.RugLoaded += OnRugLoaded;
+                rug.Finished += OnRugFinished;
+            }
             if (orders != null) orders.ObjectiveReached += OnObjectiveReached;
             if (rug != null && rug.Grid != null) milestones.Reset(rug.Cleanliness01);
         }
 
         void OnDisable()
         {
-            if (rug != null) rug.RugLoaded -= OnRugLoaded;
+            if (rug != null)
+            {
+                rug.RugLoaded -= OnRugLoaded;
+                rug.Finished -= OnRugFinished;
+            }
             if (orders != null) orders.ObjectiveReached -= OnObjectiveReached;
+        }
+
+        /// <summary>Tapis terminé (moins de 1 % de saleté restante) : son de réussite et pluie d'éclats.</summary>
+        public event Action RugFinished;
+
+        void OnRugFinished(RugCleaningController finished)
+        {
+            if (audioManager != null) audioManager.PlayInterface(audioManager.ConfirmClip);
+            milestones.Reset(1f);
+            if (celebrationPool != null && isActiveAndEnabled) StartCoroutine(Celebrate());
+            RugFinished?.Invoke();
         }
 
         void OnRugLoaded(RugCleaningController loaded) => milestones.Reset(loaded.Cleanliness01);

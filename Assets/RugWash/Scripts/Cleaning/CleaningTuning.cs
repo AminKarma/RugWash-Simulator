@@ -31,6 +31,21 @@ namespace RugWash.Cleaning
         [Tooltip("Multiplicateur global des quantités déposées (équilibrage).")]
         [Range(0f, 5f)] public float runoffScale = 1f;
 
+        [Header("Aire de lavage (zone de nettoyage)")]
+        [Tooltip("Propreté minimale de l'aire de lavage pour accepter une nouvelle commande (0..1). " +
+                 "Propreté = part de la surface non souillée = 1 − saleté.")]
+        [Range(0f, 1f)] public float zoneMinCleanlinessToStart = 0.25f;
+        [Tooltip("Saleté de l'aire de lavage (part de la surface souillée) au-delà de laquelle le tapis posé dessus se salit.")]
+        [Range(0f, 1f)] public float zoneDirtyThreshold = 0.4f;
+        [Tooltip("Saleté déposée par seconde sur la bordure du tapis quand l'aire est entièrement souillée " +
+                 "(proportionnelle à l'excès au-delà du seuil ; 0 = jamais en continu).")]
+        [Range(0f, 0.2f)] public float zoneContaminationPerSecond = 0.015f;
+
+        [Header("Fin du tapis")]
+        [Tooltip("Le tapis est terminé quand la saleté restante passe sous cette part de la saleté initiale " +
+                 "(0,01 = il reste moins de 1 %). Le reliquat est alors retiré : la propreté affiche 100 %.")]
+        [Range(0f, 0.05f)] public float rugFinishedRemaining = 0.01f;
+
         /// <summary>Valeurs de référence utilisées si aucun réglage n'est assigné (tests, scènes minimales).</summary>
         public static CleaningTuning CreateDefault()
         {

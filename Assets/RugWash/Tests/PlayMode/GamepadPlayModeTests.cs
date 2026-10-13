@@ -35,6 +35,7 @@ namespace RugWash.Tests
         {
             TestSaveSandbox.Reset();
             yield return Load("Workshop");
+            if (game != null) TestRugs.LoadDefault(game);
         }
 
         IEnumerator Load(string scene)

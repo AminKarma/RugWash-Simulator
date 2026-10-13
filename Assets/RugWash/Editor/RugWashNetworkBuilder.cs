@@ -59,70 +59,127 @@ namespace RugWash.Editor
             sync.SyncScaleX = sync.SyncScaleY = sync.SyncScaleZ = false;
             sync.Interpolate = true;
 
+            // Silhouette procédurale (placeholder propre, pas un asset définitif) : tenue de travail, casquette, gants.
+            // Proportions d'un adulte de 1,75 m ; les yeux (point de vue des outils) sont à 1,62 m, comme la caméra du joueur.
             var visuals = new GameObject("Visuals").transform;
             visuals.SetParent(root.transform, false);
-            Part("Torso", visuals, meshes.Add("Avatar_Torso", () => RoundedBox(new Vector3(0.44f, 0.62f, 0.27f), 0.08f)), c["BluePlastic"], new Vector3(0f, 1.12f, 0f));
-            Part("Belt", visuals, meshes.Add("Avatar_Belt", () => RoundedBox(new Vector3(0.45f, 0.08f, 0.28f), 0.03f)), c["Rubber"], new Vector3(0f, 0.84f, 0f));
-            var leg = meshes.Add("Avatar_Leg", () => Cylinder(0.085f, 0.8f, 14));
-            Part("LegL", visuals, leg, c["DarkMetal"], new Vector3(-0.11f, 0.42f, 0f));
-            Part("LegR", visuals, leg, c["DarkMetal"], new Vector3(0.11f, 0.42f, 0f));
-            var arm = meshes.Add("Avatar_Arm", () => Cylinder(0.06f, 0.55f, 12));
-            Part("ArmL", visuals, arm, c["BluePlastic"], new Vector3(-0.27f, 1.12f, 0.05f), new Vector3(20f, 0f, 0f));
-            Part("ArmR", visuals, arm, c["BluePlastic"], new Vector3(0.27f, 1.08f, 0.14f), new Vector3(60f, 0f, 0f));
+
+            Transform Leg(string name, float x)
+            {
+                var hip = new GameObject(name).transform;
+                hip.SetParent(visuals, false);
+                hip.localPosition = new Vector3(x, 0.9f, 0f);
+                Part("Trouser", hip, meshes.Add("Avatar_Trouser", () => Lathe(new[]
+                {
+                    new Vector2(0.062f, -0.84f), new Vector2(0.066f, -0.45f), new Vector2(0.078f, -0.08f), new Vector2(0.07f, 0f),
+                }, 14)), c["Workwear"], Vector3.zero);
+                Part("Boot", hip, meshes.Add("Avatar_Boot", () => RoundedBox(new Vector3(0.12f, 0.11f, 0.26f), 0.035f)), c["Boot"],
+                    new Vector3(0f, -0.845f, 0.045f));
+                return hip;
+            }
+            var legLeft = Leg("Leg_L", -0.1f);
+            var legRight = Leg("Leg_R", 0.1f);
+
+            Part("Pelvis", visuals, meshes.Add("Avatar_Pelvis", () => RoundedBox(new Vector3(0.34f, 0.17f, 0.22f), 0.06f)), c["Workwear"], new Vector3(0f, 0.93f, 0f));
+            Part("Belt", visuals, meshes.Add("Avatar_Belt", () => RoundedBox(new Vector3(0.355f, 0.05f, 0.232f), 0.02f)), c["Rubber"], new Vector3(0f, 1.0f, 0f));
+            Part("Torso", visuals, meshes.Add("Avatar_Torso", () => RoundedBox(new Vector3(0.4f, 0.46f, 0.24f), 0.085f)), c["Shirt"], new Vector3(0f, 1.24f, 0f));
+            Part("Bib_Front", visuals, meshes.Add("Avatar_Bib", () => RoundedBox(new Vector3(0.28f, 0.28f, 0.03f), 0.012f)), c["Workwear"], new Vector3(0f, 1.15f, 0.112f));
+            Part("Bib_Back", visuals, meshes.Add("Avatar_Bib", () => RoundedBox(new Vector3(0.28f, 0.28f, 0.03f), 0.012f)), c["Workwear"], new Vector3(0f, 1.15f, -0.112f));
+            var strap = meshes.Add("Avatar_Strap", () => RoundedBox(new Vector3(0.045f, 0.2f, 0.02f), 0.008f));
+            Part("Strap_FL", visuals, strap, c["Workwear"], new Vector3(-0.1f, 1.36f, 0.115f));
+            Part("Strap_FR", visuals, strap, c["Workwear"], new Vector3(0.1f, 1.36f, 0.115f));
+            Part("Strap_BL", visuals, strap, c["Workwear"], new Vector3(-0.1f, 1.36f, -0.115f));
+            Part("Strap_BR", visuals, strap, c["Workwear"], new Vector3(0.1f, 1.36f, -0.115f));
+            Part("Reflective", visuals, meshes.Add("Avatar_Reflective", () => RoundedBox(new Vector3(0.36f, 0.025f, 0.236f), 0.01f)), c["Reflective"], new Vector3(0f, 1.07f, 0f));
+            Part("Neck", visuals, meshes.Add("Avatar_Neck", () => Cylinder(0.05f, 0.08f, 14)), c["Skin"], new Vector3(0f, 1.5f, 0f));
 
             var head = new GameObject("Head").transform;
             head.SetParent(visuals, false);
-            head.localPosition = new Vector3(0f, 1.5f, 0f);
-            Part("Skull", head, meshes.Add("Avatar_Head", () => RoundedBox(new Vector3(0.26f, 0.28f, 0.26f), 0.1f)), c["WhitePlastic"], new Vector3(0f, 0.12f, 0f));
-            Part("Visor", head, meshes.Add("Avatar_Visor", () => RoundedBox(new Vector3(0.21f, 0.07f, 0.03f), 0.015f)), c["RobotDark"], new Vector3(0f, 0.14f, 0.13f));
-
-            var hand = new GameObject("Hand").transform;
-            hand.SetParent(visuals, false);
-            hand.localPosition = new Vector3(0.27f, 0.95f, 0.36f);
-            var tools = new List<GameObject>
+            head.localPosition = new Vector3(0f, 1.55f, 0f);
+            Part("Face", head, meshes.Add("Avatar_Face", () => RoundedBox(new Vector3(0.19f, 0.23f, 0.21f), 0.085f)), c["Skin"], new Vector3(0f, 0.08f, 0f));
+            var ear = meshes.Add("Avatar_Ear", () => RoundedBox(new Vector3(0.028f, 0.055f, 0.04f), 0.012f));
+            Part("Ear_L", head, ear, c["Skin"], new Vector3(-0.1f, 0.08f, 0f));
+            Part("Ear_R", head, ear, c["Skin"], new Vector3(0.1f, 0.08f, 0f));
+            Part("Nose", head, meshes.Add("Avatar_Nose", () => RoundedBox(new Vector3(0.028f, 0.04f, 0.03f), 0.012f)), c["Skin"], new Vector3(0f, 0.07f, 0.108f));
+            var eye = meshes.Add("Avatar_Eye", () => RoundedBox(new Vector3(0.03f, 0.016f, 0.01f), 0.005f));
+            Part("Eye_L", head, eye, c["RobotDark"], new Vector3(-0.042f, 0.1f, 0.104f));
+            Part("Eye_R", head, eye, c["RobotDark"], new Vector3(0.042f, 0.1f, 0.104f));
+            Part("Cap", head, meshes.Add("Avatar_Cap", () => Lathe(new[]
             {
-                Tool(hand, "Vacuum", (meshes.Add("Tool_Vacuum", () => Cylinder(0.09f, 0.32f, 16)), c["RedPlastic"], new Vector3(0f, 0f, 0.05f), new Vector3(90f, 0f, 0f)),
-                    (meshes.Add("Tool_VacuumNozzle", () => Cylinder(0.03f, 0.4f, 10)), c["DarkMetal"], new Vector3(0f, -0.1f, 0.35f), new Vector3(120f, 0f, 0f))),
-                Tool(hand, "Soap", (meshes.Add("Tool_SoapBottle", () => RoundedBox(new Vector3(0.09f, 0.22f, 0.09f), 0.03f)), c["WhitePlastic"], Vector3.zero, Vector3.zero),
-                    (meshes.Add("Tool_SoapHead", () => RoundedBox(new Vector3(0.05f, 0.06f, 0.1f), 0.015f)), c["GreenPlastic"], new Vector3(0f, 0.13f, 0.04f), Vector3.zero)),
-                Tool(hand, "Brush", (meshes.Add("Tool_Handle", () => Cylinder(0.018f, 0.75f, 8)), c["Wood"], new Vector3(0f, -0.05f, 0.3f), new Vector3(110f, 0f, 0f)),
-                    (meshes.Add("Tool_BrushHead", () => RoundedBox(new Vector3(0.22f, 0.05f, 0.09f), 0.015f)), c["GreenPlastic"], new Vector3(0f, -0.19f, 0.66f), Vector3.zero)),
-                Tool(hand, "Rinse", (meshes.Add("Tool_Lance", () => Cylinder(0.022f, 0.7f, 8)), c["BluePlastic"], new Vector3(0f, -0.04f, 0.3f), new Vector3(100f, 0f, 0f)),
-                    (meshes.Add("Tool_Nozzle", () => Cylinder(0.03f, 0.06f, 10)), c["Chrome"], new Vector3(0f, -0.1f, 0.65f), new Vector3(100f, 0f, 0f))),
-                Tool(hand, "Extractor", (meshes.Add("Tool_ExtractorBody", () => RoundedBox(new Vector3(0.16f, 0.16f, 0.3f), 0.04f)), c["SafetyYellow"], new Vector3(0f, 0f, 0.1f), Vector3.zero),
-                    (meshes.Add("Tool_ExtractorWand", () => Cylinder(0.025f, 0.45f, 8)), c["Steel"], new Vector3(0f, -0.12f, 0.38f), new Vector3(120f, 0f, 0f))),
-                Tool(hand, "FoamCannon", (meshes.Add("Tool_CannonBody", () => RoundedBox(new Vector3(0.1f, 0.12f, 0.32f), 0.03f)), c["BluePlastic"], new Vector3(0f, 0f, 0.1f), Vector3.zero),
-                    (meshes.Add("Tool_CannonBottle", () => Cylinder(0.055f, 0.18f, 14)), c["WhitePlastic"], new Vector3(0f, -0.1f, 0.05f), Vector3.zero)),
-                Tool(hand, "Broom", (meshes.Add("Tool_BroomHandle", () => Cylinder(0.018f, 1.1f, 8)), c["Wood"], new Vector3(0f, -0.2f, 0.32f), new Vector3(125f, 0f, 0f)),
-                    (meshes.Add("Tool_BroomHead", () => RoundedBox(new Vector3(0.32f, 0.08f, 0.07f), 0.02f)), c["Bristle"], new Vector3(0f, -0.53f, 0.78f), Vector3.zero)),
-                Tool(hand, "DetailBrush", (meshes.Add("Tool_DetailHandle", () => RoundedBox(new Vector3(0.04f, 0.04f, 0.2f), 0.012f)), c["Wood"], new Vector3(0f, 0f, 0.1f), Vector3.zero),
-                    (meshes.Add("Tool_DetailHead", () => RoundedBox(new Vector3(0.07f, 0.04f, 0.07f), 0.012f)), c["Bristle"], new Vector3(0f, -0.03f, 0.22f), Vector3.zero)),
+                new Vector2(0.112f, 0f), new Vector2(0.108f, 0.035f), new Vector2(0.09f, 0.07f), new Vector2(0.05f, 0.092f), new Vector2(0f, 0.098f),
+            }, 18, capBottom: false)), c["CapFabric"], new Vector3(0f, 0.13f, 0f));
+            Part("Cap_Visor", head, meshes.Add("Avatar_Visor", () => RoundedBox(new Vector3(0.16f, 0.012f, 0.1f), 0.005f)), c["CapFabric"],
+                new Vector3(0f, 0.14f, 0.13f), new Vector3(-6f, 0f, 0f));
+            var view = new GameObject("View").transform;
+            view.SetParent(head, false);
+            view.localPosition = new Vector3(0f, 0.07f, 0f);
+
+            // Bras : épaule fixe, segments orientés chaque image (deux segments, coude calculé) ; gant propre à la silhouette.
+            var upperMesh = meshes.Add("Avatar_UpperArm", () => Lathe(new[] { new Vector2(0.055f, 0f), new Vector2(0.047f, 0.3f) }, 12));
+            var foreMesh = meshes.Add("Avatar_ForeArm", () => Lathe(new[] { new Vector2(0.046f, 0f), new Vector2(0.038f, 0.3f) }, 12));
+            var handMesh = meshes.Add("Avatar_Hand", () => RoundedBox(new Vector3(0.074f, 0.086f, 0.08f), 0.026f));
+            Transform Empty(string name, Transform parent, Vector3 position)
+            {
+                var t = new GameObject(name).transform;
+                t.SetParent(parent, false);
+                t.localPosition = position;
+                return t;
+            }
+            Transform Segment(string name, Mesh mesh, Material material)
+            {
+                var segment = Empty(name, visuals, Vector3.zero);
+                Part("Mesh", segment, mesh, material, Vector3.zero, new Vector3(90f, 0f, 0f));
+                return segment;
+            }
+            var shoulderLeft = Empty("Shoulder_L", visuals, new Vector3(-0.235f, 1.4f, 0f));
+            var shoulderRight = Empty("Shoulder_R", visuals, new Vector3(0.235f, 1.4f, 0f));
+            var upperLeft = Segment("UpperArm_L", upperMesh, c["Shirt"]);
+            var upperRight = Segment("UpperArm_R", upperMesh, c["Shirt"]);
+            var foreLeft = Segment("ForeArm_L", foreMesh, c["Shirt"]);
+            var foreRight = Segment("ForeArm_R", foreMesh, c["Shirt"]);
+            upperLeft.localPosition = shoulderLeft.localPosition;
+            upperRight.localPosition = shoulderRight.localPosition;
+            upperLeft.localRotation = upperRight.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            foreLeft.localPosition = shoulderLeft.localPosition + Vector3.down * 0.3f;
+            foreRight.localPosition = shoulderRight.localPosition + Vector3.down * 0.3f;
+            foreLeft.localRotation = foreRight.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            Part("Hand", foreLeft, handMesh, c["Glove"], new Vector3(0f, 0f, 0.34f));
+            var handRight = Part("Hand", foreRight, handMesh, c["Glove"], new Vector3(0f, 0f, 0.34f));
+
+            // Les huit outils, mêmes modèles détaillés que la vue à la première personne, portés devant les yeux.
+            var definitions = new[] { c.Vacuum, c.Soap, c.Brush, c.Rinse, c.Extractor, c.FoamCannon, c.Broom, c.DetailBrush };
+            var models = new[]
+            {
+                RugWashToolModels.Vacuum(view, meshes, c), RugWashToolModels.Soap(view, meshes, c), RugWashToolModels.Brush(view, meshes, c),
+                RugWashToolModels.Rinse(view, meshes, c), RugWashToolModels.Extractor(view, meshes, c), RugWashToolModels.FoamCannon(view, meshes, c),
+                RugWashToolModels.Broom(view, meshes, c), RugWashToolModels.DetailBrush(view, meshes, c),
             };
+            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2 };
+            foreach (var model in models) DisableShadows(model.Root.gameObject);
 
             var labelGo = new GameObject("Name");
             labelGo.transform.SetParent(visuals, false);
-            labelGo.transform.localPosition = new Vector3(0f, 2.05f, 0f);
+            labelGo.transform.localPosition = new Vector3(0f, 1.98f, 0f);
             var label = labelGo.AddComponent<TextMesh>();
             var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             label.font = font;
             label.fontSize = 64;
-            label.characterSize = 0.022f;
+            label.characterSize = 0.02f;
             label.anchor = TextAnchor.MiddleCenter;
             label.alignment = TextAlignment.Center;
             label.color = Color.white;
             label.text = "Joueur";
             labelGo.GetComponent<MeshRenderer>().sharedMaterial = font.material;
 
-            var effects = new GameObject("Effects").transform;
-            effects.SetParent(hand, false);
-            effects.localPosition = new Vector3(0f, -0.15f, 0.6f);
-            effects.localRotation = Quaternion.Euler(50f, 0f, 0f);
-            var liquid = CreateParticles("Liquid", effects, c["Droplet"], new ParticleConfig
+            // Effets d'outil : repositionnés chaque image sur la bouche ou la tête de l'outil affiché.
+            var fx = new GameObject("Effects").transform;
+            fx.SetParent(visuals, false);
+            var liquid = CreateParticles("Liquid", fx, c["Droplet"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.25f, 0.45f), Speed = new Vector2(2.5f, 4f), Size = new Vector2(0.02f, 0.05f), Color = new Color(0.85f, 0.92f, 1f, 0.8f),
                 Gravity = 0.6f, MaxParticles = 80, Shape = ParticleSystemShapeType.Cone, Angle = 9f, Radius = 0.01f, Loop = true, Rate = 70f, Stretch = 0.08f,
             });
-            var dust = CreateParticles("Dust", effects, c["Dust"], new ParticleConfig
+            var dust = CreateParticles("Dust", fx, c["Dust"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.4f, 0.8f), Speed = new Vector2(0.2f, 0.6f), Size = new Vector2(0.05f, 0.12f), Color = new Color(0.65f, 0.58f, 0.48f, 0.5f),
                 Gravity = -0.05f, MaxParticles = 40, Shape = ParticleSystemShapeType.Sphere, Radius = 0.08f, Loop = true, Rate = 25f, SizeGrowth = 1.8f,
@@ -138,16 +195,36 @@ namespace RugWash.Editor
             audio.volume = 0.45f;
 
             var avatar = root.AddComponent<NetworkPlayerAvatar>();
-            Wire(avatar, ("visuals", visuals.gameObject), ("head", head), ("nameLabel", label), ("liquidEffect", liquid), ("dustEffect", dust),
-                ("toolAudio", audio));
-            WireList(avatar, "toolModels", tools);
+            Wire(avatar, ("visuals", visuals.gameObject), ("head", head), ("view", view), ("nameLabel", label), ("liquidEffect", liquid),
+                ("dustEffect", dust), ("toolAudio", audio), ("legLeft", legLeft), ("legRight", legRight), ("shoulderLeft", shoulderLeft),
+                ("shoulderRight", shoulderRight), ("upperArmLeft", upperLeft), ("upperArmRight", upperRight), ("foreArmLeft", foreLeft),
+                ("foreArmRight", foreRight), ("handRight", handRight));
+            SetInt(avatar, "aimMask", ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5)));
+            var serialized = new SerializedObject(avatar);
+            var list = serialized.FindProperty("tools");
+            list.arraySize = models.Length;
+            for (int i = 0; i < models.Length; i++)
+            {
+                var entry = list.GetArrayElementAtIndex(i);
+                var model = models[i];
+                entry.FindPropertyRelative("root").objectReferenceValue = model.Root.gameObject;
+                entry.FindPropertyRelative("tip").objectReferenceValue = model.Tip;
+                entry.FindPropertyRelative("head").objectReferenceValue = model.Head;
+                entry.FindPropertyRelative("shaft").objectReferenceValue = model.Shaft;
+                entry.FindPropertyRelative("shaftLength").floatValue = model.ShaftLength;
+                entry.FindPropertyRelative("range").floatValue = definitions[i].range;
+                entry.FindPropertyRelative("rightHand").objectReferenceValue = model.RightHand;
+                entry.FindPropertyRelative("leftHand").objectReferenceValue = model.LeftHand;
+                entry.FindPropertyRelative("effect").intValue = effects[i];
+            }
+            serialized.ApplyModifiedPropertiesWithoutUndo();
             WireList(avatar, "toolLoops", new[]
             {
                 Clip(RugWashAudioGenerator.VacuumLoop), Clip(RugWashAudioGenerator.SoapLoop), Clip(RugWashAudioGenerator.BrushLoop),
                 Clip(RugWashAudioGenerator.RinseLoop), Clip(RugWashAudioGenerator.ExtractorLoop), Clip(RugWashAudioGenerator.FoamCannonLoop),
                 Clip(RugWashAudioGenerator.BroomLoop), Clip(RugWashAudioGenerator.BrushLoop),
             });
-            foreach (var tool in tools) tool.SetActive(false);
+            foreach (var model in models) model.Root.gameObject.SetActive(false);
             DisableShadows(labelGo);
 
             return SaveNetworkPrefab(root, AvatarPrefabPath);
@@ -187,12 +264,5 @@ namespace RugWash.Editor
             return go;
         }
 
-        static GameObject Tool(Transform hand, string name, params (Mesh mesh, Material material, Vector3 position, Vector3 euler)[] parts)
-        {
-            var go = new GameObject($"Tool_{name}");
-            go.transform.SetParent(hand, false);
-            for (int i = 0; i < parts.Length; i++) Part($"{name}_{i}", go.transform, parts[i].mesh, parts[i].material, parts[i].position, parts[i].euler);
-            return go;
-        }
     }
 }

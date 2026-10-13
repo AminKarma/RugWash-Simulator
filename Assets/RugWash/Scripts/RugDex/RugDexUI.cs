@@ -32,7 +32,6 @@ namespace RugWash.RugDex
         RugCatalog catalog;
         RugDexBook book;
         IReadOnlyList<OrderDefinition> orders;
-        IReadOnlyList<RugDefinition> practiceRugs;
         DirtTypeLibrary dirtNames;
         GameStateManager gameState;
         int selected;
@@ -51,14 +50,11 @@ namespace RugWash.RugDex
         }
 
         /// <param name="state">Optionnel : présent dans l'atelier (fenêtre modale), absent du menu principal.</param>
-        /// <param name="practice">Tapis d'entraînement accessibles depuis le menu pause (découverte possible sans commande).</param>
-        public void Bind(RugCatalog rugCatalog, RugDexBook progress, IReadOnlyList<OrderDefinition> orderList, IReadOnlyList<RugDefinition> practice,
-            DirtTypeLibrary names, GameStateManager state)
+        public void Bind(RugCatalog rugCatalog, RugDexBook progress, IReadOnlyList<OrderDefinition> orderList, DirtTypeLibrary names, GameStateManager state)
         {
             catalog = rugCatalog;
             book = progress;
             orders = orderList;
-            practiceRugs = practice;
             dirtNames = names;
             gameState = state;
             cardTemplate.gameObject.SetActive(false);
@@ -158,16 +154,14 @@ namespace RugWash.RugDex
         string DescribeUnknown(RugDefinition rug)
         {
             if (rug == null) return "Entrée vide.";
-            bool practice = practiceRugs != null && ((IList<RugDefinition>)practiceRugs).Contains(rug);
-            string practiceHint = practice ? "\nOu à l'entraînement : menu pause → « Tapis suivant »." : string.Empty;
             OrderDefinition first = null;
             if (orders != null)
                 foreach (var order in orders)
                     if (order != null && order.rug == rug && (first == null || order.requiredReputation < first.requiredReputation)) first = order;
             return first == null
-                ? $"Catégorie : {RugDefinition.CategoryLabel(rug.pileType)}\nAucune commande actuelle ne propose ce tapis.{practiceHint}"
+                ? $"Catégorie : {RugDefinition.CategoryLabel(rug.pileType)}\nAucune commande actuelle ne propose ce tapis."
                 : $"Catégorie : {RugDefinition.CategoryLabel(rug.pileType)}\nPour le découvrir : accepter la commande « {first.title} » de {first.clientName}" +
-                  (first.requiredReputation > 0 ? $" (réputation {first.requiredReputation} requise)." : ".") + practiceHint;
+                  (first.requiredReputation > 0 ? $" (réputation {first.requiredReputation} requise)." : ".");
         }
 
         string DirtSeen(RugDefinition rug)

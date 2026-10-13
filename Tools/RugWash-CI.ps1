@@ -141,6 +141,10 @@ if ($Step -eq 'multiplayer') {
         $same = $reports['host'].values.empreinteTapis -eq $reports['guest'].values.empreinteTapis
         Write-Host ("  [{0}] Tapis identique chez l'hôte et l'invité (empreinte {1} / {2})" -f ($(if ($same) { 'OK ' } else { 'ÉCHEC' })), $reports['host'].values.empreinteTapis, $reports['guest'].values.empreinteTapis)
         if (-not $same) { $failed = $true }
+        # Progression personnelle : la carrière de l'invité tenue par l'hôte est exactement celle que l'invité affiche.
+        $career = $reports['host'].values.carriereInviteVueParHote -eq $reports['guest'].values.argentInvite
+        Write-Host ("  [{0}] Carrière de l'invité identique chez l'hôte et chez l'invité ({1} / {2})" -f ($(if ($career) { 'OK ' } else { 'ÉCHEC' })), $reports['host'].values.carriereInviteVueParHote, $reports['guest'].values.argentInvite)
+        if (-not $career) { $failed = $true }
     }
     if ($failed) { throw "[multiplayer] des vérifications ont échoué." }
     Write-Host "==> [multiplayer] OK"

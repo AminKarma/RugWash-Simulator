@@ -220,6 +220,7 @@ namespace RugWash.Tests
         [UnityTest]
         public IEnumerator Products_BoughtSelectedWithT_ConsumedAndTheyReallyHelp()
         {
+            TestRugs.LoadDefault(game);
             var degreaser = ProductById("product_degreaser");
             game.Wallet.Wallet.Add(500);
             int balance = game.Wallet.Balance;
@@ -263,6 +264,7 @@ namespace RugWash.Tests
         [UnityTest]
         public IEnumerator Product_RunsOut_ThenSprayerFallsBackToStandard()
         {
+            TestRugs.LoadDefault(game);
             var enzyme = ProductById("product_enzyme");
             game.Products.Restore(new[] { new System.Collections.Generic.KeyValuePair<string, float>(enzyme.id, 0.01f) }, enzyme.id);
             Assert.AreEqual(enzyme, game.Products.Active);
@@ -288,7 +290,7 @@ namespace RugWash.Tests
             Assert.AreEqual(3f, game.Products.Book.StockOf(ProductById("product_silk")), 1e-4f);
             Assert.AreEqual("product_silk", game.Products.Active.id);
             Assert.AreEqual("A", game.RugDexService.Book.Get("shag").bestGrade);
-            Assert.IsTrue(game.RugDexService.Book.IsDiscovered(game.Rug.Definition.id), "Le tapis d'entraînement est connu.");
+            Assert.IsFalse(game.Rug.IsLoaded, "Aucun tapis d'entraînement ne réapparaît au chargement.");
         }
 
         [UnityTest]
@@ -361,11 +363,11 @@ namespace RugWash.Tests
             var dex = game.RugDexUI;
             Assert.IsTrue(dex.IsOpen);
             Assert.AreEqual(game.RugDexService.Catalog.rugs.Count, dex.Cards.Count, "Une carte par tapis du catalogue.");
-            StringAssert.Contains($"1 / {dex.Cards.Count} tapis", dex.CompletionText);
+            StringAssert.Contains($"0 / {dex.Cards.Count} tapis", dex.CompletionText);
 
             int known = 0;
             foreach (var card in dex.Cards) if (card.ShowsKnownRug) known++;
-            Assert.AreEqual(1, known, "Seul le tapis d'entraînement est connu au départ.");
+            Assert.AreEqual(0, known, "Aucun tapis connu au départ (plus de tapis d'entraînement).");
 
             int luxuryIndex = game.RugDexService.Catalog.rugs.FindIndex(r => r.id == "luxury");
             dex.Select(luxuryIndex);
@@ -373,18 +375,21 @@ namespace RugWash.Tests
             StringAssert.Contains("Résidence Valmont", dex.DetailText, "Condition de découverte réelle (commande qui propose ce tapis).");
             StringAssert.Contains("réputation 8", dex.DetailText);
 
-            int orientalIndex = game.RugDexService.Catalog.rugs.FindIndex(r => r.id == "oriental");
-            dex.Select(orientalIndex);
-            StringAssert.Contains("Oriental noué", dex.DetailText);
-            StringAssert.Contains("Dimensions : 3", dex.DetailText);
-
-            // Découverte par l'entraînement : la complétion augmente aussitôt.
-            pause.NextRug();
+            // Découverte en acceptant une commande : la complétion augmente aussitôt et la fiche devient réelle.
+            dex.Close();
+            game.GameState.Resume();
+            yield return null;
+            var first = game.Orders.Book.Orders[0];
+            Assert.AreEqual(OrderStartResult.Started, game.Orders.TryStart(first));
             yield return null;
             Assert.IsTrue(game.GameState.Pause());
             yield return null;
             Assert.IsTrue(dex.Open() || dex.IsOpen);
-            StringAssert.Contains($"2 / {dex.Cards.Count} tapis", dex.CompletionText);
+            StringAssert.Contains($"1 / {dex.Cards.Count} tapis", dex.CompletionText);
+            int discovered = game.RugDexService.Catalog.rugs.IndexOf(first.rug);
+            dex.Select(discovered);
+            StringAssert.Contains(RugDefinition.CategoryLabel(first.rug.pileType), dex.DetailText);
+            StringAssert.Contains("Dimensions : ", dex.DetailText);
             dex.Close();
             game.GameState.Resume();
         }
@@ -400,7 +405,7 @@ namespace RugWash.Tests
             menu.RugDexButton.onClick.Invoke();
             yield return null;
             Assert.IsTrue(menu.RugDex.IsOpen);
-            StringAssert.Contains("2 / 4 tapis", menu.RugDex.CompletionText);
+            StringAssert.Contains("1 / 4 tapis", menu.RugDex.CompletionText);
             menu.RugDex.Select(0);
             StringAssert.Contains("meilleure note : S", menu.RugDex.DetailText);
             menu.RugDex.Close();

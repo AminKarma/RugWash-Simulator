@@ -19,6 +19,8 @@ namespace RugWash.Orders
         AnotherOrderActive,
         NotAvailable,
         ReputationTooLow,
+        /// <summary>L'aire de lavage n'atteint pas la propreté minimale (25 % par défaut) : à nettoyer d'abord.</summary>
+        WorkAreaTooDirty,
     }
 
     /// <summary>

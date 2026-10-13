@@ -46,6 +46,13 @@ namespace RugWash.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        public static void SetBool(Object target, string property, bool value)
+        {
+            var serialized = new SerializedObject(target);
+            Find(serialized, property, target).boolValue = value;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         public static void SetFloat(Object target, string property, float value)
         {
             var serialized = new SerializedObject(target);

@@ -188,7 +188,9 @@ namespace RugWash.Player
                 aim.Point = hit.point;
                 aim.Normal = hit.normal;
                 aim.Distance = hit.distance;
-                aim.Rug = ResolveRug(hit.collider);
+                var surface = ResolveRug(hit.collider);
+                // Le sol de la salle est hors de la zone de nettoyage : visé, il ne reçoit rien (seul l'effet visuel du jet).
+                aim.Rug = surface != null && surface.AcceptsDirt ? surface : null;
             }
             return aim;
         }

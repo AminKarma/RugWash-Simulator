@@ -198,6 +198,25 @@ Architecture, configuration et procédure de test Steam : `MULTIPLAYER.md`. « T
 | 5.7 Fiabilité : aucune sauvegarde de progression chez un invité, progression de l'hôte sauvegardée, pause sans arrêt du temps partagé, messages réseau tronqués ou trafiqués refusés | Testé | « Progression locale de l'invité intacte », « Progression de l'atelier sauvegardée chez l'hôte », `SharedTime_…`, `ByteBuffer_…` |
 | 5.8 Deux machines distinctes via Internet, comptes Steam différents, invitations Steam | **Non testé** | Une seule machine et aucun client Steam lancé dans l'environnement de développement |
 
+## Update v0.1.2 — Jalon 1 (correctifs fondamentaux)
+
+Audit, décisions et conventions : `AUDIT_V012.md`. Résultats d'exécution : `VALIDATION.md` § 13.
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 1.1 HUD à l'arrivée en ligne : état de chargement (contrôles coupés, aucune valeur provisoire) jusqu'à réception des surfaces et de la carrière validée, puis valeurs personnelles ; atelier local de l'invité non restauré ; état complet redemandé par l'invité (arrivée pendant le chargement de l'hôte) | Testé (2 processus, 8 passages consécutifs) | « État de chargement affiché à l'arrivée », « HUD initialisé dès l'arrivée avec la progression personnelle » |
+| 1.2 Progression personnelle : carrière par joueur (argent, réputation, achats, produits), bornée par l'hôte à l'arrivée, achats/consommations/récompenses appliqués par l'hôte, sauvegardée chez chaque joueur ; annonce répétée ignorée ; atelier de l'hôte jamais écrit chez l'invité | Testé (2 processus) + EditMode | `CareerRulesTests` (5), « Achat … payé avec l'argent de l'invité (hôte inchangé) », « Récompense … dans la carrière de l'invité », « Annonce de carrière forgée … ignorée », « Carrière identique chez l'hôte et l'invité » |
+| 1.3 Jet depuis la buse (lance, détergent, mousse), suit la cible en bougeant et en tournant ; idem chez les autres joueurs | Testé (PlayMode) | `SprayEffects_LeaveFromTheToolMuzzle_…`, `RemoteAvatar_…` (jet distant à < 1 cm de la buse) |
+| 1.4 Alignement : cause racine (rotation seule, outil plus court que la portée) corrigée par un manche télescopique + orientation ; tête à < 5 cm du point visé, 6 poses × 3 hauteurs d'yeux × 5 outils de contact | Testé (PlayMode + EditMode) | `ContactTools_HeadLandsOnTheAimedPoint_…`, `ToolReachTests` (4), captures `64_tool_reach_*` |
+| 1.5 Performance mousse/eau | **Non traité** (jalon 2) | Mesures de référence consignées (`VALIDATION.md` § 13) |
+| 1.6 Salissures limitées à l'aire de lavage : sol de la salle inerte (saleté initiale, outils, pas, réseau, ancienne sauvegarde) | Testé (PlayMode) | `RoomFloor_IsOutsideTheCleaningZone_…`, `WalkingThroughMud_…`, `OldSave_WithADirtyRoomFloor_…` |
+| 1.6 → 3.6 (avancé) Robot limité à l'aire de lavage, tapis posé = obstacle, ancienne position hors zone → base | Testé (PlayMode + 2 processus) | `Robot_StartsFromItsDock_CleansTheWashArea_AvoidsTheRug_…`, robot démarré par l'invité ; achat du robot : jalon 4 |
+| 1.7 Silhouettes : mêmes modèles détaillés, posés sur le point visé reconstitué localement (aucune donnée réseau en plus) | Testé (PlayMode, silhouette hors réseau) | `RemoteAvatar_HoldsTheSameDetailedTool_…`, captures `61`, `62`, `63` |
+| 1.8 Personnages : silhouette en tenue de travail, casquette, gants, bras à deux segments sur la poignée, marche ; gants aussi en vue subjective | Fait — **placeholders procéduraux** | Captures `61`–`64` ; vérifié : main droite sur la poignée (< 3 cm) |
+| 1.9 Plus de tapis d'entraînement (démarrage, fin/abandon de commande, menu pause, RugDex, sauvegarde) | Testé (PlayMode) | `Workshop_StartsWithoutRug_…`, `RugDex_FromPauseMenu_…` |
+| 1.10 Aire de lavage : propreté ≥ 25 % pour une commande (refus expliqué), recontamination au-delà de 40 % de saleté (pose + continue, plafonnée), indicateur permanent, défaut sûr | Testé (EditMode + PlayMode) | `ZoneConvention_…`, `Contamination_…`, `BorderContamination_…`, `DirtyWashArea_BelowTwentyFivePercentClean_…`, `RugOnADirtyWashArea_…`, `WashAreaAbove/BelowFortyPercent…` |
+| Phase 6 Tapis terminé sous 1 % : reliquat retiré, 100 %, réussite affichée, note calculée à 100 %, jamais recontaminé ensuite | Testé (EditMode + PlayMode) | `RugFinish_…`, `Rug_IsFinishedBelowOnePercentRemaining_…` |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

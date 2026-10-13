@@ -51,11 +51,22 @@ namespace RugWash.Cleaning
         [Tooltip("Extrémité active du modèle (buse, tête) : l'outil est orienté pour qu'elle pointe vers le point visé.")]
         [SerializeField] protected Transform aimTip;
         [Tooltip("Rotation maximale appliquée pour viser (évite les torsions extrêmes en regardant ses pieds).")]
-        [SerializeField, Range(5f, 80f)] float aimMaxAngle = 50f;
+        [SerializeField, Range(5f, 80f)] float aimMaxAngle = 70f;
         [Tooltip("Rapidité du suivi de la cible (plus élevé = plus vif, plus bas = plus doux).")]
         [SerializeField, Range(2f, 40f)] float aimSharpness = 16f;
 
-        Quaternion aimLocal = Quaternion.identity;
+        [Header("Portée (outils de contact : manche télescopique)")]
+        [Tooltip("Tête de l'outil (enfant direct du modèle), déplacée le long du manche jusqu'au point visé. Vide pour une buse.")]
+        [SerializeField] Transform reachHead;
+        [Tooltip("Manche (enfant direct du modèle), étiré le long de son axe Z local.")]
+        [SerializeField] Transform reachShaft;
+        [Tooltip("Longueur du manche au repos (m).")]
+        [SerializeField, Min(0f)] float reachShaftLength;
+        [Tooltip("Allongement maximal du manche (m).")]
+        [SerializeField, Range(0f, 4f)] float maxReachExtension = 2f;
+
+        ToolPose pose;
+        Vector3 aimTarget;
         bool snapAim;
         float contactKick;
 
@@ -100,10 +111,22 @@ namespace RugWash.Cleaning
         public Transform AimTip => aimTip;
 
         /// <summary>Écart (degrés) entre l'axe de l'outil et la direction du point visé, après alignement.</summary>
-        public float AimErrorDegrees { get; private set; }
+        public float AimErrorDegrees => pose != null ? pose.AimErrorDegrees : 0f;
 
         /// <summary>Écart qu'aurait l'outil sans alignement (pose de repos), pour le diagnostic.</summary>
-        public float UnalignedErrorDegrees { get; private set; }
+        public float UnalignedErrorDegrees => pose != null ? pose.UnalignedErrorDegrees : 0f;
+
+        /// <summary>Outil de contact (brosse, aspirateur, extracteur, balai) : sa tête se pose sur le point visé.</summary>
+        public bool IsContactTool => reachHead != null && reachShaft != null && reachShaftLength > 0f;
+
+        /// <summary>Allongement actuel du manche (m), 0 pour une buse.</summary>
+        public float ReachExtension => pose != null ? pose.Extension : 0f;
+
+        /// <summary>Point que l'extrémité active vise (point traité, ou point à portée maximale sur le rayon).</summary>
+        public Vector3 AimTarget => aimTarget;
+
+        /// <summary>Distance (m) entre l'extrémité active et le point visé après la pose de la frame (-1 sans extrémité).</summary>
+        public float TipToTargetMeters { get; private set; } = -1f;
 
         /// <summary>Événement déclenché quand l'outil commence réellement à traiter le tapis (retours sonores/visuels).</summary>
         public event System.Action<CleaningToolBase> ContactStarted;
@@ -126,6 +149,11 @@ namespace RugWash.Cleaning
             {
                 viewModelRestPosition = viewModel.localPosition;
                 viewModelRestRotation = viewModel.localRotation;
+                pose = new ToolPose(viewModel, aimTip, reachHead, reachShaft, reachShaftLength, maxReachExtension)
+                {
+                    MaxAngle = aimMaxAngle,
+                    Sharpness = aimSharpness,
+                };
                 viewModel.gameObject.SetActive(false);
             }
         }
@@ -143,11 +171,10 @@ namespace RugWash.Cleaning
             contactKick = 0f;
             IsTargetOutOfRange = false;
             IsEquipped = false;
-            aimLocal = Quaternion.identity;
             if (viewModel != null)
             {
-                viewModel.localPosition = viewModelRestPosition;
-                viewModel.localRotation = viewModelRestRotation;
+                pose?.ResetState();
+                pose?.ResetToRest();
                 viewModel.gameObject.SetActive(false);
             }
         }
@@ -182,49 +209,26 @@ namespace RugWash.Cleaning
             }
             contactKick = Mathf.MoveTowards(contactKick, 0f, deltaTime * 6f);
 
-            if (viewModel != null)
+            if (viewModel != null && pose != null)
             {
-                // L'alignement est calculé sur la pose de repos, puis appliqué par-dessus l'animation propre à l'outil
-                // (brossage, recul…) : l'animation reste visible et l'outil reste orienté vers le point visé.
-                viewModel.localPosition = viewModelRestPosition;
-                viewModel.localRotation = viewModelRestRotation;
-                UpdateAimAlignment(aim, deltaTime);
+                // Portée et orientation sont calculées sur la pose de repos (manche allongé jusqu'au point visé pour un outil
+                // de contact), puis l'orientation est appliquée par-dessus l'animation propre à l'outil (brossage, recul…).
+                pose.ResetToRest();
+                bool aligned = aimTip != null;
+                if (aligned)
+                {
+                    aimTarget = ToolReach.Target(IsContactTool, aim.HasHit, aim.Point, aim.Distance, aim.Ray, Range);
+                    pose.Solve(aimTarget, deltaTime, snapAim);
+                    snapAim = false;
+                }
                 AnimateViewModel(viewModel, viewModelRestPosition, viewModelRestRotation, deltaTime);
                 // Petit choc au premier contact avec le tapis (aller-retour en ~0,17 s).
                 viewModel.localPosition += new Vector3(0f, -0.008f, -0.025f) * Mathf.Sin((1f - contactKick) * Mathf.PI) * (contactKick > 0f ? 1f : 0f);
-                viewModel.localPosition = viewModelRestPosition + aimLocal * (viewModel.localPosition - viewModelRestPosition);
-                viewModel.localRotation = aimLocal * viewModel.localRotation;
+                if (aligned) pose.Apply();
+                TipToTargetMeters = aligned ? Vector3.Distance(aimTip.position, aimTarget) : -1f;
             }
             UpdateEffects(aim, deltaTime);
             if (toolAudio != null) toolAudio.Drive(IsUsing, ContactIntensity, IsAffectingRug ? ContactIntensity : 0f, deltaTime);
-        }
-
-        /// <summary>
-        /// Calcule la rotation qui amène l'axe pivot (main) → extrémité active sur la direction du point visé par le réticule.
-        /// Le modèle doit être en pose de repos. La rotation est exprimée dans le repère du support (elle suit la caméra
-        /// sans retard), lissée (pas de tremblement) et bornée (pas de torsion extrême en regardant ses pieds).
-        /// </summary>
-        void UpdateAimAlignment(in ToolAim aim, float deltaTime)
-        {
-            if (aimTip == null || viewModel.parent == null) return;
-            Transform parent = viewModel.parent;
-            Vector3 pivot = parent.TransformPoint(viewModelRestPosition);
-            Vector3 target = aim.HasHit ? aim.Point : aim.Ray.GetPoint(Range + 2f);
-            Vector3 axis = aimTip.position - pivot;
-            Vector3 desired = target - pivot;
-            if (axis.sqrMagnitude < 1e-8f || desired.sqrMagnitude < 1e-8f) return;
-            UnalignedErrorDegrees = Vector3.Angle(axis, desired);
-
-            Quaternion world = Quaternion.FromToRotation(axis, desired);
-            Quaternion local = Quaternion.Inverse(parent.rotation) * world * parent.rotation;
-            float angle = Quaternion.Angle(Quaternion.identity, local);
-            if (angle > aimMaxAngle) local = Quaternion.Slerp(Quaternion.identity, local, aimMaxAngle / angle);
-
-            // Juste après l'équipement, l'outil prend directement la bonne orientation (pas de balayage visible).
-            aimLocal = deltaTime > 0f && !snapAim ? Quaternion.Slerp(aimLocal, local, 1f - Mathf.Exp(-aimSharpness * deltaTime)) : local;
-            snapAim = false;
-            Quaternion applied = parent.rotation * aimLocal * Quaternion.Inverse(parent.rotation);
-            AimErrorDegrees = Vector3.Angle(applied * axis, desired);
         }
 
         /// <summary>Arrête l'utilisation, les effets et le son (pause, menu, changement d'outil).</summary>

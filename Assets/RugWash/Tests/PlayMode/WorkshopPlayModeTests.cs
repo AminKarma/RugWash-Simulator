@@ -29,6 +29,7 @@ namespace RugWash.Tests
             game = Object.FindAnyObjectByType<GameBootstrap>();
             Assert.IsNotNull(game, "GameBootstrap introuvable dans Workshop.");
             Assert.IsTrue(game.IsReady, "La scène n'a pas validé ses références.");
+            TestRugs.LoadDefault(game);
             yield return null;
         }
 
@@ -181,7 +182,7 @@ namespace RugWash.Tests
         }
 
         [UnityTest]
-        public IEnumerator SwitchingRug_LoadsNewDefinition_WithFreshDirt()
+        public IEnumerator LoadingAnotherRug_LoadsNewDefinition_WithFreshDirt()
         {
             var first = game.Rug.Definition;
             AimAtRug(new Vector2(0.5f, 0.5f));
@@ -190,9 +191,7 @@ namespace RugWash.Tests
             yield return new WaitForSeconds(0.5f);
             game.ToolController.AutomationUseOverride = false;
 
-            var pause = Object.FindAnyObjectByType<RugWash.UI.PauseMenuUI>();
-            game.GameState.Pause();
-            pause.NextRug();
+            game.Rug.LoadRug(game.AvailableRugs[1]);
             yield return null;
             Assert.AreNotEqual(first, game.Rug.Definition);
             Assert.AreEqual(0f, game.Rug.Cleanliness01, 1e-4f);

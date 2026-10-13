@@ -85,6 +85,7 @@ namespace RugWash.Tests
         public IEnumerator TwoPlayersCleaningTheSameRug_Converge_WithoutDoubleCounting_OrRegression()
         {
             yield return Load("Workshop");
+            TestRugs.LoadDefault(game);
             var hostRug = game.Rug;
             var copy = UnityEngine.Object.Instantiate(hostRug.gameObject, hostRug.transform.position + new Vector3(0f, 0f, 20f), hostRug.transform.rotation);
             var guestRug = copy.GetComponent<RugCleaningController>();
@@ -204,6 +205,7 @@ namespace RugWash.Tests
             yield return null;
             Assert.AreEqual(1f, Time.timeScale);
             game.GameState.Resume();
+            TestRugs.LoadDefault(game);
 
             // Opération reçue d'un invité : appliquée par l'hôte, accusée.
             float dirtBefore = game.Rug.Grid.TotalDirt;
@@ -238,6 +240,30 @@ namespace RugWash.Tests
             Assert.AreEqual(SessionState.Offline, session.State);
         }
 
+        [UnityTest]
+        public IEnumerator MainMenu_StartsSteam_AndAnInviteDuringSoloPlay_SavesThenReturnsToTheMenu()
+        {
+            yield return Load("MainMenu");
+            session = MultiplayerSession.Find();
+            Assert.IsNotNull(session, "La session existe dès le menu principal.");
+            Assert.IsNotNull(session.Steam, "Steam est initialisé (ou son absence expliquée) sans ouvrir la fenêtre Multijoueur.");
+            Assert.IsTrue(session.Steam.IsInitialized || !string.IsNullOrEmpty(session.Steam.InitError));
+
+            // Partie solo, commande en cours, puis invitation acceptée : progression sauvegardée, retour au menu.
+            yield return Load("Workshop");
+            Assert.AreEqual(Orders.OrderStartResult.Started, game.Orders.TryStart(game.Orders.Book.Orders[0]));
+            game.Wallet.Wallet.Add(37);
+            session.AcceptInvite(109775241234567890ul);
+            float end = Time.realtimeSinceStartup + 20f;
+            while (SceneManager.GetActiveScene().name != "MainMenu" && Time.realtimeSinceStartup < end) yield return null;
+            yield return null;
+            Assert.AreEqual("MainMenu", SceneManager.GetActiveScene().name, "Retour au menu pour rejoindre le salon.");
+            Assert.IsTrue(File.Exists(TestSaveSandbox.SavePath), "Partie solo sauvegardée avant de partir.");
+            var saved = new Save.SaveFileStore(Path.GetDirectoryName(TestSaveSandbox.SavePath), Path.GetFileName(TestSaveSandbox.SavePath)).Load().Data;
+            Assert.AreEqual(37, saved.money, "Argent de la partie solo conservé.");
+            Assert.IsFalse(session.InSession);
+        }
+
         // ------------------------------------------------------------------ Captures
 
         [UnityTest, Category("Capture")]
@@ -260,11 +286,19 @@ namespace RugWash.Tests
             float end = Time.realtimeSinceStartup + 30f;
             while ((NetworkWorkshop.Instance == null || !NetworkWorkshop.Instance.IsSpawned) && Time.realtimeSinceStartup < end) yield return null;
             game = NetworkWorkshop.Instance.Game;
-            var other = UnityEngine.Object.Instantiate(session.Content.avatarPrefab, game.Rug.UVToWorld(new Vector2(0.75f, 0.85f)), Quaternion.Euler(0f, 200f, 0f));
+            Assert.AreEqual(Orders.OrderStartResult.Started, game.Orders.TryStart(game.Orders.Book.Orders[0]));
+            // Autre joueur (instance hors réseau pour la vue) : derrière le tapis, il brosse un point du tapis.
+            Vector3 aimed = game.Rug.UVToWorld(new Vector2(0.62f, 0.7f));
+            Vector3 feet = game.Rug.transform.TransformPoint(new Vector3(game.Rug.SizeMeters.x * 0.12f, 0f, game.Rug.SizeMeters.y * 0.5f + 0.75f));
+            feet.y = 0.06f;
+            var facing = Quaternion.LookRotation(new Vector3(aimed.x - feet.x, 0f, aimed.z - feet.z));
+            var other = UnityEngine.Object.Instantiate(session.Content.avatarPrefab, feet, facing);
             UnityEngine.Object.Destroy(other.GetComponent<Unity.Netcode.Components.NetworkTransform>());
+            var avatar = other.GetComponent<NetworkPlayerAvatar>();
             var visuals = other.transform.Find("Visuals");
-            visuals.Find("Hand/Tool_Brush").gameObject.SetActive(true);
             visuals.Find("Name").GetComponent<TextMesh>().text = "Invité";
+            float horizontal = new Vector2(aimed.x - feet.x, aimed.z - feet.z).magnitude;
+            avatar.SetPreviewState(3, true, Mathf.Atan2(avatar.View.position.y - aimed.y, horizontal) * Mathf.Rad2Deg);
             var target = game.Rug.UVToWorld(new Vector2(0.5f, 0.3f));
             game.PlayerController.Teleport(new Vector3(target.x, 0.06f, target.z - 1.6f), 0f, 12f);
             yield return new WaitForSecondsRealtime(0.8f);

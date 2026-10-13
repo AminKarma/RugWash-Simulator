@@ -38,6 +38,7 @@ namespace RugWash.Tests
             game = Object.FindAnyObjectByType<GameBootstrap>();
             Assert.IsTrue(game != null && game.IsReady);
             tools = game.ToolController;
+            TestRugs.LoadDefault(game);
             yield return null;
         }
 

@@ -20,4 +20,13 @@ namespace RugWash.Tests
 
         public static string SavePath => Path.Combine(Directory, SaveManager.DefaultFileName);
     }
+
+    /// <summary>
+    /// Pose un tapis sur l'aire de lavage pour les tests qui exercent les outils sans commande. Le jeu n'a plus de tapis
+    /// d'entraînement (v0.1.2 : un tapis n'apparaît qu'avec une commande) ; le chargement générique reste utilisé ici.
+    /// </summary>
+    public static class TestRugs
+    {
+        public static void LoadDefault(RugWash.Core.GameBootstrap game) => game.Rug.LoadRug(game.AvailableRugs[0]);
+    }
 }

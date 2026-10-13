@@ -23,6 +23,14 @@ namespace RugWash.Cleaning
         /// <summary>Propre : moins de <see cref="WorkSurfaceRules.CleanFraction"/> de la surface souillée (l'eau claire ne compte pas).</summary>
         public bool IsClean => SoiledFraction <= WorkSurfaceRules.CleanFraction;
         public int SoiledPercent => Mathf.CeilToInt(SoiledFraction * 100f);
+
+        /// <summary>
+        /// Propreté de l'aire [0..1] = part de la surface non souillée. Convention : propreté = 1 − saleté
+        /// (<see cref="SoiledFraction"/>) ; les deux ne sont jamais mélangées.
+        /// </summary>
+        public float Cleanliness01 => Mathf.Clamp01(1f - SoiledFraction);
+        /// <summary>Propreté affichée, arrondie vers le bas (24,9 % s'affiche 24 % : cohérent avec un seuil de 25 %).</summary>
+        public int CleanlinessPercent => Mathf.FloorToInt(Cleanliness01 * 100f + 1e-4f);
     }
 
     /// <summary>
@@ -88,8 +96,83 @@ namespace RugWash.Cleaning
             return area > 0f ? amount / area : 0f;
         }
 
-        /// <summary>Saleté déposée sur la bordure du tapis suivant quand il est posé sur un plan de travail sale.</summary>
-        public static float ContaminationAmount(in WorkSurfaceStatus status) =>
-            status.IsClean ? 0f : Mathf.Clamp(status.SoiledFraction * 2.5f, 0.05f, MaxContamination);
+        /// <summary>Recontamination minimale (saleté par cellule de bordure) dès que le seuil de saleté est dépassé.</summary>
+        public const float MinContamination = 0.05f;
+
+        /// <summary>Une nouvelle commande peut démarrer : propreté de l'aire ≥ <paramref name="minCleanliness"/>.</summary>
+        public static bool AllowsNewOrder(in WorkSurfaceStatus status, float minCleanliness) =>
+            status.Cleanliness01 + 1e-4f >= minCleanliness;
+
+        /// <summary>
+        /// Part de l'excès de saleté au-delà du seuil [0..1] : 0 jusqu'au seuil (inclus), 1 pour une aire entièrement souillée.
+        /// </summary>
+        public static float DirtExcess(in WorkSurfaceStatus status, float dirtyThreshold)
+        {
+            if (status.SoiledFraction <= dirtyThreshold) return 0f;
+            return dirtyThreshold >= 1f ? 0f : Mathf.Clamp01((status.SoiledFraction - dirtyThreshold) / (1f - dirtyThreshold));
+        }
+
+        /// <summary>Le tapis posé sur l'aire se salit : saleté de l'aire strictement supérieure au seuil.</summary>
+        public static bool ContaminatesRug(in WorkSurfaceStatus status, float dirtyThreshold) => status.SoiledFraction > dirtyThreshold;
+
+        /// <summary>
+        /// Saleté déposée sur la bordure du tapis au moment où il est posé : nulle jusqu'au seuil, puis de
+        /// <see cref="MinContamination"/> à <see cref="MaxContamination"/> selon l'excès.
+        /// </summary>
+        public static float ContaminationAmount(in WorkSurfaceStatus status, float dirtyThreshold) =>
+            ContaminatesRug(status, dirtyThreshold) ? Mathf.Lerp(MinContamination, MaxContamination, DirtExcess(status, dirtyThreshold)) : 0f;
+
+        /// <summary>Saleté ajoutée par seconde à la bordure d'un tapis resté sur une aire trop sale.</summary>
+        public static float ContaminationRate(in WorkSurfaceStatus status, float dirtyThreshold, float perSecondAtFull) =>
+            perSecondAtFull * DirtExcess(status, dirtyThreshold);
+
+        /// <summary>Rectangles de la bordure recontaminée (largeur <see cref="ContaminationBand"/> de la plus petite dimension).</summary>
+        public static void BorderBands(int width, int height, RectInt[] bands)
+        {
+            int band = Mathf.Max(1, Mathf.RoundToInt(Mathf.Min(width, height) * ContaminationBand));
+            bands[0] = new RectInt(0, 0, width, band);
+            bands[1] = new RectInt(0, height - band, width, band);
+            bands[2] = new RectInt(0, band, band, height - 2 * band);
+            bands[3] = new RectInt(width - band, band, band, height - 2 * band);
+        }
+    }
+
+    /// <summary>
+    /// Boue venue d'une aire de lavage trop sale, déposée sur une cellule de tapis sans jamais dépasser
+    /// <see cref="Cap"/> de saleté (le tapis se salit, mais ne devient pas plus sale qu'à son arrivée).
+    /// </summary>
+    public struct BorderContaminationOperation : ICellOperation
+    {
+        public float Amount;
+        public float Cap;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            float room = Cap - cell.Dirt;
+            if (room <= 0f || Amount <= 0f || weight <= 0f) return;
+            float added = Mathf.Min(room, Amount * weight);
+            if (cell.StainType == DirtType.None || added > cell.Loosened) cell.StainType = DirtType.Soil;
+            cell.Loosened += added;
+        }
+    }
+
+    /// <summary>Retire toute la saleté d'une cellule (fin du tapis) ; l'eau, la mousse, les résidus et l'usure sont conservés.</summary>
+    public struct ClearDirtOperation : ICellOperation
+    {
+        public void Apply(ref RugCell cell, float weight)
+        {
+            cell.Dust = 0f;
+            cell.Stain = 0f;
+            cell.Loosened = 0f;
+            cell.DustType = DirtType.None;
+            cell.StainType = DirtType.None;
+        }
+    }
+
+    /// <summary>Règle de fin du tapis : il reste moins de <c>remainingFraction</c> de la saleté initiale.</summary>
+    public static class RugFinishRules
+    {
+        public static bool IsFinished(float remainingDirt, float initialDirt, float remainingFraction) =>
+            initialDirt > 1e-5f && remainingDirt < initialDirt * Mathf.Max(0f, remainingFraction);
     }
 }

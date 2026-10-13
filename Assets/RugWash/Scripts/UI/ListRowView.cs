@@ -15,6 +15,7 @@ namespace RugWash.UI
         [SerializeField] Text actionLabel;
 
         public Button ActionButton => actionButton;
+        public string StatusText => statusLabel.text;
 
         public void Set(string title, string details, string status, Color statusColor, string action, bool actionInteractable, Color background)
         {
