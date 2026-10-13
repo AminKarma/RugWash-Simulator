@@ -88,7 +88,8 @@ namespace RugWash.Network
         Transform viewer;
         ToolPose[] poses;
         int shownSlot = -1;
-        bool shownUsing, snapPose;
+        bool shownUsing, shownNear = true, snapPose;
+        CleaningTuning rugTuning;
         float pitch, stridePhase, speed;
         Vector3 lastPosition;
         bool hasLastPosition;
@@ -128,6 +129,8 @@ namespace RugWash.Network
 
         void Awake()
         {
+            EffectBudget.Configure(liquidEffect);
+            EffectBudget.Configure(dustEffect);
             poses = new ToolPose[tools.Count];
             for (int i = 0; i < tools.Count; i++)
             {
@@ -150,6 +153,8 @@ namespace RugWash.Network
             else if (visuals != null) visuals.SetActive(true);
             displayName.OnValueChanged += (_, value) => RefreshName();
             RefreshName();
+            var rug = FindAnyObjectByType<RugCleaningController>();
+            if (rug != null) rugTuning = rug.Tuning;
         }
 
         void RefreshName()
@@ -225,11 +230,16 @@ namespace RugWash.Network
             }
             else TipToTargetMeters = -1f;
 
-            if (active != shownUsing)
+            // Effets d'un joueur éloigné : non affichés (son conservé), la silhouette et l'outil restent visibles.
+            if (viewer == null && Camera.main != null) viewer = Camera.main.transform;
+            float effectDistance = rugTuning != null ? rugTuning.remoteEffectDistance : 20f;
+            bool near = viewer == null || (viewer.position - transform.position).sqrMagnitude <= effectDistance * effectDistance;
+            if (active != shownUsing || near != shownNear)
             {
                 shownUsing = active;
-                SetEffect(liquidEffect, active && tool != null && tool.effect == 1);
-                SetEffect(dustEffect, active && tool != null && tool.effect == 2);
+                shownNear = near;
+                SetEffect(liquidEffect, active && near && tool != null && tool.effect == 1);
+                SetEffect(dustEffect, active && near && tool != null && tool.effect == 2);
                 if (toolAudio != null)
                 {
                     var clip = slot >= 1 && slot <= toolLoops.Count ? toolLoops[slot - 1] : null;

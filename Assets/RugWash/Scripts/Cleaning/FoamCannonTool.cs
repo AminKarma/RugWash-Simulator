@@ -58,7 +58,7 @@ namespace RugWash.Cleaning
             if (foamStream != null)
             {
                 var emission = foamStream.emission;
-                emission.rateOverTimeMultiplier = IsUsing ? streamRate : 0f;
+                emission.rateOverTimeMultiplier = IsUsing ? EffectBudget.Rate(streamRate) : 0f;
                 if (IsUsing)
                 {
                     Vector3 target = aim.HasHit && aim.Distance <= Range ? aim.Point : aim.Ray.GetPoint(Range);

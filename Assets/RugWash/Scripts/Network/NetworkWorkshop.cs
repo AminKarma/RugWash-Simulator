@@ -78,8 +78,9 @@ namespace RugWash.Network
         readonly List<ulong> syncedClients = new List<ulong>();
         readonly HashSet<ulong> spawnedAvatars = new HashSet<ulong>();
         byte[] receiveBuffer = new byte[1024];
-        float sendTimer, robotTimer, slowTimer;
+        float sendTimer, robotTimer, slowTimer, agingSyncTimer;
         float sendInterval = 1f / 15f;
+        float agingSyncInterval = 2f;
 
         // Hôte : carrière de chaque invité (validée), invités dont la carrière a changé (envoi groupé), expéditeur en cours.
         readonly Dictionary<ulong, PlayerCareer> careers = new Dictionary<ulong, PlayerCareer>();
@@ -120,7 +121,11 @@ namespace RugWash.Network
                 Debug.LogError("[RugWash] Atelier réseau : scène de l'atelier introuvable ou incomplète.");
                 return;
             }
-            if (session != null && session.Content != null) sendInterval = 1f / Mathf.Max(5f, session.Content.surfaceSendRate);
+            if (session != null && session.Content != null)
+            {
+                sendInterval = 1f / Mathf.Max(5f, session.Content.surfaceSendRate);
+                agingSyncInterval = Mathf.Max(0.5f, session.Content.slowSurfaceSyncSeconds);
+            }
             game.GameState.Networked = true;
             // L'objet réseau peut apparaître avant le Start de la scène : la sauvegarde du joueur (sa carrière) doit déjà
             // être appliquée, sinon un invité annoncerait une carrière vide.
@@ -353,13 +358,20 @@ namespace RugWash.Network
         {
             float dt = Time.unscaledDeltaTime;
             sendTimer += dt;
+            agingSyncTimer += dt;
             if (sendTimer >= sendInterval)
             {
                 sendTimer = 0f;
+                // Simulation lente : reproduite par les invités, corrigée seulement à basse fréquence.
+                bool includeSlow = agingSyncTimer >= agingSyncInterval;
+                if (includeSlow) agingSyncTimer = 0f;
                 for (int i = 0; i < host.SurfaceCount; i++)
                 {
                     writer.Reset();
-                    if (!host.TryWriteUpdate(i, writer)) continue;
+                    long timer = Diagnostics.PerfStats.Begin();
+                    bool changed = host.TryWriteUpdate(i, writer, includeSlow);
+                    Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.NetWrite, timer, writer.Length);
+                    if (!changed) continue;
                     if (syncedClients.Count > 0) SendSurface(writer, syncedClients);
                 }
             }
@@ -634,7 +646,9 @@ namespace RugWash.Network
             if (length <= 0) return;
             if (receiveBuffer.Length < length) receiveBuffer = new byte[Mathf.Max(length, receiveBuffer.Length * 2)];
             reader.ReadBytesSafe(ref receiveBuffer, length);
+            long timer = Diagnostics.PerfStats.Begin();
             client.Receive(new ArraySegment<byte>(receiveBuffer, 0, length));
+            Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.NetRead, timer, length);
         }
 
         // ---------------------------------------------------------------- Demandes des invités (IWorkshopRequests)

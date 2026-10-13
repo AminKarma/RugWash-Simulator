@@ -10,6 +10,8 @@ et voit le motif d'origine réapparaître progressivement.
 > v0.1.2 jalon 1 : outils posés sur le point visé (manche télescopique), modèles détaillés chez les autres joueurs,
 > progression personnelle en ligne, salissures limitées à l'aire de lavage, plus de tapis d'entraînement, seuils de l'aire
 > (25 % / 40 %), tapis terminé sous 1 % — audit et décisions : [AUDIT_V012.md](Assets/RugWash/Documentation/AUDIT_V012.md).
+> v0.1.2 jalon 2 : plus d'à-coups quand la mousse couvre le tapis (simulation lente répartie), mousse au repos ~15× moins
+> coûteuse en réseau, budget des effets réglable, session prolongée sans fuite (`VALIDATION.md` § 14).
 > Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
@@ -239,7 +241,8 @@ difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste
   sales par longues lignes, contourne bordures, objets et le tapis posé (grille d'occupation recalculée à chaque tapis +
   chemin A*), ne quitte jamais l'aire, s'arrête devant le joueur, rentre seul se recharger puis repart.
   Voyant : vert = nettoyage, bleu = retour, ambre = charge, blanc = prêt, rouge clignotant = obstacle.
-- **Réglages** centralisés : `ScriptableObjects/CleaningTuning` (mousse, ruissellement, seuils de l'aire, fin du tapis),
+- **Réglages** centralisés : `ScriptableObjects/CleaningTuning` (mousse, ruissellement, seuils de l'aire, fin du tapis, effets
+  visuels : densité, durée de vie et taille maximale à l'écran des particules, distance des effets des autres joueurs),
   `Surface_WorkSurface` (taille, résolution, séchage), composant `RobotVacuum` (vitesse, rayon, puissance).
 
 ## 4 septies. Multijoueur coopératif
@@ -428,7 +431,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel : 165 tests EditMode et 98 tests PlayMode, tous réussis, et 32 / 32 vérifications multijoueur (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel : 170 tests EditMode et 100 tests PlayMode, tous réussis, et 32 / 32 vérifications multijoueur (scénario du jalon 1) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

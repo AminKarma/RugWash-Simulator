@@ -385,7 +385,7 @@ namespace RugWash.Cleaning
         {
             if (system == null) return;
             var emission = system.emission;
-            emission.rateOverTimeMultiplier = rate;
+            emission.rateOverTimeMultiplier = EffectBudget.Rate(rate);
             if (rate <= 0f) return;
             system.transform.SetPositionAndRotation(position, rotation);
             if (!system.isPlaying) system.Play();

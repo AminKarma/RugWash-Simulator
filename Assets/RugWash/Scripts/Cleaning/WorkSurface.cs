@@ -137,6 +137,7 @@ namespace RugWash.Cleaning
         public void FlushRunoff()
         {
             if (pendingWeight <= 0f || surface == null || surface.Grid == null || orderRug == null) return;
+            long timer = Diagnostics.PerfStats.Begin();
             var tuning = surface.Tuning;
             float scale = tuning != null ? tuning.runoffScale : 1f;
             float radius = tuning != null ? tuning.runoffRadius : 0.22f;
@@ -161,6 +162,7 @@ namespace RugWash.Cleaning
             depositCount++;
             pendingDirt = pendingFoam = pendingWater = pendingWeight = 0f;
             pendingType = DirtType.None;
+            Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.Runoff, timer);
         }
 
         public void RefreshStatus(bool force)

@@ -44,6 +44,8 @@ namespace RugWash.Editor
             if (scenes.Length == 0 || !scenes[0].EndsWith("MainMenu.unity"))
                 throw new InvalidOperationException("[RugWash] Le build doit démarrer sur MainMenu.unity.");
 
+            // Temps GPU par image disponible pour le benchmark (FrameTimingManager), coût négligeable.
+            PlayerSettings.enableFrameTimingStats = true;
             if (Directory.Exists(OutputDirectory)) Directory.Delete(OutputDirectory, true);
             var options = new BuildPlayerOptions
             {

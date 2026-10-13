@@ -11,10 +11,17 @@ namespace RugWash.Cleaning
         void Apply(ref RugCell cell, float weight);
     }
 
+    /// <summary>Opération qui sait reconnaître, sans rien copier, une cellule qu'elle ne modifierait pas (parcours rapides).</summary>
+    public interface ICellSkip
+    {
+        bool Skips(in RugCell cell);
+    }
+
     /// <summary>
     /// Grille de nettoyage d'un tapis : source de vérité du gameplay.
-    /// Maintient des totaux incrémentaux (pas de parcours complet par frame) et deux rectangles
-    /// de cellules modifiées : l'un consommé par le rendu, l'autre par la réplication réseau (multijoueur).
+    /// Maintient des totaux incrémentaux (pas de parcours complet par frame) et trois rectangles de cellules modifiées :
+    /// rendu, réplication réseau rapide (opérations des outils) et réplication lente (simulation lente : mousse qui retombe,
+    /// séchage — reproduite par chaque poste, l'hôte ne la corrige qu'à basse fréquence).
     /// </summary>
     public sealed class RugCleaningGrid
     {
@@ -28,6 +35,8 @@ namespace RugWash.Cleaning
         bool hasDirtyRect;
         int netMinX, netMinY, netMaxX, netMaxY;
         bool hasNetDirtyRect;
+        int slowMinX, slowMinY, slowMaxX, slowMaxY;
+        bool hasSlowNetRect;
         RectInt clip;
         bool hasClip;
 
@@ -251,7 +260,7 @@ namespace RugWash.Cleaning
         /// Applique une opération à toutes les cellules en ne signalant au rendu que la zone réellement modifiée
         /// (simulation lente : mousse qui retombe, séchage). Retourne le nombre de cellules modifiées.
         /// </summary>
-        public int ApplyAllTracked<T>(ref T operation) where T : struct, ICellOperation
+        public int ApplyAllTracked<T>(ref T operation, bool slowReplication = false) where T : struct, ICellOperation
         {
             int changed = 0, minX = Width, minY = Height, maxX = -1, maxY = -1;
             for (int y = 0; y < Height; y++)
@@ -273,7 +282,36 @@ namespace RugWash.Cleaning
                     if (y > maxY) maxY = y;
                 }
             }
-            if (changed > 0) MarkDirty(minX, minY, maxX, maxY);
+            if (changed > 0) MarkDirty(minX, minY, maxX, maxY, slowReplication);
+            return changed;
+        }
+
+        /// <summary>
+        /// Comme <see cref="ApplyAllTracked{T}"/>, pour une seule ligne (simulation lente répartie sur les images).
+        /// <paramref name="slowReplication"/> : la modification est reproduite localement par chaque poste ; elle ne part pas
+        /// avec la réplication rapide.
+        /// </summary>
+        public int ApplyRowTracked<T>(int y, ref T operation, bool slowReplication) where T : struct, ICellOperation, ICellSkip
+        {
+            if ((uint)y >= (uint)Height) return 0;
+            int changed = 0, minX = Width, maxX = -1;
+            int row = y * Width;
+            for (int x = 0; x < Width; x++)
+            {
+                ref RugCell cell = ref cells[row + x];
+                // Cellule sans mousse ni eau : rien à simuler, aucune copie.
+                if (operation.Skips(in cell)) continue;
+                RugCell before = cell;
+                operation.Apply(ref cell, 1f);
+                Sanitize(ref cell);
+                if (Same(before, cell)) continue;
+                Accumulate(before, -1);
+                Accumulate(cell, 1);
+                changed++;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+            }
+            if (changed > 0) MarkDirty(minX, y, maxX, y, slowReplication);
             return changed;
         }
 
@@ -338,10 +376,38 @@ namespace RugWash.Cleaning
             return y * Width + x;
         }
 
-        void MarkDirty(int minX, int minY, int maxX, int maxY)
+        /// <summary>Récupère puis réinitialise la zone modifiée par la seule simulation lente depuis le dernier envoi lent.</summary>
+        public bool TryConsumeSlowNetworkRect(out RectInt rect)
+        {
+            if (!hasSlowNetRect)
+            {
+                rect = default;
+                return false;
+            }
+            rect = new RectInt(slowMinX, slowMinY, slowMaxX - slowMinX + 1, slowMaxY - slowMinY + 1);
+            hasSlowNetRect = false;
+            return true;
+        }
+
+        void MarkDirty(int minX, int minY, int maxX, int maxY, bool slowReplication = false)
         {
             Version++;
-            if (!hasNetDirtyRect)
+            if (slowReplication)
+            {
+                if (!hasSlowNetRect)
+                {
+                    slowMinX = minX; slowMinY = minY; slowMaxX = maxX; slowMaxY = maxY;
+                    hasSlowNetRect = true;
+                }
+                else
+                {
+                    slowMinX = Mathf.Min(slowMinX, minX);
+                    slowMinY = Mathf.Min(slowMinY, minY);
+                    slowMaxX = Mathf.Max(slowMaxX, maxX);
+                    slowMaxY = Mathf.Max(slowMaxY, maxY);
+                }
+            }
+            else if (!hasNetDirtyRect)
             {
                 netMinX = minX; netMinY = minY; netMaxX = maxX; netMaxY = maxY;
                 hasNetDirtyRect = true;

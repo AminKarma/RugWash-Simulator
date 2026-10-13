@@ -204,6 +204,10 @@ namespace RugWash.Core
         void Start()
         {
             if (!IsReady) return;
+            // Budget des effets visuels appliqué une fois à tous les systèmes de particules de la scène (créés à la
+            // génération, jamais instanciés en jeu).
+            EffectBudget.Apply(rug.Tuning);
+            foreach (var system in FindObjectsByType<ParticleSystem>(FindObjectsInactive.Include)) EffectBudget.Configure(system);
             audioManager.Bind(gameState);
             hud.Bind(toolController, interactor, input, rug, gameState);
             hud.BindEconomy(wallet, reputation, orders);

@@ -18,7 +18,8 @@ namespace RugWash.Cleaning
         [Range(0f, 0.1f)] public float foamDwellPower = 0.012f;
         [Tooltip("Humidité produite par unité de mousse retombée.")]
         [Range(0f, 1f)] public float foamToMoisture = 0.25f;
-        [Tooltip("Intervalle de simulation lente (s).")]
+        [Tooltip("Période de la simulation lente (s) : chaque ligne de la grille est vieillie une fois par période, la charge " +
+                 "étant répartie sur les images (aucun à-coup).")]
         [Range(0.05f, 1f)] public float agingInterval = 0.2f;
 
         [Header("Ruissellement vers le plan de travail")]
@@ -30,6 +31,17 @@ namespace RugWash.Cleaning
         [Range(0.05f, 1f)] public float runoffFlushInterval = 0.15f;
         [Tooltip("Multiplicateur global des quantités déposées (équilibrage).")]
         [Range(0f, 5f)] public float runoffScale = 1f;
+
+        [Header("Effets visuels (particules) — purement visuels, sans effet sur le nettoyage")]
+        [Tooltip("Densité des effets : multiplie le débit d'émission et le nombre maximal de particules (1 = nominal).")]
+        [Range(0.1f, 2f)] public float effectDensity = 1f;
+        [Tooltip("Durée de vie des particules (multiplicateur, 1 = nominal).")]
+        [Range(0.25f, 2f)] public float effectLifetime = 1f;
+        [Tooltip("Taille maximale d'une particule à l'écran (part de la hauteur de l'écran). Évite qu'un jet émis juste devant " +
+                 "la caméra couvre l'écran (surdessin coûteux) ; sans effet visible à distance.")]
+        [Range(0.01f, 0.5f)] public float maxParticleScreenSize = 0.12f;
+        [Tooltip("Distance (m) au-delà de laquelle les effets d'outil des autres joueurs ne sont plus affichés.")]
+        [Range(5f, 60f)] public float remoteEffectDistance = 20f;
 
         [Header("Aire de lavage (zone de nettoyage)")]
         [Tooltip("Propreté minimale de l'aire de lavage pour accepter une nouvelle commande (0..1). " +

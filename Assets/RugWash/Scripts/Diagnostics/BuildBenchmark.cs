@@ -66,7 +66,50 @@ namespace RugWash.Diagnostics
             public string Name;
             public string Resolution;
             public readonly List<float> Frames = new List<float>();
+            public readonly List<float> GpuMs = new List<float>();
+            /// <summary>Temps CPU par système (ms cumulées) et cellules traitées, sur tout le scénario.</summary>
+            public readonly double[] SlotMs = new double[(int)PerfStats.Slot.Count];
+            public readonly long[] SlotProcessed = new long[(int)PerfStats.Slot.Count];
+            public int GcCollections;
+            public int MaxParticles;
         }
+
+        /// <summary>État des ressources de la scène (fuites : objets, textures, maillages, mémoire).</summary>
+        readonly struct Census
+        {
+            public readonly int GameObjects, ParticleSystems, Textures, Meshes, Materials;
+            public readonly long ManagedBytes, NativeBytes;
+
+            public Census(int gameObjects, int particleSystems, int textures, int meshes, int materials, long managed, long native)
+            {
+                GameObjects = gameObjects;
+                ParticleSystems = particleSystems;
+                Textures = textures;
+                Meshes = meshes;
+                Materials = materials;
+                ManagedBytes = managed;
+                NativeBytes = native;
+            }
+
+            public override string ToString() =>
+                $"{GameObjects} objets, {ParticleSystems} systèmes de particules, {Textures} textures, {Meshes} maillages, {Materials} matériaux, " +
+                $"mémoire gérée {ManagedBytes / 1048576f:0.0} Mo, native {NativeBytes / 1048576f:0.0} Mo";
+        }
+
+        static Census TakeCensus()
+        {
+            GC.Collect();
+            return new Census(
+                FindObjectsByType<GameObject>(FindObjectsInactive.Include).Length,
+                FindObjectsByType<ParticleSystem>(FindObjectsInactive.Include).Length,
+                Resources.FindObjectsOfTypeAll<Texture2D>().Length,
+                Resources.FindObjectsOfTypeAll<Mesh>().Length,
+                Resources.FindObjectsOfTypeAll<Material>().Length,
+                GC.GetTotalMemory(true),
+                UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong());
+        }
+
+        readonly List<string> census = new List<string>();
 
         readonly List<Check> checks = new List<Check>();
         readonly List<Scenario> scenarios = new List<Scenario>();
@@ -81,7 +124,11 @@ namespace RugWash.Diagnostics
             Application.Quit(fatal == null && checks.TrueForAll(c => c.Passed) ? 0 : 1);
         }
 
-        void Record(string name, bool passed, string detail = "") => checks.Add(new Check(name, passed, detail));
+        void Record(string name, bool passed, string detail = "")
+        {
+            checks.Add(new Check(name, passed, detail));
+            Debug.Log($"[RugWash Benchmark] {(passed ? "OK" : "ÉCHEC")} {name} {detail}");
+        }
 
         IEnumerator WaitFor(Func<bool> condition, float timeout)
         {
@@ -139,6 +186,25 @@ namespace RugWash.Diagnostics
             yield return Measure("Tour complet de l'atelier", 8f, t =>
                 player.Teleport(new Vector3(0f, 0.06f, -2.3f), t / 8f * 360f, 8f));
 
+            // Mousse et eau (jalon 2 v0.1.2) : production de mousse sur tout le tapis, mousse au repos, puis rinçage.
+            yield return Measure("Canon à mousse balayant le tapis", 10f, t =>
+            {
+                AimAt(game, new Vector2(0.12f + 0.76f * Mathf.PingPong(t * 0.3f, 1f), 0.2f + 0.6f * Mathf.PingPong(t * 0.11f, 1f)));
+                tools.SelectSlot(6);
+                tools.AutomationUseOverride = true;
+                tools.Equipment.Soap.Refill();
+            });
+            tools.AutomationUseOverride = false;
+            yield return Measure("Mousse au repos (tapis couvert)", 6f, t => AimAt(game, new Vector2(0.5f, 0.5f)));
+            yield return Measure("Rinçage de la mousse", 8f, t =>
+            {
+                AimAt(game, new Vector2(0.12f + 0.76f * Mathf.PingPong(t * 0.3f, 1f), 0.25f + 0.5f * Mathf.PingPong(t * 0.13f, 1f)));
+                tools.SelectSlot(4);
+                tools.AutomationUseOverride = true;
+                tools.Equipment.Water.Refill();
+            });
+            tools.AutomationUseOverride = false;
+
             // 5. Nettoyage complet et livraison → paiement et sauvegarde.
             CleanThoroughly(game.Rug.Grid);
             yield return null;
@@ -151,6 +217,10 @@ namespace RugWash.Diagnostics
             Record("Écran de résultats affiché", game.Results.IsVisible);
             game.Results.BackToWorkshop();
             yield return null;
+
+            // 5 bis. Session prolongée : plusieurs commandes enchaînées (mousse, brosse, rinçage, extraction, livraison).
+            // Le nombre d'objets, de textures, de maillages et la mémoire ne doivent pas croître d'une commande à l'autre.
+            yield return LongSession(game);
 
             // 6. Résolution et mode d'affichage (non vérifiables dans l'éditeur).
             var settings = game.Settings;
@@ -179,10 +249,50 @@ namespace RugWash.Diagnostics
             game.PlayerController.Teleport(new Vector3(target.x, 0.06f, target.z - 1.1f), 0f, pitch);
         }
 
-        IEnumerator Measure(string name, float seconds, Action<float> step)
+        readonly FrameTiming[] timings = new FrameTiming[1];
+        Scenario current;
+
+        Scenario BeginScenario(string name)
         {
             var scenario = new Scenario { Name = name, Resolution = $"{Screen.width}x{Screen.height} {Screen.fullScreenMode}" };
             scenarios.Add(scenario);
+            Debug.Log($"[RugWash Benchmark] Scénario : {name}");
+            PerfStats.Reset();
+            PerfStats.Enabled = true;
+            scenario.GcCollections = GC.CollectionCount(0);
+            current = scenario;
+            return scenario;
+        }
+
+        /// <summary>Une image mesurée : durée, temps GPU, particules vivantes (échantillonnées).</summary>
+        void SampleFrame(Scenario scenario, float dt)
+        {
+            scenario.Frames.Add(dt);
+            FrameTimingManager.CaptureFrameTimings();
+            if (FrameTimingManager.GetLatestTimings(1, timings) > 0 && timings[0].gpuFrameTime > 0) scenario.GpuMs.Add((float)timings[0].gpuFrameTime);
+            if (scenario.Frames.Count % 30 == 0)
+            {
+                int alive = 0;
+                foreach (var system in FindObjectsByType<ParticleSystem>()) alive += system.particleCount;
+                scenario.MaxParticles = Mathf.Max(scenario.MaxParticles, alive);
+            }
+        }
+
+        void EndScenario(Scenario scenario)
+        {
+            for (int i = 0; i < (int)PerfStats.Slot.Count; i++)
+            {
+                scenario.SlotMs[i] = PerfStats.Milliseconds((PerfStats.Slot)i);
+                scenario.SlotProcessed[i] = PerfStats.Processed((PerfStats.Slot)i);
+            }
+            scenario.GcCollections = GC.CollectionCount(0) - scenario.GcCollections;
+            PerfStats.Enabled = false;
+            current = null;
+        }
+
+        IEnumerator Measure(string name, float seconds, Action<float> step)
+        {
+            var scenario = BeginScenario(name);
             float elapsed = 0f;
             while (elapsed < seconds)
             {
@@ -190,8 +300,85 @@ namespace RugWash.Diagnostics
                 yield return null;
                 float dt = Time.unscaledDeltaTime;
                 elapsed += dt;
-                scenario.Frames.Add(dt);
+                SampleFrame(scenario, dt);
             }
+            EndScenario(scenario);
+        }
+
+        /// <summary>Actions chronométrées d'une session (sans recensement pendant la mesure).</summary>
+        IEnumerator Phase(float seconds, Action<float> step)
+        {
+            float elapsed = 0f;
+            while (elapsed < seconds)
+            {
+                step?.Invoke(elapsed);
+                yield return null;
+                float dt = Time.unscaledDeltaTime;
+                elapsed += dt;
+                if (current != null) SampleFrame(current, dt);
+            }
+        }
+
+        IEnumerator LongSession(GameBootstrap game)
+        {
+            var tools = game.ToolController;
+            var before = TakeCensus();
+            census.Add($"Avant la session : {before}");
+            var scenario = BeginScenario("Session prolongée (3 commandes : mousse, brosse, rinçage, extraction, livraison)");
+            int delivered = 0;
+            for (int round = 0; round < 3; round++)
+            {
+                OrderDefinition order = null;
+                foreach (var candidate in game.Orders.Book.Orders)
+                    if (game.Orders.Book.CanStart(candidate, game.Orders.BoardReputation) == OrderStartResult.Started) { order = candidate; break; }
+                if (order == null) break;
+                // Raccourci de mesure : l'aire de lavage est remise propre entre deux commandes (seuil de 25 %).
+                CleanThoroughly(game.WorkSurface.Surface.Grid);
+                game.WorkSurface.RefreshStatus(force: true);
+                if (game.Orders.TryStart(order) != OrderStartResult.Started) break;
+                yield return Phase(8f, t =>
+                {
+                    AimAt(game, new Vector2(0.15f + 0.7f * Mathf.PingPong(t * 0.3f, 1f), 0.3f + 0.4f * Mathf.PingPong(t * 0.12f, 1f)));
+                    tools.SelectSlot(6);
+                    tools.AutomationUseOverride = true;
+                    tools.Equipment.Soap.Refill();
+                });
+                yield return Phase(4f, t =>
+                {
+                    AimAt(game, new Vector2(0.3f + 0.4f * Mathf.PingPong(t * 0.25f, 1f), 0.5f));
+                    tools.SelectSlot(3);
+                });
+                yield return Phase(8f, t =>
+                {
+                    AimAt(game, new Vector2(0.15f + 0.7f * Mathf.PingPong(t * 0.3f, 1f), 0.3f + 0.4f * Mathf.PingPong(t * 0.12f, 1f)));
+                    tools.SelectSlot(4);
+                    tools.Equipment.Water.Refill();
+                });
+                yield return Phase(4f, t =>
+                {
+                    AimAt(game, new Vector2(0.3f + 0.4f * Mathf.PingPong(t * 0.25f, 1f), 0.5f));
+                    tools.SelectSlot(5);
+                    tools.Equipment.Recovery.Empty();
+                });
+                tools.AutomationUseOverride = false;
+                CleanThoroughly(game.Rug.Grid);
+                yield return null;
+                if (game.Orders.Deliver() != null) delivered++;
+                yield return Phase(0.5f, null);
+                game.Results.BackToWorkshop();
+                yield return Phase(0.5f, null);
+            }
+            EndScenario(scenario);
+            var after = TakeCensus();
+            census.Add($"Après {delivered} commandes : {after}");
+            Record("Session prolongée : 3 commandes enchaînées", delivered == 3, $"{delivered} livrée(s)");
+            Record("Session prolongée : aucun objet, système de particules, texture ou maillage en plus",
+                after.GameObjects == before.GameObjects && after.ParticleSystems == before.ParticleSystems
+                && after.Textures <= before.Textures && after.Meshes <= before.Meshes && after.Materials <= before.Materials,
+                $"objets {before.GameObjects}→{after.GameObjects}, particules {before.ParticleSystems}→{after.ParticleSystems}, " +
+                $"textures {before.Textures}→{after.Textures}, maillages {before.Meshes}→{after.Meshes}, matériaux {before.Materials}→{after.Materials}");
+            long growth = after.ManagedBytes - before.ManagedBytes;
+            Record("Session prolongée : mémoire gérée stable (croissance < 8 Mo)", growth < 8L * 1048576L, $"{growth / 1048576f:+0.0;-0.0} Mo");
         }
 
         static void CleanThoroughly(RugCleaningGrid grid)
@@ -237,10 +424,26 @@ namespace RugWash.Diagnostics
                 float avgFps = frames.Count / Mathf.Max(1e-6f, total);
                 float p99 = sorted[Mathf.Clamp(Mathf.CeilToInt(sorted.Count * 0.99f) - 1, 0, sorted.Count - 1)];
                 float worst = sorted[sorted.Count - 1];
+                var scenario = scenarios[i];
+                float gpu = 0f;
+                foreach (float g in scenario.GpuMs) gpu += g;
+                gpu = scenario.GpuMs.Count > 0 ? gpu / scenario.GpuMs.Count : -1f;
+                var slots = new StringBuilder();
+                for (int s = 0; s < (int)PerfStats.Slot.Count; s++)
+                {
+                    if (s > 0) slots.Append(", ");
+                    slots.Append(string.Format(inv, "\"{0}\": {{ \"msPerFrame\": {1:0.000}, \"processedPerFrame\": {2:0} }}",
+                        (PerfStats.Slot)s, scenario.SlotMs[s] / Mathf.Max(1, frames.Count), scenario.SlotProcessed[s] / (double)Mathf.Max(1, frames.Count)));
+                }
                 json.Append(string.Format(inv,
-                    "    {{ \"name\": \"{0}\", \"resolution\": \"{7}\", \"frames\": {1}, \"avgFps\": {2:0.0}, \"onePercentLowFps\": {3:0.0}, \"avgFrameMs\": {4:0.00}, \"worstFrameMs\": {5:0.00} }}{6}\n",
-                    Escape(scenarios[i].Name), frames.Count, avgFps, 1f / p99, total / frames.Count * 1000f, worst * 1000f, i < scenarios.Count - 1 ? "," : "", scenarios[i].Resolution));
+                    "    {{ \"name\": \"{0}\", \"resolution\": \"{7}\", \"frames\": {1}, \"avgFps\": {2:0.0}, \"onePercentLowFps\": {3:0.0}, \"avgFrameMs\": {4:0.00}, \"worstFrameMs\": {5:0.00}, " +
+                    "\"avgGpuMs\": {8:0.00}, \"gcCollections\": {9}, \"maxParticles\": {10}, \"systems\": {{ {11} }} }}{6}\n",
+                    Escape(scenario.Name), frames.Count, avgFps, 1f / p99, total / frames.Count * 1000f, worst * 1000f, i < scenarios.Count - 1 ? "," : "",
+                    scenario.Resolution, gpu, scenario.GcCollections, scenario.MaxParticles, slots));
             }
+            json.Append("  ],\n  \"census\": [\n");
+            for (int i = 0; i < census.Count; i++)
+                json.Append($"    \"{Escape(census[i])}\"{(i < census.Count - 1 ? "," : "")}\n");
             json.Append("  ],\n  \"checks\": [\n");
             for (int i = 0; i < checks.Count; i++)
                 json.Append($"    {{ \"name\": \"{Escape(checks[i].Name)}\", \"passed\": {(checks[i].Passed ? "true" : "false")}, \"detail\": \"{Escape(checks[i].Detail)}\" }}{(i < checks.Count - 1 ? "," : "")}\n");

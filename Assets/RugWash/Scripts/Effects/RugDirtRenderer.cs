@@ -76,11 +76,15 @@ namespace RugWash.Effects
         public void UploadNow()
         {
             if (grid == null || !grid.TryConsumeDirtyRect(out RectInt rect)) return;
+            long timer = Diagnostics.PerfStats.Begin();
             Encode(rect);
+            Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.RendererEncode, timer, rect.width * rect.height);
+            timer = Diagnostics.PerfStats.Begin();
             controlA.Apply(false);
             controlB.Apply(false);
             controlC.Apply(false);
             controlD.Apply(false);
+            Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.RendererUpload, timer, grid.CellCount);
             lastUploadTime = Time.unscaledTime;
             UploadCount++;
         }

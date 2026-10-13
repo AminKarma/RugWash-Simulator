@@ -325,8 +325,11 @@ namespace RugWash.Cleaning
     /// les taches qui réagissent au savon), puis retombe en eau ; l'humidité s'évapore sur les surfaces qui sèchent
     /// (plan de travail, sol). Aucun effet sur une cellule sans mousse ni humidité.
     /// </summary>
-    public struct SurfaceAgingOperation : ICellOperation
+    public struct SurfaceAgingOperation : ICellOperation, ICellSkip
     {
+        /// <summary>Ni mousse, ni eau qui sèche : la cellule ne change pas.</summary>
+        public bool Skips(in RugCell cell) => cell.Foam <= 0f && (DryingPerSecond <= 0f || cell.Moisture <= 0f);
+
         public DirtTypeTable Table;
         public float DeltaTime;
         /// <summary>Fraction de la mousse qui retombe par seconde.</summary>

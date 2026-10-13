@@ -50,7 +50,7 @@ namespace RugWash.Cleaning
             if (jetParticles != null)
             {
                 var emission = jetParticles.emission;
-                emission.rateOverTimeMultiplier = IsUsing ? jetRate : 0f;
+                emission.rateOverTimeMultiplier = IsUsing ? EffectBudget.Rate(jetRate) : 0f;
                 if (IsUsing)
                 {
                     Vector3 target = aim.HasHit && aim.Distance <= Range ? aim.Point : aim.Ray.GetPoint(Range);
@@ -64,7 +64,7 @@ namespace RugWash.Cleaning
             {
                 bool splashing = IsUsing && aim.HasHit && aim.Distance <= Range;
                 var emission = splashParticles.emission;
-                emission.rateOverTimeMultiplier = splashing ? splashRate : 0f;
+                emission.rateOverTimeMultiplier = splashing ? EffectBudget.Rate(splashRate) : 0f;
                 if (splashing)
                 {
                     // Eau trouble tant qu'elle emporte de la saleté détachée, claire sur une zone propre.

@@ -10,8 +10,11 @@ namespace RugWash.Network
         public GameObject workshopPrefab;
         [Tooltip("Silhouette d'un joueur vue par les autres (position, outil, effets).")]
         public GameObject avatarPrefab;
+        /// <summary>Version courante du protocole (imposée à l'asset par le constructeur de contenu).</summary>
+        public const string CurrentProtocol = "rugwash-coop-3";
+
         [Tooltip("Version du protocole : un joueur d'une autre version est refusé avec un message clair.")]
-        public string protocolVersion = "rugwash-coop-2";
+        public string protocolVersion = CurrentProtocol;
         [Range(2, 4)] public int maxPlayers = 4;
         [Tooltip("Port de la connexion directe (réseau local).")]
         public ushort defaultPort = 7777;
@@ -19,5 +22,8 @@ namespace RugWash.Network
         public uint steamAppId = 480;
         [Tooltip("Envois de cellules par seconde (hôte → invités).")]
         [Range(5f, 30f)] public float surfaceSendRate = 15f;
+        [Tooltip("Intervalle (s) de correction de la simulation lente (mousse qui retombe, séchage). Chaque poste la reproduit ; " +
+                 "l'hôte n'envoie la sienne qu'à cet intervalle, au lieu de toute la grille plusieurs fois par seconde.")]
+        [Range(0.5f, 10f)] public float slowSurfaceSyncSeconds = 2f;
     }
 }

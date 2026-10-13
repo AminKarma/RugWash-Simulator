@@ -66,7 +66,7 @@ namespace RugWash.Cleaning
         [SerializeField] bool loadOnAwake = true;
 
         Mesh generatedMesh;
-        float agingTimer;
+        readonly SurfaceAgingScheduler aging = new SurfaceAgingScheduler();
 
         public RugCleaningGrid Grid { get; private set; }
         /// <summary>Définition du tapis chargé ; null si aucun tapis n'est posé.</summary>
@@ -137,31 +137,23 @@ namespace RugWash.Cleaning
         void Update()
         {
             if (Grid == null || Time.deltaTime <= 0f) return;
-            if (IsReplica)
-            {
-                // Invité : le reliquat est retiré par l'hôte ; la fin est constatée à l'arrivée des cellules.
-                if (!IsFinished && Kind == SurfaceKind.Rug && Grid.InitialDirt > 1e-5f && Grid.TotalDirt <= 1e-4f) MarkFinished();
-                return;
-            }
-            agingTimer += Time.deltaTime;
-            if (agingTimer < tuning.agingInterval) return;
-            Age(agingTimer);
-            agingTimer = 0f;
+            // Invité : le reliquat est retiré par l'hôte ; la fin est constatée à l'arrivée des cellules.
+            if (IsReplica && !IsFinished && Kind == SurfaceKind.Rug && Grid.InitialDirt > 1e-5f && Grid.TotalDirt <= 1e-4f) MarkFinished();
+
+            // Simulation lente répartie sur les images. Elle est reproduite par chaque poste (hôte comme invité) : l'hôte
+            // n'en diffuse le résultat qu'à basse fréquence, en correction (voir SurfaceSyncHost).
+            var operation = AgingOperation(0f);
+            bool hasWork = Grid.TotalFoam > 1e-4f || (operation.DryingPerSecond > 0f && Grid.TotalMoisture > 1e-4f);
+            long timer = Diagnostics.PerfStats.Begin();
+            int changed = aging.Advance(Grid, Time.deltaTime, tuning.agingInterval, hasWork, ref operation, slowReplication: true);
+            if (aging.RowsLastAdvance > 0) Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.SurfaceAging, timer, changed);
+            FoamDwellLoosened += operation.Loosened;
         }
 
-        /// <summary>
-        /// Simulation lente sur <paramref name="seconds"/> : la mousse détache les taches réactives au savon puis retombe ;
-        /// l'humidité s'évapore si la surface sèche seule. Rien n'est calculé sur une surface sans mousse ni eau.
-        /// </summary>
-        public void Age(float seconds)
+        SurfaceAgingOperation AgingOperation(float seconds)
         {
-            if (Grid == null || seconds <= 0f) return;
             if (tuning == null) tuning = CleaningTuning.CreateDefault();
-            float drying = definition != null ? definition.dryingPerSecond : 0f;
-            bool hasFoam = Grid.TotalFoam > 1e-4f;
-            bool dries = drying > 0f && Grid.TotalMoisture > 1e-4f;
-            if (!hasFoam && !dries) return;
-            var operation = new SurfaceAgingOperation
+            return new SurfaceAgingOperation
             {
                 Table = DirtTable,
                 DeltaTime = seconds,
@@ -169,11 +161,26 @@ namespace RugWash.Cleaning
                 FoamDecayFloor = tuning.foamDecayFloor,
                 FoamDwellPower = tuning.foamDwellPower,
                 FoamToMoisture = tuning.foamToMoisture,
-                DryingPerSecond = drying,
+                DryingPerSecond = definition != null ? definition.dryingPerSecond : 0f,
                 Products = Products,
                 Fragility = Fragility,
             };
-            Grid.ApplyAllTracked(ref operation);
+        }
+
+        /// <summary>
+        /// Simulation lente immédiate de toute la surface sur <paramref name="seconds"/> (tests, rattrapage) : la mousse détache
+        /// les taches réactives au savon puis retombe ; l'humidité s'évapore si la surface sèche seule. Rien n'est calculé sur
+        /// une surface sans mousse ni eau. En jeu, la simulation est répartie sur les images (<see cref="SurfaceAgingScheduler"/>).
+        /// </summary>
+        public void Age(float seconds)
+        {
+            if (Grid == null || seconds <= 0f) return;
+            var operation = AgingOperation(seconds);
+            bool dries = operation.DryingPerSecond > 0f && Grid.TotalMoisture > 1e-4f;
+            if (Grid.TotalFoam <= 1e-4f && !dries) return;
+            long timer = Diagnostics.PerfStats.Begin();
+            int changed = Grid.ApplyAllTracked(ref operation, slowReplication: true);
+            Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.SurfaceAging, timer, changed);
             FoamDwellLoosened += operation.Loosened;
         }
 
@@ -208,7 +215,7 @@ namespace RugWash.Cleaning
 
             dirtRenderer.Bind(Grid, DirtTable, rug);
             FoamDwellLoosened = 0f;
-            agingTimer = 0f;
+            aging.Reset();
             surfaceCollider.enabled = true;
             if (dirtRenderer.TryGetComponent(out Renderer surfaceRenderer)) surfaceRenderer.enabled = true;
             RugLoaded?.Invoke(this);
@@ -315,6 +322,7 @@ namespace RugWash.Cleaning
         {
             // Surface décorative : rien ne s'y dépose et rien n'y est nettoyé (aucune logique de salissure hors zone).
             if (Grid == null || !AcceptsDirt) return 0;
+            long timer = Diagnostics.PerfStats.Begin();
             TryWorldToUV(geometry.Point, out Vector2 uv);
             DirtType type = DirtType.None;
             bool tracksRunoff = allowRunoff && !geometry.Runoff.IsNone && Runoff != null;
@@ -349,6 +357,7 @@ namespace RugWash.Cleaning
                 if (runoffEvent.Dirt > 0f || runoffEvent.Foam > 0f || runoffEvent.Water > 0f) Runoff(this, runoffEvent);
             }
             if (touched > 0) CheckFinished();
+            Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.GridOps, timer, touched);
             return touched;
         }
 

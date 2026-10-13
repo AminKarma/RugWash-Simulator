@@ -117,9 +117,10 @@ namespace RugWash.Network
 
         /// <summary>
         /// Écrit la mise à jour d'une surface : instantané après un rechargement, sinon cellules modifiées depuis le dernier
-        /// envoi. Faux si rien n'a changé.
+        /// envoi. La simulation lente (mousse qui retombe, séchage), reproduite par chaque invité, n'est ajoutée que si
+        /// <paramref name="includeSlow"/> (correction à basse fréquence). Faux si rien n'est à envoyer.
         /// </summary>
-        public bool TryWriteUpdate(int index, ByteWriter writer)
+        public bool TryWriteUpdate(int index, ByteWriter writer, bool includeSlow = true)
         {
             var entry = entries[index];
             if (entry.Surface.Grid == null)
@@ -133,10 +134,22 @@ namespace RugWash.Network
             {
                 entry.NeedsSnapshot = false;
                 entry.Surface.Grid.TryConsumeNetworkDirtyRect(out _);
+                entry.Surface.Grid.TryConsumeSlowNetworkRect(out _);
                 WriteSnapshot(entry, writer);
                 return true;
             }
-            if (!entry.Surface.Grid.TryConsumeNetworkDirtyRect(out RectInt rect)) return false;
+            bool fast = entry.Surface.Grid.TryConsumeNetworkDirtyRect(out RectInt rect);
+            if (includeSlow && entry.Surface.Grid.TryConsumeSlowNetworkRect(out RectInt slow))
+            {
+                if (!fast) rect = slow;
+                else
+                {
+                    int xMin = Mathf.Min(rect.xMin, slow.xMin), yMin = Mathf.Min(rect.yMin, slow.yMin);
+                    rect = new RectInt(xMin, yMin, Mathf.Max(rect.xMax, slow.xMax) - xMin, Mathf.Max(rect.yMax, slow.yMax) - yMin);
+                }
+                fast = true;
+            }
+            if (!fast) return false;
             writer.Byte(SurfaceMessage.Delta);
             writer.Byte(entry.Id);
             writer.UShort(entry.Epoch);

@@ -283,3 +283,39 @@ corrigé : l'objet réseau apparaissait avant l'application de la sauvegarde de 
 
 **Non testé** : Steam en réel, deux machines distinctes (inchangé) ; perte d'un message réseau autre qu'au démarrage
 (seul le cas de l'arrivée pendant le chargement de l'hôte a été reproduit et corrigé).
+
+## 14. Update v0.1.2 — jalon 2 (performance de la mousse et de l'eau)
+
+Exécutions réelles du 13/10/2026. **Contexte de mesure** : le PC servait en même temps à jouer (League of Legends,
+Discord, Medal) ; les FPS absolus du jeu compilé sont donc bruités et le benchmark a été arrêté à la demande du joueur.
+L'attribution par système (chronomètres internes) reste valable.
+
+**Référence avant optimisation** (jeu compilé, 1080p, deux passages) — coût moyen par image :
+
+| Scénario | Opérations outils | Simulation lente | Encodage textures | Envoi GPU | GPU | Particules (max) |
+|---|---|---|---|---|---|---|
+| Canon à mousse balayant le tapis | 0,42–0,46 ms | 0,06 ms | 0,08 ms | < 0,01 ms | 2,3–2,6 ms | 84 |
+| Mousse au repos (tapis couvert) | — | 0,05 ms | 0,03 ms | < 0,01 ms | 2,3 ms | 66 |
+| Rinçage de la mousse | 0,21–0,26 ms | 0,07 ms | 0,05 ms | < 0,01 ms | 2,5–2,6 ms | 271 |
+
+Aucune collecte du GC pendant la mousse au repos (1 par scénario de 10 s au plus) ; particules bornées (≤ 274 vivantes).
+**Diagnostic** : en moyenne, le coût est faible ; le problème est la **forme** de la charge. Avec de la mousse partout,
+toute la grille était vieillie d'un coup toutes les 0,2 s (≈ 5,5 ms d'un tenant mesurés dans l'éditeur, davantage
+sur un processeur modeste), puis entièrement réencodée — d'où des à-coups réguliers « au moment de la mousse » ; en
+ligne, ces mêmes changements partaient en plus vers chaque invité 5 fois par seconde. Les particules n'utilisent ni
+collision ni instanciation ; un jet émis juste devant la caméra pouvait toutefois couvrir une grande partie de l'écran.
+
+**Après optimisation** (mesures exécutées) :
+
+| Vérification | Résultat |
+|---|---|
+| Tests EditMode | ✅ **170 / 170** (165 + 5 : simulation répartie équivalente et sans rattrapage, coût par image, zone réseau lente, budget d'effets) |
+| Tests PlayMode | ✅ **100 / 100** (98 + 2 : mousse au repos en ligne, session prolongée) |
+| Simulation lente, tapis 205 × 141 couvert de mousse (éditeur) | passage complet **5,5 ms d'un coup** toutes les 0,2 s → réparti **0,47 ms par image** en moyenne, 0,69 ms au 95ᵉ centile |
+| Réseau, 3 s de mousse au repos | **434,6 Ko → 29,0 Ko** (correction toutes les 2 s) ; après correction, tapis identiques à la quantification près |
+| Session prolongée (4 tapis : mousse, rinçage, extraction, aspiration, rechargements) | objets 893 → 893, systèmes de particules 24 → 24, textures, maillages et matériaux inchangés, mémoire gérée +0,0 Mo, pic de 266 particules pour un plafond de 3 180 |
+| Jeu compilé, session prolongée (référence) | 3 commandes enchaînées : 895 → 895 objets, textures, maillages et matériaux inchangés, +0,6 Mo |
+
+**Non exécuté** : benchmark du jeu compilé après optimisation et scénario à deux processus avec la nouvelle phase
+« mousse au repos » (ils ouvrent des fenêtres du jeu ; à lancer quand le PC est libre :
+`Tools/RugWash-CI.ps1 -Step build`, puis `-Step benchmark` et `-Step multiplayer`).

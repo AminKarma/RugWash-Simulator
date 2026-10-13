@@ -217,6 +217,22 @@ Audit, décisions et conventions : `AUDIT_V012.md`. Résultats d'exécution : `V
 | 1.10 Aire de lavage : propreté ≥ 25 % pour une commande (refus expliqué), recontamination au-delà de 40 % de saleté (pose + continue, plafonnée), indicateur permanent, défaut sûr | Testé (EditMode + PlayMode) | `ZoneConvention_…`, `Contamination_…`, `BorderContamination_…`, `DirtyWashArea_BelowTwentyFivePercentClean_…`, `RugOnADirtyWashArea_…`, `WashAreaAbove/BelowFortyPercent…` |
 | Phase 6 Tapis terminé sous 1 % : reliquat retiré, 100 %, réussite affichée, note calculée à 100 %, jamais recontaminé ensuite | Testé (EditMode + PlayMode) | `RugFinish_…`, `Rug_IsFinishedBelowOnePercentRemaining_…` |
 
+## Update v0.1.2 — Jalon 2 (performance et fiabilité)
+
+Diagnostic et mesures : `VALIDATION.md` § 14.
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 1.5 Diagnostic instrumenté (chronomètres par système, désactivés par défaut : opérations des outils, simulation lente, encodage et envoi des textures, ruissellement, réseau ; temps GPU, collectes du GC, particules vivantes) ; scénarios mousse et session prolongée ajoutés au benchmark du jeu compilé | Fait | `PerfStats`, `BuildBenchmark` (scénarios « Canon à mousse », « Mousse au repos », « Rinçage de la mousse », « Session prolongée ») |
+| 1.5 Cause des à-coups : toute la grille vieillie d'un coup toutes les 0,2 s quand la mousse la couvre (5,5 ms d'un tenant dans l'éditeur), puis réencodée et, en ligne, renvoyée aux invités | Corrigé : simulation répartie sur les images (même résultat, 0,47 ms par image en moyenne), cellules sans mousse ni eau sautées | `SpreadAging_…` (3 tests EditMode) |
+| 1.5 Réseau : la mousse qui retombe n'est plus diffusée 15 fois par seconde ; chaque poste la reproduit, l'hôte corrige toutes les 2 s (réglable) | Testé (PlayMode) : 434,6 Ko → 29,0 Ko pour 3 s de mousse au repos, états identiques après correction | `FoamAtRest_IsReproducedByTheGuest_…`, `SlowReplication_…` |
+| 1.5 Budget des effets (densité, durée de vie, taille maximale à l'écran contre le surdessin d'un jet devant la caméra, distance d'affichage des effets des autres joueurs) — purement visuel | Fait + testé | `EffectBudget_…`, `CleaningTuning` (section « Effets visuels ») |
+| 1.5 Pooling : aucun objet créé pendant le nettoyage (effets créés à la génération, pool d'éclats, lignes d'interface réutilisées) | Vérifié | Revue du code ; session prolongée : 893 → 893 objets |
+| Session prolongée : objets, systèmes de particules, textures, maillages, matériaux et mémoire stables | Testé (PlayMode + jeu compilé, mesure de référence) | `LongCleaningSession_…` ; benchmark : 895 → 895 objets, +0,6 Mo |
+| Validation multijoueur avec mousse (deux processus) | **Préparée, non exécutée** | Phase « mousse au repos » ajoutée au scénario ; non lancée pendant que le joueur utilisait le PC |
+| Mesure du jeu compilé après optimisation | **Non exécutée** | Benchmark arrêté à la demande du joueur (PC utilisé pour jouer) ; mesures de référence avant optimisation consignées |
+| Correctif : version de protocole réellement appliquée à l'asset réseau (restée « rugwash-coop-1 » au jalon 1) | Corrigé | Le constructeur impose `NetworkContent.CurrentProtocol` (`rugwash-coop-3`) |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

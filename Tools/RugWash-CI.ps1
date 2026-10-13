@@ -160,7 +160,7 @@ if ($Step -eq 'benchmark') {
     Write-Host "==> [benchmark] $exe $($benchArgs -join ' ')"
     $process = Start-Process -FilePath $exe -ArgumentList $benchArgs -PassThru
     $null = $process.Handle
-    if (-not $process.WaitForExit(300000)) { $process.Kill(); throw "[benchmark] délai dépassé (5 min)." }
+    if (-not $process.WaitForExit(600000)) { $process.Kill(); throw "[benchmark] délai dépassé (10 min)." }
     if (-not (Test-Path $report)) { throw "[benchmark] aucun rapport produit (code $($process.ExitCode)). Log : $playerLog" }
     Get-Content $report
     if ($process.ExitCode -ne 0) { throw "[benchmark] des vérifications ont échoué (code $($process.ExitCode))." }

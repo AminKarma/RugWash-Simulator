@@ -30,6 +30,8 @@ namespace RugWash.Editor
                 settings = ScriptableObject.CreateInstance<NetworkContent>();
                 AssetDatabase.CreateAsset(settings, ContentPath);
             }
+            // Version imposée à chaque génération : une valeur sérialisée ancienne ne reste jamais en place.
+            settings.protocolVersion = NetworkContent.CurrentProtocol;
             settings.workshopPrefab = BuildWorkshopPrefab();
             settings.avatarPrefab = BuildAvatarPrefab(content);
             EditorUtility.SetDirty(settings);

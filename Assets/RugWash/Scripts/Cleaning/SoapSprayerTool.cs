@@ -49,7 +49,7 @@ namespace RugWash.Cleaning
             if (sprayParticles != null)
             {
                 var emission = sprayParticles.emission;
-                emission.rateOverTimeMultiplier = IsUsing ? sprayRate : 0f;
+                emission.rateOverTimeMultiplier = IsUsing ? EffectBudget.Rate(sprayRate) : 0f;
                 if (IsUsing)
                 {
                     Vector3 target = aim.HasHit && aim.Distance <= Range ? aim.Point : aim.Ray.GetPoint(Range);

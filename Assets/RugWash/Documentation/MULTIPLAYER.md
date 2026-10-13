@@ -20,7 +20,8 @@ des opérations et reçoivent l'état. Les effets visuels et sonores sont produi
 | Élément | Hôte | Invité |
 |---|---|---|
 | Tapis, aire de lavage, sol (grilles de nettoyage) | Grilles de référence ; applique ses opérations et celles des invités ; diffuse les cellules modifiées (15/s) et un instantané après chaque chargement de tapis | Répliques : ses outils envoient chaque opération (outil, zone, paramètres) à l'hôte **et** l'appliquent tout de suite (prédiction) ; les cellules reçues remplacent les valeurs locales, puis les opérations pas encore confirmées sont rejouées sur cette zone |
-| Simulation lente (mousse qui retombe, séchage), ruissellement vers l'aire de lavage, recontamination | Oui | Non (arrive avec les cellules) |
+| Simulation lente (mousse qui retombe, séchage) | Oui ; n'en envoie qu'une correction toutes les 2 s (`slowSurfaceSyncSeconds`) | **Reproduite localement** (même règle), corrigée par l'hôte |
+| Ruissellement vers l'aire de lavage, recontamination | Oui | Non (arrive avec les cellules) |
 | Commandes (accepter, livrer, abandonner), évaluation | Oui, une seule fois par commande (tableau de l'hôte, déverrouillé par sa réputation) | Demande à l'hôte ; reçoit l'état et les mesures de livraison de l'hôte pour afficher le même résultat |
 | Carrière (argent, réputation, améliorations, produits) — **personnelle** (v0.1.2) | Sa propre carrière ; tient aussi la carrière de chaque invité : bornée à l'arrivée, puis achats, consommations et récompenses appliqués par lui seul | Annonce à l'arrivée la carrière de SA sauvegarde ; achats demandés à l'hôte ; reçoit sa carrière validée et la sauvegarde chez lui |
 | Livraison payée | Récompense et réputation complètes pour **chaque joueur présent**, chacun dans sa carrière | Reçoit sa récompense (aucun paiement local) |

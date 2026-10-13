@@ -243,6 +243,18 @@ namespace RugWash.Diagnostics
             values["operationsInvite"] = NetworkWorkshop.Instance.HostSync.OperationsApplied.ToString();
             values["messagesRefuses"] = NetworkWorkshop.Instance.HostSync.RejectedMessages.ToString();
 
+            // Jalon 2 v0.1.2 : mousse sur tout le tapis, puis mousse au repos. Chaque poste reproduit la mousse qui retombe ;
+            // l'hôte n'envoie qu'une correction lente : le débit au repos reste faible.
+            yield return UseTool(6, new Vector2(0.5f, 0.5f), 3f);
+            yield return new WaitForSeconds(0.5f);
+            long foamStart = NetworkWorkshop.Instance.SurfaceBytesSent;
+            float foamWindow = 4f;
+            yield return new WaitForSeconds(foamWindow);
+            float foamRate = (NetworkWorkshop.Instance.SurfaceBytesSent - foamStart) / foamWindow;
+            values["octetsMousseAuReposParSeconde"] = foamRate.ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+            Record("Mousse au repos : débit réseau faible (simulation reproduite chez l'invité)", foamRate < 40f * 1024f,
+                $"{foamRate / 1024f:0.0} Ko/s");
+
             // Rendu présentable (raccourci de test) : l'invité demandera la livraison.
             CleanThoroughly(game.Rug.Grid);
             OrderResult delivered = null;
