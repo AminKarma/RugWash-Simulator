@@ -27,6 +27,18 @@ namespace RugWash.UI
         [SerializeField] Button closeButton;
         [SerializeField] Button equipmentTabButton;
         [SerializeField] Button productsTabButton;
+        [Tooltip("Onglet « Atelier » : machines, robot et décor de l'atelier (v0.1.2), optionnel.")]
+        [SerializeField] Button workshopTabButton;
+
+        public enum Tab
+        {
+            Equipment,
+            Workshop,
+            Products,
+        }
+
+        /// <summary>Onglet affiché.</summary>
+        public Tab CurrentTab { get; private set; }
 
         readonly List<ListRowView> rows = new List<ListRowView>();
         /// <summary>Onglet « Matériel » : outils à acheter d'abord, puis les améliorations (ordre du catalogue).</summary>
@@ -44,7 +56,10 @@ namespace RugWash.UI
             if (!IsOpen) return;
             var pad = UnityEngine.InputSystem.Gamepad.current;
             if (pad == null || shop == null) return;
-            if (pad.rightShoulder.wasPressedThisFrame || pad.leftShoulder.wasPressedThisFrame) ShowTab(!ShowingProducts);
+            int count = workshopTabButton != null ? 3 : 2;
+            int index = TabOrder(CurrentTab);
+            if (pad.rightShoulder.wasPressedThisFrame) ShowTab(TabAt((index + 1) % count));
+            else if (pad.leftShoulder.wasPressedThisFrame) ShowTab(TabAt((index + count - 1) % count));
         }
         public IReadOnlyList<ListRowView> Rows => rows;
         public string LastMessage => messageLabel.text;
@@ -71,8 +86,9 @@ namespace RugWash.UI
             rowTemplate.gameObject.SetActive(false);
             closeButton.onClick.AddListener(Close);
             shop.RemoteResultReceived += OnRemoteResult;
-            equipmentTabButton.onClick.AddListener(() => ShowTab(false));
-            productsTabButton.onClick.AddListener(() => ShowTab(true));
+            equipmentTabButton.onClick.AddListener(() => ShowTab(Tab.Equipment));
+            productsTabButton.onClick.AddListener(() => ShowTab(Tab.Products));
+            if (workshopTabButton != null) workshopTabButton.onClick.AddListener(() => ShowTab(Tab.Workshop));
             shop.WalletManager.Wallet.Changed += OnWalletChanged;
             panel.SetActive(false);
         }
@@ -117,12 +133,21 @@ namespace RugWash.UI
             Refresh();
         }
 
-        public void ShowTab(bool products)
+        public void ShowTab(bool products) => ShowTab(products ? Tab.Products : Tab.Equipment);
+
+        public void ShowTab(Tab tab)
         {
-            ShowingProducts = products && shop.Products != null;
+            if (tab == Tab.Products && shop.Products == null) tab = Tab.Equipment;
+            if (tab == Tab.Workshop && workshopTabButton == null) tab = Tab.Equipment;
+            CurrentTab = tab;
+            ShowingProducts = tab == Tab.Products;
             messageLabel.text = string.Empty;
             Refresh();
         }
+
+        // Ordre des onglets à l'écran : Matériel, Atelier, Produits.
+        int TabOrder(Tab tab) => tab == Tab.Equipment ? 0 : tab == Tab.Workshop && workshopTabButton != null ? 1 : workshopTabButton != null ? 2 : 1;
+        Tab TabAt(int order) => order == 0 ? Tab.Equipment : workshopTabButton != null && order == 1 ? Tab.Workshop : Tab.Products;
 
         void EnsureRows(int count)
         {
@@ -145,8 +170,9 @@ namespace RugWash.UI
         void Refresh()
         {
             balanceLabel.text = $"Solde : {WalletManager.Format(shop.WalletManager.Balance)}";
-            equipmentTabButton.interactable = ShowingProducts;
-            productsTabButton.interactable = !ShowingProducts && shop.Products != null;
+            equipmentTabButton.interactable = CurrentTab != Tab.Equipment;
+            productsTabButton.interactable = CurrentTab != Tab.Products && shop.Products != null;
+            if (workshopTabButton != null) workshopTabButton.interactable = CurrentTab != Tab.Workshop;
             if (ShowingProducts)
             {
                 RefreshProducts();
@@ -154,10 +180,12 @@ namespace RugWash.UI
             }
             var catalog = shop.Upgrades.Catalog;
             equipmentDisplay.Clear();
+            // Atelier : décor (paliers dans l'ordre), puis machines et robot. Matériel : outils, puis améliorations.
             foreach (var upgrade in catalog)
-                if (upgrade.effect == UpgradeEffect.UnlockTool) equipmentDisplay.Add(upgrade);
+                if (CurrentTab == Tab.Workshop ? upgrade.effect == UpgradeEffect.WorkshopTier : upgrade.effect == UpgradeEffect.UnlockTool) equipmentDisplay.Add(upgrade);
             foreach (var upgrade in catalog)
-                if (!equipmentDisplay.Contains(upgrade)) equipmentDisplay.Add(upgrade);
+                if (!equipmentDisplay.Contains(upgrade) && (workshopTabButton == null || upgrade.IsWorkshopItem == (CurrentTab == Tab.Workshop)))
+                    equipmentDisplay.Add(upgrade);
             EnsureRows(equipmentDisplay.Count);
 
             for (int i = 0; i < rows.Count; i++)
@@ -169,7 +197,9 @@ namespace RugWash.UI
                 var check = shop.Check(upgrade);
                 bool owned = check == PurchaseResult.AlreadyOwned;
                 string details = $"{upgrade.description}\n{shop.Upgrades.DescribeEffect(upgrade)}";
-                string status = owned ? "Acheté" : WalletManager.Format(upgrade.price);
+                string status = owned ? "Acheté"
+                    : check == PurchaseResult.ReputationTooLow ? $"Réputation {upgrade.requiredReputation}"
+                    : WalletManager.Format(upgrade.price);
                 Color statusColor = owned ? Ok : check == PurchaseResult.Purchased ? Neutral : Warn;
                 // Le bouton reste cliquable si les fonds manquent : le refus est expliqué au joueur.
                 rows[i].Set(upgrade.displayName, details, status, statusColor, owned ? null : "Acheter", true, owned ? RowOwned : RowColor);

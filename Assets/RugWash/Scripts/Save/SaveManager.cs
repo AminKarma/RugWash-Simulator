@@ -25,6 +25,8 @@ namespace RugWash.Save
         [SerializeField] ReputationManager reputation;
         [SerializeField] UpgradeManager upgrades;
         [SerializeField] OrderManager orders;
+        [Tooltip("Gants de la vue à la première personne : couleur choisie dans « Personnage » (optionnel).")]
+        [SerializeField] Player.CharacterAppearance firstPersonAppearance;
         [SerializeField] ShopManager shop;
         [Tooltip("Robot aspirateur, plan de travail et sol.")]
         [SerializeField] WorkshopStateService workshop;
@@ -113,6 +115,7 @@ namespace RugWash.Save
         void ApplyLoadedData()
         {
             settings.Apply(Current.settings);
+            if (firstPersonAppearance != null) firstPersonAppearance.Apply(Current.character);
             // Invité en ligne : l'atelier affiché (aire de lavage, sol, robot, tableau des commandes) est celui de l'hôte ;
             // il arrive par le réseau. Seule la carrière personnelle de ce joueur est chargée.
             var session = Network.MultiplayerSession.Find();

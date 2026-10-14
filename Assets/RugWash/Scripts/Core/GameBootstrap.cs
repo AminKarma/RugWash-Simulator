@@ -24,6 +24,8 @@ namespace RugWash.Core
         [Header("Noyau")]
         [SerializeField] GameStateManager gameState;
         [SerializeField] AudioManager audioManager;
+        [Tooltip("Musique de fond de l'atelier (lecteur unique conservé entre les scènes).")]
+        [SerializeField] AudioClip workshopMusic;
         [SerializeField] SaveManager saveManager;
         [SerializeField] SettingsManager settingsManager;
 
@@ -43,6 +45,10 @@ namespace RugWash.Core
         [SerializeField] CleaningProgressFeedback progressFeedback;
         [SerializeField] WorkSurface workSurface;
         [SerializeField] Workshop.RobotVacuum robot;
+        [Tooltip("Machines fonctionnelles de l'atelier (v0.1.2).")]
+        [SerializeField] List<Workshop.WorkshopMachine> machines = new List<Workshop.WorkshopMachine>();
+        [Tooltip("Décor de l'atelier par paliers (v0.1.2).")]
+        [SerializeField] Workshop.WorkshopDecor decor;
         [SerializeField] WorkshopStateService workshopState;
         [SerializeField] RugDex.RugDexService rugDex;
         [SerializeField] RugDex.RugDexUI rugDexUI;
@@ -97,6 +103,24 @@ namespace RugWash.Core
         public CleaningProgressFeedback ProgressFeedback => progressFeedback;
         public WorkSurface WorkSurface => workSurface;
         public Workshop.RobotVacuum Robot => robot;
+        public IReadOnlyList<Workshop.WorkshopMachine> Machines => machines;
+        public Workshop.WorkshopDecor Decor => decor;
+
+        /// <summary>
+        /// Invité en ligne : l'atelier affiché (décor, machines, robot) est celui de l'hôte et arrive par le réseau ;
+        /// les achats de ce joueur restent dans sa carrière sans changer l'atelier affiché.
+        /// </summary>
+        public bool WorkshopFromHost { get; set; }
+        PlayerKnockdown knockdown;
+        /// <summary>Chute du joueur local (ragdoll, v0.1.2).</summary>
+        public PlayerKnockdown Knockdown => knockdown;
+
+        public Workshop.WorkshopMachine FindMachine(string machineId)
+        {
+            foreach (var machine in machines)
+                if (machine != null && machine.MachineId == machineId) return machine;
+            return null;
+        }
         public RugDex.RugDexService RugDexService => rugDex;
         public RugDex.RugDexUI RugDexUI => rugDexUI;
         public ProductInventory Products => productInventory;
@@ -223,9 +247,13 @@ namespace RugWash.Core
             toolbar.Bind(toolController);
             upgrades.Changed += toolbar.Refresh;
             robot.Message += hud.ShowToast;
-            // Robot aspirateur : présent seulement une fois acheté (en ligne, l'invité suit l'état de l'hôte).
+            // Robot aspirateur, machines et décor : selon les achats (en ligne, l'invité suit l'atelier de l'hôte).
             SyncRobotOwnership();
             upgrades.Changed += SyncRobotOwnership;
+            foreach (var machine in machines)
+                if (machine != null) machine.Message += hud.ShowToast;
+            knockdown = toolController.GetComponent<PlayerKnockdown>();
+            if (knockdown != null) knockdown.Message += hud.ShowToast;
             orderBoard.SetWorkSurface(workSurface);
             hud.BindProducts(productInventory.Book);
             rugDexUI.Bind(rugDex.Catalog, rugDex.Book, orders.Book.Orders, dirtLibrary, gameState);
@@ -252,6 +280,9 @@ namespace RugWash.Core
             audioManager.RegisterButtons(rugDexUI);
 
             gameState.StateChanged += OnGameStateChanged;
+            var music = MusicPlayer.Ensure();
+            music.Ducked = false;
+            music.Play(workshopMusic);
             gameState.ModalsChanged += SyncGameplayInput;
             SyncGameplayInput();
 
@@ -264,7 +295,11 @@ namespace RugWash.Core
 
         void SyncRobotOwnership()
         {
+            if (WorkshopFromHost) return;
             if (robot != null && !robot.IsReplica) robot.SetOwned(upgrades.OwnsRobot);
+            foreach (var machine in machines)
+                if (machine != null) machine.SetOwned(upgrades.OwnsMachine(machine.MachineId));
+            if (decor != null) decor.Apply(upgrades.WorkshopTier);
         }
 
         void OnSoloExitRequested()
@@ -291,6 +326,9 @@ namespace RugWash.Core
             if (upgrades != null && toolbar != null) upgrades.Changed -= toolbar.Refresh;
             if (robot != null && hud != null) robot.Message -= hud.ShowToast;
             if (upgrades != null) upgrades.Changed -= SyncRobotOwnership;
+            if (hud != null)
+                foreach (var machine in machines)
+                    if (machine != null) machine.Message -= hud.ShowToast;
             if (rugDex != null) rugDex.NewRugDiscovered -= OnNewRugDiscovered;
             if (session != null) session.SoloExitRequested -= OnSoloExitRequested;
             if (gameState == null) return;
@@ -337,7 +375,12 @@ namespace RugWash.Core
             return false;
         }
 
-        void OnGameStateChanged(GameState previous, GameState next) => SyncGameplayInput();
+        void OnGameStateChanged(GameState previous, GameState next)
+        {
+            SyncGameplayInput();
+            // Pause : musique atténuée (elle ne s'arrête pas net).
+            if (MusicPlayer.Instance != null) MusicPlayer.Instance.Ducked = gameState.IsPaused;
+        }
 
         void SyncGameplayInput() => input.SetGameplayEnabled(gameState.IsGameplayActive);
     }

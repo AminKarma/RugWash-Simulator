@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d333a16da8f21469968da14f880b1f, type: 3}
+  m_Name: up_base_4
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
+  id: up_base_4
+  displayName: "Penthouse \xE0 Los Angeles"
+  description: "Le dernier \xE9tage d'une tour : baies panoramiques sur Los Angeles
+    au cr\xE9puscule, finitions dor\xE9es, palmier d'int\xE9rieur."
+  price: 7500
+  effect: 10
+  value: 4
+  targetToolId: 
+  prerequisite: {fileID: 11400000, guid: c8b7a42399a8ee346a2759f4c965fda7, type: 2}
+  requiredReputation: 63

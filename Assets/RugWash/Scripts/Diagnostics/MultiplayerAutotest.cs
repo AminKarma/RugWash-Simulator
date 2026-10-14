@@ -56,6 +56,7 @@ namespace RugWash.Diagnostics
             };
             // Robot aspirateur acheté : l'invité le démarre dans l'atelier de l'hôte.
             seeded.upgrades.AddRange(SaveMigration.LegacyWorkshopUnlocks);
+            seeded.upgrades.AddRange(SaveMigration.LegacyDecorUnlocks);
             new SaveFileStore(sandbox, SaveManager.DefaultFileName).Save(seeded, out _);
 
             var go = new GameObject("[MultiplayerAutotest]");

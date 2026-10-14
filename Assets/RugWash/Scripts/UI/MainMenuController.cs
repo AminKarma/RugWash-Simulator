@@ -22,6 +22,8 @@ namespace RugWash.UI
         [SerializeField] SaveManager save;
         [SerializeField] SettingsManager settings;
         [SerializeField] AudioManager audioManager;
+        [Tooltip("Musique de fond du menu (lecteur unique conservé entre les scènes).")]
+        [SerializeField] AudioClip menuMusic;
         [SerializeField] SettingsUI settingsUI;
         [SerializeField] Button playButton;
         [SerializeField] Button continueButton;
@@ -43,6 +45,9 @@ namespace RugWash.UI
 
         [Header("RugDex (lecture de la progression sauvegardée)")]
         [SerializeField] RugDex.RugDexUI rugDexUI;
+        [Header("Personnage (v0.1.2)")]
+        [SerializeField] CharacterMenuUI characterUI;
+        [SerializeField] Button characterButton;
         [SerializeField] Button rugDexButton;
         [SerializeField] RugDex.RugCatalog rugCatalog;
         [SerializeField] Cleaning.DirtTypeLibrary dirtLibrary;
@@ -60,6 +65,8 @@ namespace RugWash.UI
         public SettingsUI Settings => settingsUI;
         public RugDex.RugDexUI RugDex => rugDexUI;
         public Button RugDexButton => rugDexButton;
+        public CharacterMenuUI Character => characterUI;
+        public Button CharacterButton => characterButton;
         public MultiplayerMenuUI Multiplayer => multiplayerUI;
         public Button MultiplayerButton => multiplayerButton;
         public string Message => messageLabel.text;
@@ -92,6 +99,9 @@ namespace RugWash.UI
             Time.timeScale = 1f;
             Cursor.lockState = CursorLockMode.None;
             ApplyCursor();
+            var music = MusicPlayer.Ensure();
+            music.Ducked = false;
+            music.Play(menuMusic);
             if (inputMonitor != null) inputMonitor.SchemeChanged += OnSchemeChanged;
 
             settingsUI.Bind(settings, save, null);
@@ -104,6 +114,12 @@ namespace RugWash.UI
             rugDexBook.Restore(save.Current.rugDex);
             rugDexUI.Bind(rugCatalog, rugDexBook, orders, dirtLibrary, null);
             rugDexButton.onClick.AddListener(() => rugDexUI.Open());
+            if (characterUI != null)
+            {
+                characterUI.Bind(save);
+                characterButton.onClick.AddListener(() => characterUI.Open());
+                audioManager.RegisterButtons(characterUI);
+            }
             multiplayerButton.onClick.AddListener(() => multiplayerUI.Open());
             audioManager.RegisterButtons(multiplayerUI);
             audioManager.RegisterButtons(this);
@@ -167,6 +183,7 @@ namespace RugWash.UI
             if (settingsUI.IsOpen) settingsUI.Close();
             else if (multiplayerUI.IsOpen) multiplayerUI.Close();
             else if (rugDexUI.IsOpen) rugDexUI.Close();
+            else if (characterUI != null && characterUI.IsOpen) characterUI.Close();
             else if (confirmPanel.activeSelf) confirmPanel.SetActive(false);
         }
 

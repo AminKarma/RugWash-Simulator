@@ -41,6 +41,23 @@ namespace RugWash.Network
             Mathf.Abs(X - other.X) < 0.005f && Mathf.Abs(Z - other.Z) < 0.005f && Mathf.Abs(Mathf.DeltaAngle(Yaw, other.Yaw)) < 0.5f;
     }
 
+    /// <summary>Atelier de l'hôte vu par les invités (v0.1.2) : palier de décor, machines achetées et en marche.</summary>
+    public struct WorkshopNetState : INetworkSerializable, IEquatable<WorkshopNetState>
+    {
+        public byte Tier;
+        public byte MachinesOwned;
+        public byte MachinesRunning;
+
+        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        {
+            serializer.SerializeValue(ref Tier);
+            serializer.SerializeValue(ref MachinesOwned);
+            serializer.SerializeValue(ref MachinesRunning);
+        }
+
+        public bool Equals(WorkshopNetState other) => Tier == other.Tier && MachinesOwned == other.MachinesOwned && MachinesRunning == other.MachinesRunning;
+    }
+
     /// <summary>
     /// Atelier partagé : objet réseau créé par l'hôte une fois l'atelier chargé.
     /// <list type="bullet">
@@ -74,6 +91,7 @@ namespace RugWash.Network
         readonly NetworkVariable<FixedString128Bytes> missionOffers = new NetworkVariable<FixedString128Bytes>();
         readonly NetworkVariable<float> elapsed = new NetworkVariable<float>();
         readonly NetworkVariable<RobotNetState> robotState = new NetworkVariable<RobotNetState>();
+        readonly NetworkVariable<WorkshopNetState> workshopState = new NetworkVariable<WorkshopNetState>();
 
         GameBootstrap game;
         MultiplayerSession session;
@@ -165,6 +183,9 @@ namespace RugWash.Network
                     game.Shop.Remote = null;
                     game.Robot.Remote = null;
                     game.Detergent.Remote = null;
+                    game.WorkshopFromHost = false;
+                    foreach (var machine in game.Machines)
+                        if (machine != null) machine.Remote = null;
                     game.Orders.SetBoardReputation(-1);
                     game.GameState.Synchronizing = false;
                     game.Hud.SetLoading(null);
@@ -396,6 +417,8 @@ namespace RugWash.Network
                     X = state.x, Z = state.z, Yaw = state.yaw, Owned = game.Robot.IsOwned,
                 };
                 if (!net.Equals(robotState.Value)) robotState.Value = net;
+                var workshop = CaptureWorkshop();
+                if (!workshop.Equals(workshopState.Value)) workshopState.Value = workshop;
             }
 
             slowTimer += dt;
@@ -480,6 +503,12 @@ namespace RugWash.Network
             activeOrder.OnValueChanged += (_, value) => ApplyActiveOrder(value.ToString());
             elapsed.OnValueChanged += (_, value) => game.Orders.ApplyRemoteElapsed(value);
             robotState.OnValueChanged += (_, value) => ApplyRobot(value);
+            // Atelier de l'hôte : décor et machines (les achats de l'invité restent dans sa carrière).
+            game.WorkshopFromHost = true;
+            foreach (var machine in game.Machines)
+                if (machine != null) machine.Remote = this;
+            workshopState.OnValueChanged += (_, value) => ApplyWorkshop(value);
+            ApplyWorkshop(workshopState.Value);
 
             game.Orders.SetBoardReputation(boardReputation.Value);
             game.Orders.ApplyRemoteCompleted(Split(completedOrders.Value.ToString()));
@@ -595,6 +624,27 @@ namespace RugWash.Network
             if (order != null) orders.ApplyRemoteStart(order, elapsed.Value);
         }
 
+        WorkshopNetState CaptureWorkshop()
+        {
+            var state = new WorkshopNetState { Tier = (byte)(game.Decor != null ? Mathf.Max(0, game.Decor.Tier) : 0) };
+            for (int i = 0; i < game.Machines.Count && i < 8; i++)
+            {
+                var machine = game.Machines[i];
+                if (machine == null) continue;
+                if (machine.IsOwned) state.MachinesOwned |= (byte)(1 << i);
+                if (machine.IsRunning) state.MachinesRunning |= (byte)(1 << i);
+            }
+            return state;
+        }
+
+        void ApplyWorkshop(WorkshopNetState state)
+        {
+            if (game.Decor != null) game.Decor.Apply(state.Tier);
+            for (int i = 0; i < game.Machines.Count && i < 8; i++)
+                if (game.Machines[i] != null)
+                    game.Machines[i].ApplyRemoteState((state.MachinesOwned & (1 << i)) != 0, (state.MachinesRunning & (1 << i)) != 0);
+        }
+
         void ApplyRobot(RobotNetState state)
         {
             if (game.Robot == null) return;
@@ -674,6 +724,22 @@ namespace RugWash.Network
         public void RequestUpgrade(string upgradeId) => UpgradeRpc(new FixedString64Bytes(upgradeId ?? string.Empty));
         public void RequestProduct(string productId) => ProductRpc(new FixedString64Bytes(productId ?? string.Empty));
         public void RequestRobotToggle() => RobotToggleRpc();
+        public void RequestMachine(string machineId) => MachineRpc(new FixedString32Bytes(machineId ?? string.Empty));
+
+        [Rpc(SendTo.Server)]
+        void MachineRpc(FixedString32Bytes machineId, RpcParams rpcParams = default)
+        {
+            var machine = game.FindMachine(machineId.ToString());
+            ulong sender = rpcParams.Receive.SenderClientId;
+            if (machine == null)
+            {
+                ToastToRpc("Machine inconnue.", RpcTarget.Single(sender, RpcTargetUse.Temp));
+                return;
+            }
+            // L'hôte décide (machine achetée, tapis, cycle déjà fait) ; l'état revient par la variable d'atelier.
+            string message = machine.ActivateLocal();
+            ToastToRpc(message, RpcTarget.Single(sender, RpcTargetUse.Temp));
+        }
         public void RequestDetergentCan() => DetergentCanRpc();
         public void RequestDetergentRefill(float liters) => DetergentRefillRpc(liters);
 

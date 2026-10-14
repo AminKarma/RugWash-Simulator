@@ -44,6 +44,12 @@ namespace RugWash.Editor
         public const string SqueegeeLoop = Folder + "/tmp_squeegee_loop.wav";
         public const string RotaryLoop = Folder + "/tmp_rotary_loop.wav";
         public const string RotaryContactLoop = Folder + "/tmp_rotary_contact_loop.wav";
+        /// <summary>Musiques de fond (v0.1.2), composées et synthétisées ici : aucune licence tierce.</summary>
+        public const string MusicMenu = Folder + "/tmp_music_menu_loop.wav";
+        /// <summary>Machines de l'atelier (v0.1.2 jalon 5).</summary>
+        public const string BlowerLoop = Folder + "/tmp_blower_loop.wav";
+        public const string PlateLoop = Folder + "/tmp_plate_loop.wav";
+        public const string MusicWorkshop = Folder + "/tmp_music_workshop_loop.wav";
         public const string RobotHumLoop = Folder + "/tmp_robot_hum_loop.wav";
         public const string RobotBump = Folder + "/tmp_robot_bump.wav";
         public const string RobotStart = Folder + "/tmp_robot_start.wav";
@@ -89,6 +95,10 @@ namespace RugWash.Editor
             Write(SqueegeeLoop, force, true, 2f, SqueegeeSlide);
             Write(RotaryLoop, force, true, 2f, RotaryMotor);
             Write(RotaryContactLoop, force, true, 2f, RotaryScrub);
+            Write(MusicMenu, force, true, MenuLoopSeconds, MenuMusic);
+            Write(BlowerLoop, force, true, 2f, BlowerHum);
+            Write(PlateLoop, force, true, 2f, PlateRattle);
+            Write(MusicWorkshop, force, true, WorkshopLoopSeconds, WorkshopMusic);
             Write(RobotHumLoop, force, true, 2f, RobotHum);
             Write(RobotBump, force, false, 0.18f, RobotBumpThud);
             Write(RobotStart, force, false, 0.45f, (float t, float d, ref State s) => RobotBeeps(t, 660f, 880f));
@@ -342,6 +352,117 @@ namespace RugWash.Editor
             // Disque qui frotte les fibres : souffle rugueux modulé par la rotation.
             float swirl = 0.7f + 0.3f * Sine(t, 12.5f);
             return LowPass(ref s.Lp1, HighPass(ref s, s.Noise(), 600f), 4000f) * swirl * 0.6f;
+        }
+
+        static float BlowerHum(float t, float d, ref State s)
+        {
+            // Souffleur : moteur grave et souffle d'air large (périodes entières sur 2 s).
+            float motor = 0.12f * Sine(t, 75f) + 0.06f * Sine(t, 150f) + 0.03f * Sine(t, 450f);
+            float air = LowPass(ref s.Lp1, s.Noise(), 1400f) * 0.7f;
+            return (motor + air) * (0.92f + 0.08f * Sine(t, 6f));
+        }
+
+        static float PlateRattle(float t, float d, ref State s)
+        {
+            // Plaque vibrante : bourdonnement à 50 Hz et cliquetis du tapis qui tremble.
+            float buzz = 0.25f * Mathf.Sign(Sine(t, 50f)) * 0.3f + 0.12f * Sine(t, 100f);
+            float rattle = HighPass(ref s, s.Noise(), 1200f) * (0.5f + 0.5f * Mathf.Abs(Sine(t, 25f))) * 0.3f;
+            return LowPass(ref s.Lp1, buzz, 900f) + rattle;
+        }
+
+        // ------------------------------------------------------------------ Musiques
+
+        static float Midi(int note) => 440f * Mathf.Pow(2f, (note - 69) / 12f);
+
+        /// <summary>Atelier : 80 BPM, 8 mesures (24 s) — do maj7, la m7, fa maj7, sol 6 ; piano électrique, basse, batterie douce.</summary>
+        const float WorkshopLoopSeconds = 24f;
+        static readonly int[][] WorkshopChords =
+        {
+            new[] { 36, 52, 55, 59, 64 }, new[] { 33, 52, 55, 57, 60 }, new[] { 29, 52, 57, 60, 64 }, new[] { 31, 50, 55, 59, 64 },
+        };
+
+        static float WorkshopMusic(float time, float d, ref State s)
+        {
+            const float beat = 0.75f, chordLength = beat * 8f;
+            float t = Mathf.Repeat(time, WorkshopLoopSeconds);
+            int chordIndex = Mathf.Min(3, (int)(t / chordLength));
+            var chord = WorkshopChords[chordIndex];
+            float inChord = t - chordIndex * chordLength;
+            float edges = Mathf.Clamp01(inChord / 0.04f) * Mathf.Clamp01((chordLength - inChord) / 0.06f);
+
+            // Accords plaqués toutes les deux temps, attaque douce et longue résonance.
+            float strike = Mathf.Repeat(t, beat * 2f);
+            float keysEnv = (Mathf.Exp(-strike * 1.4f) * 0.65f + 0.35f) * Mathf.Clamp01(strike / 0.01f);
+            float keys = 0f;
+            for (int i = 1; i < chord.Length; i++)
+            {
+                float f = Midi(chord[i]);
+                keys += Mathf.Sin(2f * Mathf.PI * f * t) + 0.22f * Mathf.Sin(4f * Mathf.PI * f * t) * Mathf.Exp(-strike * 5f);
+            }
+            keys *= keysEnv * edges * 0.075f;
+
+            // Basse : fondamentale aux temps 1 et 3.
+            float bassTime = Mathf.Repeat(t, beat * 2f);
+            float bass = Mathf.Sin(2f * Mathf.PI * Midi(chord[0]) * t) * Mathf.Exp(-bassTime * 1.8f) * Mathf.Clamp01(bassTime / 0.01f) * 0.32f * edges;
+
+            // Batterie feutrée : grosse caisse (1, 3), caisse claire balayée (2, 4), charleston sur les contretemps.
+            float barTime = Mathf.Repeat(t, beat * 4f);
+            float kick = Kick(barTime) + Kick(barTime - beat * 2f);
+            float noise = HighPass(ref s, s.Noise(), 1800f);
+            float snareTime = Mathf.Repeat(barTime - beat, beat * 2f);
+            float snare = LowPass(ref s.Lp1, noise, 5000f) * Mathf.Exp(-snareTime * 22f) * 0.12f;
+            float hatTime = Mathf.Repeat(t - beat * 0.5f, beat);
+            float hat = noise * Mathf.Exp(-hatTime * 70f) * 0.035f;
+            return keys + bass + kick * 0.35f + snare + hat;
+        }
+
+        static float Kick(float x)
+        {
+            if (x < 0f || x > 0.35f) return 0f;
+            float phase = 48f * x + 70f * (1f - Mathf.Exp(-25f * x)) / 25f;
+            return Mathf.Sin(2f * Mathf.PI * phase) * Mathf.Exp(-x * 10f);
+        }
+
+        /// <summary>Menu : nappes lentes (30 s) — ré m9, si♭ maj7, fa maj7, do add9 — et arpège de piano discret.</summary>
+        const float MenuLoopSeconds = 30f;
+        static readonly int[][] MenuChords =
+        {
+            new[] { 38, 53, 57, 60, 64 }, new[] { 34, 50, 53, 57, 62 }, new[] { 41, 52, 57, 60, 64 }, new[] { 36, 50, 55, 60, 64 },
+        };
+
+        static float MenuMusic(float time, float d, ref State s)
+        {
+            const float chordLength = 7.5f, step = 0.9375f;
+            float t = Mathf.Repeat(time, MenuLoopSeconds);
+            int chordIndex = Mathf.Min(3, (int)(t / chordLength));
+            float inChord = t - chordIndex * chordLength;
+            // Fondu enchaîné entre deux accords (la fin d'un accord se mêle au début du suivant).
+            float pad = Pad(MenuChords[chordIndex], t, Mathf.Clamp01(inChord / 1.2f) * Mathf.Clamp01((chordLength - inChord) / 1.2f + 0.0f));
+            int previous = (chordIndex + 3) % 4;
+            pad += Pad(MenuChords[previous], t, Mathf.Clamp01(1f - inChord / 1.2f) * 0.6f);
+
+            // Arpège : une note de l'accord par pas, longue décroissance.
+            int stepIndex = (int)(inChord / step);
+            float stepTime = inChord - stepIndex * step;
+            var chord = MenuChords[chordIndex];
+            int note = chord[1 + stepIndex % (chord.Length - 1)] + 12;
+            float pluck = Mathf.Sin(2f * Mathf.PI * Midi(note) * t) * Mathf.Exp(-stepTime * 2.4f) * Mathf.Clamp01(stepTime / 0.008f) * 0.06f;
+            float air = LowPass(ref s.Lp1, s.Noise(), 600f) * 0.03f;
+            return pad + pluck + air;
+        }
+
+        static float Pad(int[] chord, float t, float level)
+        {
+            if (level <= 0f) return 0f;
+            float sum = 0f;
+            for (int i = 0; i < chord.Length; i++)
+            {
+                float f = Midi(chord[i]);
+                // Léger désaccord entre deux voix : nappe vivante, sans battement marqué.
+                sum += Mathf.Sin(2f * Mathf.PI * f * t) + 0.5f * Mathf.Sin(2f * Mathf.PI * f * 1.003f * t);
+            }
+            float tremolo = 0.85f + 0.15f * Mathf.Sin(2f * Mathf.PI * 0.2f * t);
+            return sum * level * tremolo * 0.045f;
         }
 
         static float RobotHum(float t, float d, ref State s)

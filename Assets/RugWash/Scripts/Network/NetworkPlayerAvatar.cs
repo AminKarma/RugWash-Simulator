@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using RugWash.Cleaning;
 using RugWash.Player;
@@ -47,6 +47,10 @@ namespace RugWash.Network
     public sealed class NetworkPlayerAvatar : NetworkBehaviour
     {
         [SerializeField] GameObject visuals;
+        [Tooltip("Couleurs de la tenue, de la casquette et des gants (personnalisation, v0.1.2).")]
+        [SerializeField] CharacterAppearance appearance;
+        [Tooltip("Ragdoll de la silhouette quand ce joueur chute (v0.1.2).")]
+        [SerializeField] AvatarRagdoll ragdoll;
         [Tooltip("Pivot de la tête (tangage).")]
         [SerializeField] Transform head;
         [Tooltip("Point de vue (yeux), enfant de la tête : support des outils, comme la caméra du joueur local.")]
@@ -81,6 +85,12 @@ namespace RugWash.Network
         readonly NetworkVariable<byte> toolSlot = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<bool> usingTool = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<sbyte> headPitch = new NetworkVariable<sbyte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        /// <summary>Personnalisation du joueur (tenue, casquette, gants), lue dans SA sauvegarde et montrée aux autres.</summary>
+        readonly NetworkVariable<int> look = new NetworkVariable<int>(-1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        /// <summary>Chute : état « à terre » et élan reçu (aucun os n'est transmis, chaque poste simule le ragdoll).</summary>
+        readonly NetworkVariable<bool> knockedDown = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        readonly NetworkVariable<Vector3> knockImpulse = new NetworkVariable<Vector3>(Vector3.zero, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        PlayerKnockdown localKnockdown;
 
         string initialName = string.Empty;
         FirstPersonController localPlayer;
@@ -149,12 +159,69 @@ namespace RugWash.Network
                 localPlayer = FindAnyObjectByType<FirstPersonController>();
                 localTools = FindAnyObjectByType<PlayerToolController>();
                 if (visuals != null) visuals.SetActive(false);
+                localKnockdown = FindAnyObjectByType<PlayerKnockdown>();
+                if (localKnockdown != null)
+                {
+                    localKnockdown.KnockedDown += OnLocalKnockedDown;
+                    localKnockdown.Recovered += OnLocalRecovered;
+                }
+                var game = FindAnyObjectByType<Core.GameBootstrap>();
+                if (game != null && game.SaveSystem != null && game.SaveSystem.Current != null)
+                    look.Value = CharacterPalette.Clamp(game.SaveSystem.Current.character).Pack();
             }
             else if (visuals != null) visuals.SetActive(true);
+            look.OnValueChanged += (_, value) => ApplyLook(value);
+            ApplyLook(look.Value);
+            knockedDown.OnValueChanged += (_, value) => ApplyKnockdown(value);
+            if (!IsOwner && knockedDown.Value) ApplyKnockdown(true);
             displayName.OnValueChanged += (_, value) => RefreshName();
             RefreshName();
             var rug = FindAnyObjectByType<RugCleaningController>();
             if (rug != null) rugTuning = rug.Tuning;
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            if (localKnockdown != null)
+            {
+                localKnockdown.KnockedDown -= OnLocalKnockedDown;
+                localKnockdown.Recovered -= OnLocalRecovered;
+            }
+        }
+
+        void OnLocalKnockedDown(Vector3 impulse, float seconds)
+        {
+            if (!IsSpawned || !IsOwner) return;
+            knockImpulse.Value = impulse;
+            knockedDown.Value = true;
+        }
+
+        // Relevé forcé pendant un départ (scène déchargée) : la silhouette n'est peut-être plus sur le réseau.
+        void OnLocalRecovered()
+        {
+            if (IsSpawned && IsOwner) knockedDown.Value = false;
+        }
+
+        void ApplyKnockdown(bool down)
+        {
+            if (IsOwner || ragdoll == null) return;
+            if (down) ragdoll.Begin(knockImpulse.Value);
+            else ragdoll.End();
+        }
+
+        /// <summary>Tests (hors réseau) : fait chuter ou relève la silhouette.</summary>
+        public void PreviewKnockdown(bool down, Vector3 impulse)
+        {
+            if (ragdoll == null) return;
+            if (down) ragdoll.Begin(impulse);
+            else ragdoll.End();
+        }
+
+        public AvatarRagdoll Ragdoll => ragdoll;
+
+        void ApplyLook(int packed)
+        {
+            if (appearance != null) appearance.Apply(packed < 0 ? CharacterPalette.Default : CharacterLook.Unpack(packed));
         }
 
         void RefreshName()
@@ -194,6 +261,12 @@ namespace RugWash.Network
         /// <summary>Présentation locale d'un joueur distant (exposée pour les tests : un pas de temps donné).</summary>
         public void PresentRemote(float deltaTime)
         {
+            // À terre : la physique (ou le retour à la pose) pilote la silhouette ; ni visée ni bras commandés.
+            if (ragdoll != null && ragdoll.IsBusy)
+            {
+                ragdoll.Tick(deltaTime);
+                if (ragdoll.IsActive) return;
+            }
             // Tangage lissé (le réseau l'envoie au degré près) : la tête et l'outil ne saccadent pas.
             pitch = Mathf.LerpAngle(pitch, CurrentPitch, deltaTime > 0f ? 1f - Mathf.Exp(-18f * deltaTime) : 1f);
             if (head != null) head.localRotation = Quaternion.Euler(pitch, 0f, 0f);

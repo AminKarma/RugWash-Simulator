@@ -80,7 +80,7 @@ namespace RugWash.Economy
         {
             if (career == null || upgrade == null) return PurchaseResult.Unknown;
             var wallet = new Wallet(career.Money);
-            var result = ShopRules.TryPurchase(upgrade, career.Upgrades, wallet);
+            var result = ShopRules.TryPurchase(upgrade, career.Upgrades, wallet, career.Reputation);
             if (result == PurchaseResult.Purchased) career.Money = wallet.Balance;
             return result;
         }

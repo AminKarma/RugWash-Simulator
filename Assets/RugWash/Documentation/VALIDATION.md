@@ -384,3 +384,36 @@ disque rotatif à repères sur un tapis mouillé).
 **Non exécuté** (à lancer quand le PC est libre : `Tools/RugWash-CI.ps1 -Step build`, puis `-Step benchmark` et
 `-Step multiplayer`) : scénario à deux processus (raclette d'un invité, robot acheté ou non chez l'hôte, protocole
 `rugwash-coop-5`) et benchmark du jeu compilé. Steam en réel : inchangé (non testé).
+
+## 17. Update v0.1.2 — jalon 5 (base et personnage)
+
+Exécutions réelles du 14/10/2026, en mode batch uniquement (aucune fenêtre du jeu). Compilation d'abord vérifiée hors
+éditeur (SDK .NET), puis chaîne complète `compile`, `bootstrap`, `scene`, `test`, `playmode` relancée sur le code final.
+Décisions : `AUDIT_V012.md` § 7.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation, contenu, scènes (batch Unity) | ✅ 0 erreur |
+| Tests EditMode | ✅ **207 / 207** (198 + 9 `BaseV012Tests` : souffleur (humidité seulement), plaque (poussière sèche seulement), rampe (humidifie et fait tremper sans rien retirer), réputation requise à l'achat (solo et hôte), palier de décor, migration v3 → v4, format réseau de l'apparence, règle de glissade, gain de la musique ; test existant adapté : migration v0 avec l'atelier rangé) |
+| Tests PlayMode | ✅ **119 / 119** (112 + 7 `BaseV012PlayModeTests` : musique (lecteur unique, fondu, pause, volume), machines (achat, réputation, effets mesurés, un cycle par commande), paliers (cagibi au départ, ordre, penthouse, sauvegarde, onglet Atelier), personnalisation (menu, aperçu, sauvegarde, gants à la première personne), chute du joueur local, ragdoll d'une silhouette, captures ; tests existants adaptés : onglets de la boutique, bouton « Personnage » du menu à la manette) |
+| Build Windows, jeu compilé (solo, deux processus) | **Non exécutés** : ils ouvrent des fenêtres du jeu |
+
+**Défauts trouvés et corrigés pendant la validation**
+
+- Penthouse : la vue sur Los Angeles n'apparaissait pas — la vitre posée devant utilisait le matériau `M_Glass` de
+  l'atelier, opaque (constaté sur capture). Vitre retirée : la vue est un panneau non éclairé derrière les montants.
+- Cagibi : les « taches d'humidité » étaient des boîtes opaques arrondies, lues comme des panneaux sombres (capture).
+  Remplacées par une texture générée (contour irrégulier découpé par l'alpha, auréole, coulure), puis éclaircie : la
+  première version, trop sombre, ressemblait à des trous dans le mur.
+- Réseau : l'état « à terre » n'est plus écrit si la silhouette n'est plus sur le réseau (relevé forcé pendant un départ).
+- Tests : comparaison de couleurs avec tolérance (les couleurs relues depuis les matériaux diffèrent au dix-millième).
+
+**Vérifications visuelles** (captures `Logs/ci/screens`) : `70_tier_0` (cartons, fenêtres condamnées, ampoule nue,
+taches), `70_tier_1` à `70_tier_3` (étagère, enseigne, coin salon et suspensions), `70_tier_4` et `70b_tier_4_view`
+(baies panoramiques : skyline de Los Angeles au crépuscule, palmiers, tours éclairées), `71_machines` (plaque, souffleur
+en marche, rampe au plafond), `72_character` (fenêtre « Personnage », aperçu 3D, choix et limites affichées).
+
+**Non exécuté** (à lancer quand le PC est libre : `Tools/RugWash-CI.ps1 -Step build`, puis `-Step benchmark` et
+`-Step multiplayer`) : scénario à deux processus (machines et décor de l'hôte vus par un invité, activation demandée par
+un invité, apparence et chute répliquées, protocole `rugwash-coop-6`) et benchmark du jeu compilé. Le scénario automatique
+à deux processus ne couvre pas encore les éléments du jalon 5. Steam en réel : inchangé (non testé).

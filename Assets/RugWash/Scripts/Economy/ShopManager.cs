@@ -13,6 +13,8 @@ namespace RugWash.Economy
     {
         [SerializeField] WalletManager wallet;
         [SerializeField] UpgradeManager upgrades;
+        [Tooltip("Réputation de l'acheteur : certains articles l'exigent (optionnel).")]
+        [SerializeField] ReputationManager reputation;
         [SerializeField] AudioManager audioManager;
         [Tooltip("Produits spécialisés vendus en flacons (optionnel).")]
         [SerializeField] ProductInventory products;
@@ -66,7 +68,9 @@ namespace RugWash.Economy
             return missing == null;
         }
 
-        public PurchaseResult Check(UpgradeDefinition upgrade) => ShopRules.Check(upgrade, upgrades.OwnedIds, wallet.Wallet);
+        public PurchaseResult Check(UpgradeDefinition upgrade) => ShopRules.Check(upgrade, upgrades.OwnedIds, wallet.Wallet, Reputation);
+
+        int Reputation => reputation != null ? reputation.Points : int.MaxValue;
 
         public ProductPurchaseResult CheckProduct(ProductDefinition product) =>
             products == null ? ProductPurchaseResult.Unknown : ShopRules.CheckProduct(product, products.Book.FreeSpace(product), wallet.Wallet);
@@ -102,7 +106,7 @@ namespace RugWash.Economy
                 Remote.RequestUpgrade(upgrade.id);
                 return PurchaseResult.Requested;
             }
-            var result = ShopRules.TryPurchase(upgrade, upgrades.OwnedIds, wallet.Wallet);
+            var result = ShopRules.TryPurchase(upgrade, upgrades.OwnedIds, wallet.Wallet, Reputation);
             if (result == PurchaseResult.Purchased)
             {
                 upgrades.ApplyAll();

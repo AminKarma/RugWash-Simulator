@@ -131,7 +131,9 @@ namespace RugWash.Economy
                 case UpgradeEffect.WorkshopEquipment:
                     return upgrade.targetToolId == RobotMachineId
                         ? "Équipement de l'atelier : robot aspirateur sur sa base (aire de lavage)"
-                        : "Équipement de l'atelier";
+                        : $"Machine de l'atelier{Requirement(upgrade)}";
+                case UpgradeEffect.WorkshopTier:
+                    return $"Décor de l'atelier : palier {Mathf.RoundToInt(upgrade.value)} / {MaxWorkshopTier} (actuel : {stats.WorkshopTier}){Requirement(upgrade)}";
                 default:
                     return string.Empty;
             }
@@ -139,6 +141,16 @@ namespace RugWash.Economy
 
         /// <summary>Identifiant d'équipement du robot aspirateur (amélioration « WorkshopEquipment »).</summary>
         public const string RobotMachineId = "robot";
+        /// <summary>Dernier palier de décor (penthouse avec vue sur Los Angeles).</summary>
+        public const int MaxWorkshopTier = 4;
+
+        static string Requirement(UpgradeDefinition upgrade) =>
+            upgrade.requiredReputation > 0 ? $" · réputation {upgrade.requiredReputation} requise" : string.Empty;
+
+        /// <summary>Vrai si la machine d'atelier a été achetée.</summary>
+        public bool OwnsMachine(string machineId) => Stats != null && Stats.HasMachine(machineId);
+        /// <summary>Palier de décor de l'atelier de ce joueur.</summary>
+        public int WorkshopTier => Stats != null ? Stats.WorkshopTier : 0;
 
         /// <summary>Vrai si le robot aspirateur a été acheté.</summary>
         public bool OwnsRobot => Stats != null && Stats.HasMachine(RobotMachineId);

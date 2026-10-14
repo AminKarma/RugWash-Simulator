@@ -28,6 +28,8 @@ des opérations et reçoivent l'état. Les effets visuels et sonores sont produi
 | Carrière (argent, réputation, améliorations, produits) — **personnelle** (v0.1.2) | Sa propre carrière ; tient aussi la carrière de chaque invité : bornée à l'arrivée, puis achats, consommations et récompenses appliqués par lui seul | Annonce à l'arrivée la carrière de SA sauvegarde ; achats demandés à l'hôte ; reçoit sa carrière validée et la sauvegarde chez lui |
 | Livraison payée | Récompense et réputation complètes pour **chaque joueur présent**, chacun dans sa carrière | Reçoit sa récompense (aucun paiement local) |
 | Robot aspirateur (limité à l'aire de lavage) | Simulé chez l'hôte | Suit la position et l'état reçus ; E envoie la demande |
+| Machines et décor de l'atelier (v0.1.2 jalon 5) | Ceux de **son** atelier (ses achats) : publie le palier de décor, les machines possédées et celles en marche ; décide démarrage, fin de cycle et « un cycle par commande » | Affiche le décor et les machines de l'hôte (jamais les siens) ; E envoie la demande ; reproduit l'effet d'une machine en marche, corrigé par la réplication lente |
+| Apparence et chute (v0.1.2 jalon 5) | — | Chaque joueur publie son apparence (une valeur compacte : tenue, casquette, gants) et son état « à terre » avec l'élan reçu ; les autres postes simulent le ragdoll de sa silhouette (aucun os transmis) |
 | Joueurs | Fait apparaître une silhouette par joueur | Chaque joueur garde sa caméra, ses entrées, ses réservoirs (eau, détergent, cuve) |
 | Arrivée | Envoie les instantanés des surfaces et la carrière validée | « Synchronisation » (contrôles coupés, HUD en chargement, aucune valeur provisoire) jusqu'à réception de tout |
 | Sauvegarde | Son atelier et sa carrière | **Sa carrière seulement** (argent, réputation, achats, produits, RugDex, commandes livrées) ; l'atelier de l'hôte n'est jamais écrit chez lui |
@@ -119,21 +121,24 @@ partie »). Après une perte de connexion, le menu affiche la raison et propose 
 - Connexion directe testée **entre deux processus sur la même machine** (127.0.0.1), pas entre deux machines.
 - Pas de migration d'hôte : si l'hôte quitte, la partie s'arrête pour tous (la progression de l'hôte est sauvegardée).
 - Reconnexion manuelle (bouton), pas automatique.
-- Silhouettes procédurales (placeholders : tenue de travail, gants, casquette), animation de marche simple ; pas de
-  collision entre joueurs.
+- Silhouettes procédurales (placeholders : tenue de travail, gants, casquette ; couleurs personnalisables en v0.1.2),
+  animation de marche simple ; pas de collision entre joueurs. Ragdoll : chaque poste simule sa copie à partir du même
+  élan ; la pose exacte au sol peut donc différer légèrement d'un poste à l'autre (purement visuel, durée bornée).
 - Pas de serveur dédié : la carrière qu'un invité annonce à son arrivée provient de sa sauvegarde locale (bornée et
   filtrée par l'hôte) ; pendant la partie, seul l'hôte la modifie.
 - Le tableau des commandes d'une session est celui de l'hôte (les commandes terminées de l'invité ne le modifient pas).
   Les missions générées tiennent compte des outils de l'**hôte** (un objectif de séchage n'est proposé que s'il possède
   l'extracteur) ; une mission livrée en ligne compte dans les statistiques de chaque joueur mais n'est pas ajoutée à
   l'historique des contrats.
-- Protocole `rugwash-coop-5` (v0.1.2 jalon 4 : opération de raclette, accessoire anti-poils de l'aspirateur, robot acheté
-  ou non) : les versions précédentes sont refusées avec un message clair.
+- Protocole `rugwash-coop-6` (v0.1.2 jalon 5 : état de l'atelier — palier de décor, machines possédées et en marche —,
+  demande d'activation d'une machine, apparence et chute des joueurs ; jalon 4 : raclette, accessoire anti-poils, robot
+  acheté ou non) : les versions précédentes sont refusées avec un message clair.
 - Raclette d'un invité : il prédit le transport et envoie à l'hôte le ramassage (réglage seulement) puis le dépôt devant la
   lame (quantités bornées) ; l'hôte ramasse ses propres valeurs et dépose celles de l'invité, d'où un léger écart possible
   sur l'eau déplacée, corrigé par la réplication des cellules. Une raclette visant un tapis n'a aucun effet, même pour un
   message trafiqué.
-- Robot aspirateur : présent dans la session seulement si l'**hôte** l'a acheté (c'est son atelier) ; un invité qui
-  l'achète l'aura dans son propre atelier. Traces de pas : chaque joueur applique les siennes (avec ses bottes) comme
+- Robot aspirateur, machines et décor : présents dans la session seulement si l'**hôte** les a achetés (c'est son
+  atelier) ; un invité qui les achète (avec son argent et sa réputation, validés par l'hôte) les aura dans son propre
+  atelier. Sa carrière n'est jamais écrasée. Traces de pas : chaque joueur applique les siennes (avec ses bottes) comme
   des opérations de surface ordinaires, validées par l'hôte.
 - 4 joueurs au maximum ; version de protocole identique requise (message clair sinon).

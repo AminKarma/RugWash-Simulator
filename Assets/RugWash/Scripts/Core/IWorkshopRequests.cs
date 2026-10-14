@@ -16,5 +16,7 @@ namespace RugWash.Core
         void RequestDetergentCan();
         /// <summary>Remplissage de la réserve au poste détergent : prélèvement sur le stock de ce joueur.</summary>
         void RequestDetergentRefill(float liters);
+        /// <summary>Machine de l'atelier de l'hôte (allumer, lancer un cycle).</summary>
+        void RequestMachine(string machineId);
     }
 }

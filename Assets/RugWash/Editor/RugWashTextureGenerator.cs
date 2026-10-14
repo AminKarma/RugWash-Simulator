@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -28,6 +28,10 @@ namespace RugWash.Editor
         public const string Paper = RugWashPaths.GeneratedTextures + "/Paper.png";
         public const string UIWhite = RugWashPaths.GeneratedTextures + "/UI_White.png";
         public const string UIRounded = RugWashPaths.GeneratedTextures + "/UI_Rounded.png";
+        /// <summary>Décor de l'atelier (v0.1.2 jalon 5) : briques du loft, vue sur Los Angeles au crépuscule (penthouse).</summary>
+        public const string BrickAlbedo = RugWashPaths.GeneratedTextures + "/Brick_Albedo.png";
+        public const string Skyline = RugWashPaths.GeneratedTextures + "/Skyline_LosAngeles.png";
+        public const string WallStain = RugWashPaths.GeneratedTextures + "/Wall_Stain.png";
 
         enum Kind { Color, Linear, Normal, Sprite }
 
@@ -54,7 +58,117 @@ namespace RugWash.Editor
             Generate(Paper, 256, 256, force, Kind.Color, true, PaperPixel);
             Generate(UIWhite, 8, 8, force, Kind.Sprite, false, (u, v) => Color.white);
             Generate(UIRounded, 64, 64, force, Kind.Sprite, false, RoundedPixel);
+            Generate(BrickAlbedo, 512, 512, force, Kind.Color, true, BrickPixel);
+            Generate(Skyline, 2048, 256, force, Kind.Color, false, SkylinePixel);
+            Generate(WallStain, 256, 256, force, Kind.Color, false, WallStainPixel);
         }
+
+        // ------------------------------------------------------------------ Décor de l'atelier
+
+        /// <summary>Briques en quinconce (8 rangées × 4 briques par tuile), joints clairs, teinte variable par brique.</summary>
+        static Color BrickPixel(float u, float v)
+        {
+            const int rows = 8, columns = 4;
+            float y = v * rows;
+            int row = Mathf.FloorToInt(y);
+            float x = u * columns + (row % 2 == 0 ? 0f : 0.5f);
+            int column = Mathf.FloorToInt(x);
+            float fx = x - column, fy = y - row;
+            bool mortar = fx < 0.04f || fx > 0.96f || fy < 0.08f || fy > 0.92f;
+            if (mortar) return new Color(0.72f, 0.69f, 0.64f) * (0.9f + 0.1f * ValueNoise(u, v, 64, 701));
+            float tint = Hash(column % columns, row, 703);
+            var brick = Color.Lerp(new Color(0.52f, 0.22f, 0.15f), new Color(0.66f, 0.33f, 0.22f), tint);
+            return brick * (0.85f + 0.15f * ValueNoise(u, v, 128, 707));
+        }
+
+        /// <summary>
+        /// Tache d'humidité au mur (cagibi) : contour irrégulier découpé par l'alpha, auréole plus sombre sur le bord,
+        /// coulure vers le bas. Le matériau la découpe (alpha clip) : aucune forme rectangulaire visible.
+        /// </summary>
+        static Color WallStainPixel(float u, float v)
+        {
+            float x = (u - 0.5f) * 2f, y = (v - 0.55f) * 2f;
+            // Coulure : la tache s'étire vers le bas, plus étroite.
+            float drip = y < 0f ? Mathf.Abs(x) * (1f + -y * 1.6f) : Mathf.Abs(x);
+            float d = Mathf.Sqrt(drip * drip + y * y * (y < 0f ? 0.45f : 1.15f));
+            d += (Fbm(u, v, 4, 4, 913) - 0.5f) * 0.55f;
+            float alpha = 1f - Smooth(0.7f, 0.76f, d);
+            float ring = Smooth(0.45f, 0.72f, d);
+            float grain = 0.85f + 0.15f * ValueNoise(u, v, 64, 917);
+            // Proche de l'enduit : une auréole jaunie, plus marquée sur le bord, pas un trou sombre.
+            var inner = new Color(0.72f, 0.64f, 0.48f);
+            var edge = new Color(0.5f, 0.41f, 0.28f);
+            var color = Color.Lerp(inner, edge, ring) * grain;
+            color.a = alpha;
+            return color;
+        }
+
+        static readonly float[] PalmPositions = { 0.06f, 0.13f, 0.31f, 0.45f, 0.86f, 0.93f };
+
+        /// <summary>
+        /// Vue sur Los Angeles au crépuscule (panorama 8:1) : ciel orangé vers violet, collines lointaines, grands immeubles
+        /// du centre éclairés, ville basse étendue, silhouettes de palmiers au premier plan. Image générée (aucune photo).
+        /// </summary>
+        static Color SkylinePixel(float u, float v)
+        {
+            // Ciel : horizon orange, puis rose, violet et bleu nuit ; halo du soleil couchant.
+            var color = v < 0.45f ? Color.Lerp(new Color(1f, 0.62f, 0.32f), new Color(0.95f, 0.45f, 0.45f), Mathf.InverseLerp(0.25f, 0.45f, v))
+                : v < 0.75f ? Color.Lerp(new Color(0.95f, 0.45f, 0.45f), new Color(0.38f, 0.22f, 0.48f), Mathf.InverseLerp(0.45f, 0.75f, v))
+                : Color.Lerp(new Color(0.38f, 0.22f, 0.48f), new Color(0.12f, 0.12f, 0.3f), Mathf.InverseLerp(0.75f, 1f, v));
+            float sun = Mathf.Exp(-(Sq((u - 0.72f) * 8f) + Sq((v - 0.3f) * 1f)) * 6f);
+            color = Color.Lerp(color, new Color(1f, 0.85f, 0.55f), sun * 0.7f);
+
+            // Collines lointaines.
+            float hills = 0.3f + 0.05f * Mathf.Sin(u * 7f + 1f) + 0.03f * Mathf.Sin(u * 19f + 2f) + 0.015f * ValueNoise(u, 0.5f, 64, 711);
+            if (v < hills) color = Color.Lerp(new Color(0.3f, 0.2f, 0.34f), new Color(0.22f, 0.15f, 0.28f), Mathf.InverseLerp(hills, 0.1f, v));
+
+            // Ville : immeubles (le centre, plus haut, vers u = 0,62), fenêtres éclairées.
+            int building = Mathf.FloorToInt(u * 110f);
+            float local = u * 110f - building;
+            float downtown = Mathf.Exp(-Sq((u - 0.62f) * 9f));
+            float height = 0.16f + 0.08f * Hash(building, 1, 713) + downtown * (0.25f + 0.35f * Hash(building, 2, 717));
+            bool gap = local < 0.06f && Hash(building, 3, 719) > 0.5f;
+            if (v < height && !gap)
+            {
+                color = Color.Lerp(new Color(0.1f, 0.11f, 0.18f), new Color(0.16f, 0.15f, 0.24f), Hash(building, 4, 721));
+                int wx = Mathf.FloorToInt(local * 6f), wy = Mathf.FloorToInt(v * 220f);
+                float wfx = local * 6f - wx, wfy = v * 220f - wy;
+                bool window = wfx > 0.25f && wfx < 0.75f && wfy > 0.2f && wfy < 0.8f;
+                if (window && Hash(building * 7 + wx, wy, 727) > 0.62f) color = Color.Lerp(new Color(1f, 0.82f, 0.45f), new Color(0.9f, 0.95f, 1f), Hash(wx, wy, 729) * 0.4f);
+                // Feu rouge au sommet des plus hautes tours.
+                if (downtown > 0.5f && Mathf.Abs(v - height + 0.008f) < 0.006f && Mathf.Abs(local - 0.5f) < 0.08f) color = new Color(1f, 0.2f, 0.15f);
+            }
+
+            // Sol de la ville et lampadaires.
+            if (v < 0.07f)
+            {
+                color = new Color(0.07f, 0.07f, 0.11f);
+                if (Hash(Mathf.FloorToInt(u * 400f), 5, 731) > 0.8f && Mathf.Abs(v - 0.045f) < 0.006f) color = new Color(1f, 0.75f, 0.4f);
+            }
+
+            // Palmiers en silhouette (le panorama est 8 fois plus large que haut : distances corrigées).
+            foreach (float px in PalmPositions)
+            {
+                float dx = (u - px) * 8f;
+                if (Mathf.Abs(dx) > 0.5f) continue;
+                float top = 0.62f + 0.12f * Hash(Mathf.RoundToInt(px * 100f), 6, 733);
+                float lean = 0.04f * Mathf.Sin(px * 40f);
+                if (v < top && Mathf.Abs(dx - lean * v) < 0.012f + 0.006f * (1f - v)) return new Color(0.04f, 0.03f, 0.06f);
+                for (int f = 0; f < 9; f++)
+                {
+                    float angle = Mathf.PI * (0.05f + 0.9f * f / 8f);
+                    for (int s = 1; s <= 8; s++)
+                    {
+                        float k = s / 8f;
+                        float fx = lean * top + Mathf.Cos(angle) * 0.22f * k, fy = top + Mathf.Sin(angle) * 0.12f * k - 0.1f * k * k;
+                        if (Sq(dx - fx) + Sq(v - fy) < Sq(0.012f * (1.1f - k))) return new Color(0.04f, 0.03f, 0.06f);
+                    }
+                }
+            }
+            return color;
+        }
+
+        static float Sq(float x) => x * x;
 
         // ------------------------------------------------------------------ Écriture / import
 

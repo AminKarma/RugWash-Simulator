@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using RugWash.Network;
+using RugWash.Player;
 using Unity.Netcode;
 using Unity.Netcode.Components;
 using UnityEditor;
@@ -61,10 +62,148 @@ namespace RugWash.Editor
             sync.SyncScaleX = sync.SyncScaleY = sync.SyncScaleZ = false;
             sync.Interpolate = true;
 
+            var parts = BuildAvatarVisuals(root.transform, c, meshes);
+            var visuals = parts.Visuals;
+            var head = parts.Head;
+            var view = parts.View;
+            var legLeft = parts.LegLeft;
+            var legRight = parts.LegRight;
+            var shoulderLeft = parts.ShoulderLeft;
+            var shoulderRight = parts.ShoulderRight;
+            var upperLeft = parts.UpperLeft;
+            var upperRight = parts.UpperRight;
+            var foreLeft = parts.ForeLeft;
+            var foreRight = parts.ForeRight;
+            var handRight = parts.HandRight;
+
+            // Les huit outils, mêmes modèles détaillés que la vue à la première personne, portés devant les yeux.
+            var definitions = new[] { c.Vacuum, c.Soap, c.Brush, c.Rinse, c.Extractor, c.FoamCannon, c.Broom, c.DetailBrush, c.Bucket, c.Squeegee, c.Rotary };
+            var models = new[]
+            {
+                RugWashToolModels.Vacuum(view, meshes, c), RugWashToolModels.Soap(view, meshes, c), RugWashToolModels.Brush(view, meshes, c),
+                RugWashToolModels.Rinse(view, meshes, c), RugWashToolModels.Extractor(view, meshes, c), RugWashToolModels.FoamCannon(view, meshes, c),
+                RugWashToolModels.Broom(view, meshes, c), RugWashToolModels.DetailBrush(view, meshes, c), RugWashToolModels.Bucket(view, meshes, c),
+                RugWashToolModels.Squeegee(view, meshes, c), RugWashToolModels.Rotary(view, meshes, c),
+            };
+            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2, 1, 0, 2 };
+            foreach (var model in models) DisableShadows(model.Root.gameObject);
+            var appearance = AddAppearance(visuals, c);
+            // Ragdoll : le corps bascule, jambes et bras articulés ; avant-bras rattachés aux bras pendant la chute.
+            var ragdoll = visuals.gameObject.AddComponent<AvatarRagdoll>();
+            Wire(ragdoll, ("body", visuals));
+            WireList(ragdoll, "limbs", new[] { legLeft, legRight, upperLeft, upperRight });
+            WireList(ragdoll, "attached", new[] { foreLeft, foreRight });
+
+            var labelGo = new GameObject("Name");
+            labelGo.transform.SetParent(visuals, false);
+            labelGo.transform.localPosition = new Vector3(0f, 1.98f, 0f);
+            var label = labelGo.AddComponent<TextMesh>();
+            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            label.font = font;
+            label.fontSize = 64;
+            label.characterSize = 0.02f;
+            label.anchor = TextAnchor.MiddleCenter;
+            label.alignment = TextAlignment.Center;
+            label.color = Color.white;
+            label.text = "Joueur";
+            labelGo.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+
+            // Effets d'outil : repositionnés chaque image sur la bouche ou la tête de l'outil affiché.
+            var fx = new GameObject("Effects").transform;
+            fx.SetParent(visuals, false);
+            var liquid = CreateParticles("Liquid", fx, c["Droplet"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.25f, 0.45f), Speed = new Vector2(2.5f, 4f), Size = new Vector2(0.02f, 0.05f), Color = new Color(0.85f, 0.92f, 1f, 0.8f),
+                Gravity = 0.6f, MaxParticles = 80, Shape = ParticleSystemShapeType.Cone, Angle = 9f, Radius = 0.01f, Loop = true, Rate = 70f, Stretch = 0.08f,
+            });
+            var dust = CreateParticles("Dust", fx, c["Dust"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.4f, 0.8f), Speed = new Vector2(0.2f, 0.6f), Size = new Vector2(0.05f, 0.12f), Color = new Color(0.65f, 0.58f, 0.48f, 0.5f),
+                Gravity = -0.05f, MaxParticles = 40, Shape = ParticleSystemShapeType.Sphere, Radius = 0.08f, Loop = true, Rate = 25f, SizeGrowth = 1.8f,
+            });
+
+            var audio = root.AddComponent<AudioSource>();
+            audio.playOnAwake = false;
+            audio.loop = true;
+            audio.spatialBlend = 1f;
+            audio.rolloffMode = AudioRolloffMode.Linear;
+            audio.minDistance = 1f;
+            audio.maxDistance = 14f;
+            audio.volume = 0.45f;
+
+            var avatar = root.AddComponent<NetworkPlayerAvatar>();
+            Wire(avatar, ("visuals", visuals.gameObject), ("head", head), ("view", view), ("nameLabel", label), ("liquidEffect", liquid),
+                ("dustEffect", dust), ("toolAudio", audio), ("legLeft", legLeft), ("legRight", legRight), ("shoulderLeft", shoulderLeft),
+                ("shoulderRight", shoulderRight), ("upperArmLeft", upperLeft), ("upperArmRight", upperRight), ("foreArmLeft", foreLeft),
+                ("foreArmRight", foreRight), ("handRight", handRight), ("appearance", appearance), ("ragdoll", ragdoll));
+            SetInt(avatar, "aimMask", ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5)));
+            var serialized = new SerializedObject(avatar);
+            var list = serialized.FindProperty("tools");
+            list.arraySize = models.Length;
+            for (int i = 0; i < models.Length; i++)
+            {
+                var entry = list.GetArrayElementAtIndex(i);
+                var model = models[i];
+                entry.FindPropertyRelative("root").objectReferenceValue = model.Root.gameObject;
+                entry.FindPropertyRelative("tip").objectReferenceValue = model.Tip;
+                entry.FindPropertyRelative("head").objectReferenceValue = model.Head;
+                entry.FindPropertyRelative("shaft").objectReferenceValue = model.Shaft;
+                entry.FindPropertyRelative("shaftLength").floatValue = model.ShaftLength;
+                entry.FindPropertyRelative("range").floatValue = definitions[i].range;
+                entry.FindPropertyRelative("rightHand").objectReferenceValue = model.RightHand;
+                entry.FindPropertyRelative("leftHand").objectReferenceValue = model.LeftHand;
+                entry.FindPropertyRelative("effect").intValue = effects[i];
+            }
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            WireList(avatar, "toolLoops", new[]
+            {
+                Clip(RugWashAudioGenerator.VacuumLoop), Clip(RugWashAudioGenerator.SoapLoop), Clip(RugWashAudioGenerator.BrushLoop),
+                Clip(RugWashAudioGenerator.RinseLoop), Clip(RugWashAudioGenerator.ExtractorLoop), Clip(RugWashAudioGenerator.FoamCannonLoop),
+                Clip(RugWashAudioGenerator.BroomLoop), Clip(RugWashAudioGenerator.BrushLoop), Clip(RugWashAudioGenerator.RinseLoop),
+                Clip(RugWashAudioGenerator.SqueegeeLoop), Clip(RugWashAudioGenerator.RotaryLoop),
+            });
+            foreach (var model in models) model.Root.gameObject.SetActive(false);
+            DisableShadows(labelGo);
+
+            return SaveNetworkPrefab(root, AvatarPrefabPath);
+        }
+
+        /// <summary>
+        /// Enregistre un préfabriqué réseau puis calcule son identifiant global (GlobalObjectIdHash) comme le fait l'éditeur
+        /// (NetworkObject.OnValidate, interne) : en génération automatique, il resterait à 0 et l'objet ne pourrait pas apparaître.
+        /// </summary>
+        static GameObject SaveNetworkPrefab(GameObject instance, string path)
+        {
+            PrefabUtility.SaveAsPrefabAsset(instance, path);
+            Object.DestroyImmediate(instance);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            var validate = typeof(NetworkObject).GetMethod("OnValidate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            foreach (var networkObject in prefab.GetComponentsInChildren<NetworkObject>(true))
+            {
+                validate?.Invoke(networkObject, null);
+                if (networkObject.PrefabIdHash == 0)
+                    throw new System.InvalidOperationException($"[RugWash] Identifiant réseau non généré pour {path}.");
+                EditorUtility.SetDirty(networkObject);
+            }
+            AssetDatabase.SaveAssets();
+            return prefab;
+        }
+
+        static AudioClip Clip(string path) => AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+
+        /// <summary>Pièces de la silhouette (utilisées par la silhouette réseau et l'aperçu du menu « Personnage »).</summary>
+        internal sealed class AvatarVisuals
+        {
+            public Transform Visuals, Head, View, LegLeft, LegRight, ShoulderLeft, ShoulderRight, UpperLeft, UpperRight, ForeLeft, ForeRight;
+            public GameObject HandRight;
+        }
+
+        internal static AvatarVisuals BuildAvatarVisuals(Transform root, RugWashContentBuilder.Content c, MeshStore meshes)
+        {
             // Silhouette procédurale (placeholder propre, pas un asset définitif) : tenue de travail, casquette, gants.
             // Proportions d'un adulte de 1,75 m ; les yeux (point de vue des outils) sont à 1,62 m, comme la caméra du joueur.
             var visuals = new GameObject("Visuals").transform;
-            visuals.SetParent(root.transform, false);
+            visuals.SetParent(root, false);
 
             Transform Leg(string name, float x)
             {
@@ -147,115 +286,35 @@ namespace RugWash.Editor
             foreLeft.localRotation = foreRight.localRotation = Quaternion.Euler(90f, 0f, 0f);
             Part("Hand", foreLeft, handMesh, c["Glove"], new Vector3(0f, 0f, 0.34f));
             var handRight = Part("Hand", foreRight, handMesh, c["Glove"], new Vector3(0f, 0f, 0.34f));
-
-            // Les huit outils, mêmes modèles détaillés que la vue à la première personne, portés devant les yeux.
-            var definitions = new[] { c.Vacuum, c.Soap, c.Brush, c.Rinse, c.Extractor, c.FoamCannon, c.Broom, c.DetailBrush, c.Bucket, c.Squeegee, c.Rotary };
-            var models = new[]
+            return new AvatarVisuals
             {
-                RugWashToolModels.Vacuum(view, meshes, c), RugWashToolModels.Soap(view, meshes, c), RugWashToolModels.Brush(view, meshes, c),
-                RugWashToolModels.Rinse(view, meshes, c), RugWashToolModels.Extractor(view, meshes, c), RugWashToolModels.FoamCannon(view, meshes, c),
-                RugWashToolModels.Broom(view, meshes, c), RugWashToolModels.DetailBrush(view, meshes, c), RugWashToolModels.Bucket(view, meshes, c),
-                RugWashToolModels.Squeegee(view, meshes, c), RugWashToolModels.Rotary(view, meshes, c),
+                Visuals = visuals, Head = head, View = view, LegLeft = legLeft, LegRight = legRight, ShoulderLeft = shoulderLeft,
+                ShoulderRight = shoulderRight, UpperLeft = upperLeft, UpperRight = upperRight, ForeLeft = foreLeft, ForeRight = foreRight,
+                HandRight = handRight,
             };
-            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2, 1, 0, 2 };
-            foreach (var model in models) DisableShadows(model.Root.gameObject);
-
-            var labelGo = new GameObject("Name");
-            labelGo.transform.SetParent(visuals, false);
-            labelGo.transform.localPosition = new Vector3(0f, 1.98f, 0f);
-            var label = labelGo.AddComponent<TextMesh>();
-            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.font = font;
-            label.fontSize = 64;
-            label.characterSize = 0.02f;
-            label.anchor = TextAnchor.MiddleCenter;
-            label.alignment = TextAlignment.Center;
-            label.color = Color.white;
-            label.text = "Joueur";
-            labelGo.GetComponent<MeshRenderer>().sharedMaterial = font.material;
-
-            // Effets d'outil : repositionnés chaque image sur la bouche ou la tête de l'outil affiché.
-            var fx = new GameObject("Effects").transform;
-            fx.SetParent(visuals, false);
-            var liquid = CreateParticles("Liquid", fx, c["Droplet"], new ParticleConfig
-            {
-                Lifetime = new Vector2(0.25f, 0.45f), Speed = new Vector2(2.5f, 4f), Size = new Vector2(0.02f, 0.05f), Color = new Color(0.85f, 0.92f, 1f, 0.8f),
-                Gravity = 0.6f, MaxParticles = 80, Shape = ParticleSystemShapeType.Cone, Angle = 9f, Radius = 0.01f, Loop = true, Rate = 70f, Stretch = 0.08f,
-            });
-            var dust = CreateParticles("Dust", fx, c["Dust"], new ParticleConfig
-            {
-                Lifetime = new Vector2(0.4f, 0.8f), Speed = new Vector2(0.2f, 0.6f), Size = new Vector2(0.05f, 0.12f), Color = new Color(0.65f, 0.58f, 0.48f, 0.5f),
-                Gravity = -0.05f, MaxParticles = 40, Shape = ParticleSystemShapeType.Sphere, Radius = 0.08f, Loop = true, Rate = 25f, SizeGrowth = 1.8f,
-            });
-
-            var audio = root.AddComponent<AudioSource>();
-            audio.playOnAwake = false;
-            audio.loop = true;
-            audio.spatialBlend = 1f;
-            audio.rolloffMode = AudioRolloffMode.Linear;
-            audio.minDistance = 1f;
-            audio.maxDistance = 14f;
-            audio.volume = 0.45f;
-
-            var avatar = root.AddComponent<NetworkPlayerAvatar>();
-            Wire(avatar, ("visuals", visuals.gameObject), ("head", head), ("view", view), ("nameLabel", label), ("liquidEffect", liquid),
-                ("dustEffect", dust), ("toolAudio", audio), ("legLeft", legLeft), ("legRight", legRight), ("shoulderLeft", shoulderLeft),
-                ("shoulderRight", shoulderRight), ("upperArmLeft", upperLeft), ("upperArmRight", upperRight), ("foreArmLeft", foreLeft),
-                ("foreArmRight", foreRight), ("handRight", handRight));
-            SetInt(avatar, "aimMask", ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5)));
-            var serialized = new SerializedObject(avatar);
-            var list = serialized.FindProperty("tools");
-            list.arraySize = models.Length;
-            for (int i = 0; i < models.Length; i++)
-            {
-                var entry = list.GetArrayElementAtIndex(i);
-                var model = models[i];
-                entry.FindPropertyRelative("root").objectReferenceValue = model.Root.gameObject;
-                entry.FindPropertyRelative("tip").objectReferenceValue = model.Tip;
-                entry.FindPropertyRelative("head").objectReferenceValue = model.Head;
-                entry.FindPropertyRelative("shaft").objectReferenceValue = model.Shaft;
-                entry.FindPropertyRelative("shaftLength").floatValue = model.ShaftLength;
-                entry.FindPropertyRelative("range").floatValue = definitions[i].range;
-                entry.FindPropertyRelative("rightHand").objectReferenceValue = model.RightHand;
-                entry.FindPropertyRelative("leftHand").objectReferenceValue = model.LeftHand;
-                entry.FindPropertyRelative("effect").intValue = effects[i];
-            }
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-            WireList(avatar, "toolLoops", new[]
-            {
-                Clip(RugWashAudioGenerator.VacuumLoop), Clip(RugWashAudioGenerator.SoapLoop), Clip(RugWashAudioGenerator.BrushLoop),
-                Clip(RugWashAudioGenerator.RinseLoop), Clip(RugWashAudioGenerator.ExtractorLoop), Clip(RugWashAudioGenerator.FoamCannonLoop),
-                Clip(RugWashAudioGenerator.BroomLoop), Clip(RugWashAudioGenerator.BrushLoop), Clip(RugWashAudioGenerator.RinseLoop),
-                Clip(RugWashAudioGenerator.SqueegeeLoop), Clip(RugWashAudioGenerator.RotaryLoop),
-            });
-            foreach (var model in models) model.Root.gameObject.SetActive(false);
-            DisableShadows(labelGo);
-
-            return SaveNetworkPrefab(root, AvatarPrefabPath);
         }
 
         /// <summary>
-        /// Enregistre un préfabriqué réseau puis calcule son identifiant global (GlobalObjectIdHash) comme le fait l'éditeur
-        /// (NetworkObject.OnValidate, interne) : en génération automatique, il resterait à 0 et l'objet ne pourrait pas apparaître.
+        /// Personnalisation (v0.1.2) : relie les rendus de la tenue, de la casquette et des gants (y compris ceux des outils
+        /// tenus) au composant d'apparence, d'après leurs matériaux.
         /// </summary>
-        static GameObject SaveNetworkPrefab(GameObject instance, string path)
+        internal static CharacterAppearance AddAppearance(Transform target, RugWashContentBuilder.Content c)
         {
-            PrefabUtility.SaveAsPrefabAsset(instance, path);
-            Object.DestroyImmediate(instance);
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            var validate = typeof(NetworkObject).GetMethod("OnValidate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            foreach (var networkObject in prefab.GetComponentsInChildren<NetworkObject>(true))
+            var appearance = target.gameObject.AddComponent<CharacterAppearance>();
+            var outfit = new List<Renderer>();
+            var cap = new List<Renderer>();
+            var gloves = new List<Renderer>();
+            foreach (var renderer in target.GetComponentsInChildren<Renderer>(true))
             {
-                validate?.Invoke(networkObject, null);
-                if (networkObject.PrefabIdHash == 0)
-                    throw new System.InvalidOperationException($"[RugWash] Identifiant réseau non généré pour {path}.");
-                EditorUtility.SetDirty(networkObject);
+                if (renderer.sharedMaterial == c["Workwear"]) outfit.Add(renderer);
+                else if (renderer.sharedMaterial == c["CapFabric"]) cap.Add(renderer);
+                else if (renderer.sharedMaterial == c["Glove"]) gloves.Add(renderer);
             }
-            AssetDatabase.SaveAssets();
-            return prefab;
+            WireList(appearance, "outfitRenderers", outfit);
+            WireList(appearance, "capRenderers", cap);
+            WireList(appearance, "gloveRenderers", gloves);
+            return appearance;
         }
-
-        static AudioClip Clip(string path) => AssetDatabase.LoadAssetAtPath<AudioClip>(path);
 
         static GameObject Part(string name, Transform parent, Mesh mesh, Material material, Vector3 position, Vector3 euler = default)
         {

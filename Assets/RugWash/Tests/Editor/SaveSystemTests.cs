@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using NUnit.Framework;
 using RugWash.Player;
@@ -143,6 +143,7 @@ namespace RugWash.Tests
             var expected = new System.Collections.Generic.List<string> { "up_brush" };
             expected.AddRange(SaveMigration.LegacyToolUnlocks);
             expected.AddRange(SaveMigration.LegacyWorkshopUnlocks);
+            expected.AddRange(SaveMigration.LegacyDecorUnlocks);
             CollectionAssert.AreEqual(expected, result.Data.upgrades);
             Assert.AreEqual(SaveMigration.LegacyDetergentStock, result.Data.detergentStock);
             Assert.AreEqual(1, result.Data.ordersDelivered);

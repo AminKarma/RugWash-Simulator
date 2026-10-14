@@ -16,7 +16,7 @@ namespace RugWash.Save
     /// </summary>
     public static class SaveMigration
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
 
         /// <summary>Stock de détergent d'une nouvelle partie (litres) : trois remplissages de la réserve de 4 L.</summary>
         public const float StarterDetergentStock = 12f;
@@ -31,6 +31,9 @@ namespace RugWash.Save
 
         /// <summary>Équipements d'atelier gratuits avant la v0.1.2 jalon 4 (robot aspirateur), conservés par une partie commencée.</summary>
         public static readonly string[] LegacyWorkshopUnlocks = { "up_robot" };
+
+        /// <summary>Décor : une partie commencée avant les paliers (v0.1.2 jalon 5) garde l'atelier rangé qu'elle avait.</summary>
+        public static readonly string[] LegacyDecorUnlocks = { "up_base_1" };
 
         public enum Outcome
         {
@@ -79,19 +82,24 @@ namespace RugWash.Save
                     data = JsonUtility.FromJson<SaveData>(json);
                     return Normalize(data) ? Outcome.UpToDate : Outcome.Invalid;
                 }
+                if (version == 3)
+                {
+                    data = FromV3(JsonUtility.FromJson<SaveData>(json));
+                    return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
+                }
                 if (version == 2)
                 {
-                    data = FromV2(JsonUtility.FromJson<SaveData>(json));
+                    data = FromV3(FromV2(JsonUtility.FromJson<SaveData>(json)));
                     return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
                 }
                 if (version == 1)
                 {
-                    data = FromV2(FromV1(JsonUtility.FromJson<SaveData>(json)));
+                    data = FromV3(FromV2(FromV1(JsonUtility.FromJson<SaveData>(json))));
                     return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
                 }
                 if (version == 0)
                 {
-                    data = FromV2(FromV1(FromV0(JsonUtility.FromJson<SaveDataV0>(json))));
+                    data = FromV3(FromV2(FromV1(FromV0(JsonUtility.FromJson<SaveDataV0>(json)))));
                     return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
                 }
             }
@@ -106,6 +114,19 @@ namespace RugWash.Save
         /// v1 → v2 : une partie déjà commencée garde ses outils (déblocages ajoutés) et reçoit un bidon de détergent ; une
         /// sauvegarde v1 sans progression devient une nouvelle partie avec le kit de départ.
         /// </summary>
+        /// <summary>v3 → v4 : le décor de l'atelier devient progressif (cagibi au départ) ; une partie commencée garde l'atelier rangé.</summary>
+        public static SaveData FromV3(SaveData data)
+        {
+            if (data == null) return null;
+            if (data.HasProgress)
+            {
+                data.upgrades ??= new System.Collections.Generic.List<string>();
+                foreach (string id in LegacyDecorUnlocks)
+                    if (!data.upgrades.Contains(id)) data.upgrades.Add(id);
+            }
+            return data;
+        }
+
         /// <summary>v2 → v3 : le robot aspirateur devient un achat ; une partie déjà commencée le garde.</summary>
         public static SaveData FromV2(SaveData data)
         {
@@ -172,6 +193,7 @@ namespace RugWash.Save
             data.missionOffers ??= new System.Collections.Generic.List<string>();
             data.missionOffers.RemoveAll(id => !Orders.MissionKey.TryParse(id, out _));
             data.lastMission ??= string.Empty;
+            data.character = Player.CharacterPalette.Clamp(data.character);
             if (data.missionSequence < 0) data.missionSequence = 0;
             if (float.IsNaN(data.detergentStock) || data.detergentStock < 0f) data.detergentStock = 0f;
             if (float.IsNaN(data.soapReserve)) data.soapReserve = -1f;

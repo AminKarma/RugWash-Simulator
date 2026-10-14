@@ -12,6 +12,8 @@ namespace RugWash.Save
         public float masterVolume = 0.9f;
         public float effectsVolume = 0.8f;
         public float interfaceVolume = 0.7f;
+        /// <summary>Musique de fond (v0.1.2), plafonnée sous les sons du jeu.</summary>
+        public float musicVolume = 0.6f;
         public float mouseSensitivity = 0.1f;
         public bool invertY;
         /// <summary>Intensité du balancement caméra/outils (0 = désactivé).</summary>
@@ -92,6 +94,9 @@ namespace RugWash.Save
         public float detergentStock = SaveMigration.StarterDetergentStock;
 
         /// <summary>Missions générées : graine (0 = à tirer), numéro de la prochaine mission, offres affichées, dernière livrée.</summary>
+        /// <summary>Personnalisation du personnage (v0.1.2), propre à ce joueur.</summary>
+        public Player.CharacterLook character = Player.CharacterPalette.Default;
+
         public int missionSeed;
         public int missionSequence;
         public List<string> missionOffers = new List<string>();
@@ -129,6 +134,7 @@ namespace RugWash.Save
             s.masterVolume = Mathf.Clamp01(s.masterVolume);
             s.effectsVolume = Mathf.Clamp01(s.effectsVolume);
             s.interfaceVolume = Mathf.Clamp01(s.interfaceVolume);
+            s.musicVolume = Mathf.Clamp01(s.musicVolume);
             s.mouseSensitivity = Mathf.Clamp(s.mouseSensitivity, 0.01f, 0.5f);
             s.motionIntensity = Mathf.Clamp01(s.motionIntensity);
             if (s.bindingOverrides == null) s.bindingOverrides = string.Empty;

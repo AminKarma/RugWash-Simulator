@@ -296,6 +296,73 @@ namespace RugWash.Cleaning
     }
 
     /// <summary>
+    /// Souffleur de séchage (machine de l'atelier, v0.1.2) : retire de l'humidité, rien d'autre (ni saleté, ni résidus,
+    /// ni mousse). Appliqué à intervalle régulier quand la machine tourne.
+    /// </summary>
+    public struct MachineDryOperation : ICellOperation
+    {
+        /// <summary>Humidité retirée par application.</summary>
+        public float Amount;
+        public float Removed;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            float taken = Mathf.Min(cell.Moisture, Amount * weight);
+            if (taken <= 0f) return;
+            cell.Moisture -= taken;
+            Removed += taken;
+        }
+    }
+
+    /// <summary>
+    /// Plaque vibrante de dépoussiérage (machine de l'atelier, v0.1.2) : secoue le tapis, la poussière et les débris secs
+    /// non fixés (poussière, poils, peluches, amas) tombent. Sans effet sur les fibres mouillées, les taches et la boue.
+    /// </summary>
+    public struct ShakeOperation : ICellOperation
+    {
+        /// <summary>Part de la poussière sèche retirée par application (fibres sèches).</summary>
+        public float Fraction;
+        public float Removed;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            if (cell.Dust <= 0f) return;
+            float dryness = 1f - Mathf.Clamp01(cell.Moisture * 4f);
+            float taken = cell.Dust * Mathf.Clamp01(Fraction * weight) * dryness;
+            if (taken <= 0f) return;
+            cell.Dust -= taken;
+            Removed += taken;
+        }
+    }
+
+    /// <summary>
+    /// Rampe de pré-mouillage (machine de l'atelier, v0.1.2) : humidifie tout le tapis jusqu'à un niveau donné et
+    /// « fait tremper » les taches qui réagissent à l'eau (une part devient de la saleté détachée, à brosser et rincer).
+    /// Ne retire rien.
+    /// </summary>
+    public struct SoakOperation : ICellOperation
+    {
+        public DirtTypeTable Table;
+        /// <summary>Humidité visée et humidité ajoutée au plus par application.</summary>
+        public float WetTarget, WettingStep;
+        /// <summary>Part des taches détachée par application, modulée par leur réponse à l'eau.</summary>
+        public float Loosen;
+        public float Loosened;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            if (weight <= 0f) return;
+            if (cell.Moisture < WetTarget) cell.Moisture += Mathf.Min(WettingStep * weight, WetTarget - cell.Moisture);
+            if (cell.Stain <= 0f || Table == null) return;
+            float response = Mathf.Clamp01(Table.GetResponse(cell.StainType).rinse * 1.5f + 0.2f);
+            float amount = cell.Stain * Mathf.Clamp01(Loosen * weight) * response;
+            cell.Stain -= amount;
+            cell.Loosened += amount;
+            Loosened += amount;
+        }
+    }
+
+    /// <summary>
     /// Raclette (v0.1.2) : ramasse une part de l'eau, de la mousse et de la boue détachée sous la lame (pondérée par la
     /// zone) ; l'outil la redépose devant lui (<see cref="DepositOperation"/>) ou l'évacue au caniveau. Les taches fixées et
     /// la poussière ne bougent pas. Statistiques de sortie : quantités ramassées et somme des poids (pour redéposer

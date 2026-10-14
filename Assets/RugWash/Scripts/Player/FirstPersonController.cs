@@ -58,6 +58,13 @@ namespace RugWash.Player
         /// <summary>Vitesse de marche réduite par l'outil en cours (monobrosse : machine lourde) ; 1 = normale.</summary>
         public float SpeedMultiplier { get; set; } = 1f;
         public bool IsGrounded => controller != null && controller.isGrounded;
+        /// <summary>Vrai pendant une course (touche maintenue et déplacement).</summary>
+        public bool IsSprinting { get; private set; }
+        /// <summary>Chute (ragdoll) : ni regard ni déplacement commandés ; l'élan reçu s'amortit, la gravité s'applique.</summary>
+        public bool ControlLocked { get; set; }
+
+        /// <summary>Élan horizontal imposé (chute) ; il s'amortit ensuite comme un arrêt.</summary>
+        public void Push(Vector3 horizontal) => horizontalVelocity = new Vector3(horizontal.x, 0f, horizontal.z);
 
         public bool IsConfigured(out string missing)
         {
@@ -82,6 +89,11 @@ namespace RugWash.Player
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
+            if (ControlLocked)
+            {
+                Move(Vector2.zero, false, dt);
+                return;
+            }
             Look(input.LookDelta * lookSensitivity + input.LookStick * (stickLookSpeed * dt));
             Move(input.Move, input.SprintHeld, dt);
         }
@@ -99,6 +111,7 @@ namespace RugWash.Player
         {
             Vector3 wish = transform.right * moveInput.x + transform.forward * moveInput.y;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
+            IsSprinting = sprint && wish.sqrMagnitude > 0.01f;
             Vector3 target = wish * (sprint ? sprintSpeed : walkSpeed) * SpeedMultiplier;
             float rate = target.sqrMagnitude > 0.0001f ? acceleration : deceleration;
             horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, rate * dt);

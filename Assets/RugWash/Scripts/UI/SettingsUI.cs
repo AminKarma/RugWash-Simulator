@@ -22,6 +22,9 @@ namespace RugWash.UI
         [SerializeField] Slider masterSlider;
         [SerializeField] Slider effectsSlider;
         [SerializeField] Slider interfaceSlider;
+        [Tooltip("Volume de la musique de fond (v0.1.2).")]
+        [SerializeField] Slider musicSlider;
+        [SerializeField] Text musicValue;
         [SerializeField] Slider sensitivitySlider;
         [SerializeField] Slider motionSlider;
         [SerializeField] Text masterValue;
@@ -111,6 +114,7 @@ namespace RugWash.UI
             masterSlider.onValueChanged.AddListener(v => { settings.SetMasterVolume(v); RefreshLabels(); });
             effectsSlider.onValueChanged.AddListener(v => { settings.SetEffectsVolume(v); RefreshLabels(); });
             interfaceSlider.onValueChanged.AddListener(v => { settings.SetInterfaceVolume(v); RefreshLabels(); });
+            if (musicSlider != null) musicSlider.onValueChanged.AddListener(v => { settings.SetMusicVolume(v); RefreshLabels(); });
             sensitivitySlider.minValue = 0.02f;
             sensitivitySlider.maxValue = 0.4f;
             sensitivitySlider.onValueChanged.AddListener(v => { settings.SetMouseSensitivity(v); RefreshLabels(); });
@@ -235,6 +239,7 @@ namespace RugWash.UI
             masterSlider.SetValueWithoutNotify(s.masterVolume);
             effectsSlider.SetValueWithoutNotify(s.effectsVolume);
             interfaceSlider.SetValueWithoutNotify(s.interfaceVolume);
+            if (musicSlider != null) musicSlider.SetValueWithoutNotify(s.musicVolume);
             sensitivitySlider.SetValueWithoutNotify(s.mouseSensitivity);
             motionSlider.SetValueWithoutNotify(s.motionIntensity);
             gamepadLookSlider.SetValueWithoutNotify(s.gamepadLookSpeed);
@@ -257,6 +262,7 @@ namespace RugWash.UI
             masterValue.text = $"{s.masterVolume * 100f:0} %";
             effectsValue.text = $"{s.effectsVolume * 100f:0} %";
             interfaceValue.text = $"{s.interfaceVolume * 100f:0} %";
+            if (musicValue != null) musicValue.text = s.musicVolume <= 0.001f ? "Muette" : $"{s.musicVolume * 100f:0} %";
             sensitivityValue.text = $"{s.mouseSensitivity * 10f:0.0}";
             motionValue.text = s.motionIntensity <= 0.001f ? "Désactivé" : $"{s.motionIntensity * 100f:0} %";
             gamepadLookValue.text = $"{s.gamepadLookSpeed:0} °/s";

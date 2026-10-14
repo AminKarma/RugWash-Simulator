@@ -159,6 +159,7 @@ namespace RugWash.Save
         public void SetMasterVolume(float value) { Current.masterVolume = Mathf.Clamp01(value); ApplyAudio(); Changed?.Invoke(); }
         public void SetEffectsVolume(float value) { Current.effectsVolume = Mathf.Clamp01(value); ApplyAudio(); Changed?.Invoke(); }
         public void SetInterfaceVolume(float value) { Current.interfaceVolume = Mathf.Clamp01(value); ApplyAudio(); Changed?.Invoke(); }
+        public void SetMusicVolume(float value) { Current.musicVolume = Mathf.Clamp01(value); ApplyAudio(); Changed?.Invoke(); }
 
         public void SetMouseSensitivity(float value)
         {
@@ -275,6 +276,8 @@ namespace RugWash.Save
 
         void ApplyAudio()
         {
+            // Musique : lecteur unique, conservé entre les scènes.
+            if (Application.isPlaying) Audio.MusicPlayer.Ensure().Volume01 = Current.musicVolume;
             if (audioManager == null) return;
             audioManager.MasterVolume = Current.masterVolume;
             audioManager.EffectsVolume = Current.effectsVolume;

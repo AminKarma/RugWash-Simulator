@@ -187,3 +187,52 @@ Ces systèmes sont réutilisés et complétés, pas refaits.
   conservé au lieu d'être effacé.
 - Onze outils : touches 1 à 9 et 0, le onzième à la molette (et LB / RB).
 - Protocole `rugwash-coop-5`.
+
+## 7. Décisions du jalon 5 (base et personnage)
+
+Audit : l'atelier était une salle unique au décor fixe ; le seul équipement d'atelier était le robot (jalon 4) ; la
+silhouette réseau (jalon 5 de la roadmap V2) était faite de primitives procédurales sans variantes ; aucune musique ;
+aucune physique de personnage (capsule `CharacterController` seulement). Réutilisés : catalogue d'améliorations et
+boutique de l'ordinateur, opérations de grille (`ApplyAllTracked`, réplication lente de l'hôte), état d'atelier publié par
+l'hôte, sauvegarde versionnée, générateurs procéduraux (maillages, textures, sons).
+
+- **Machines (5.1)** : trois « équipements d'atelier » achetés à l'onglet **Atelier** de la boutique, cachés avant l'achat,
+  actionnés par E, chacun avec une seule fonction mesurable et jamais un nettoyage complet :
+  - *Plaque vibrante de dépoussiérage* (350 €, réputation 3) : un cycle de 8 s **par commande** ; fait tomber 55 % de la
+    poussière, des poils et des débris **secs** (rien sur un tapis mouillé, rien sur les taches ni la boue détachée).
+  - *Souffleur de séchage* (500 €, réputation 8) : marche / arrêt ; retire 0,03 d'humidité par seconde (les tapis sèchent
+    seuls de 0 à 0,02 / s selon le modèle) ; ne retire ni saleté, ni résidus, ni mousse.
+  - *Rampe de pré-mouillage* (750 €, réputation 15) : un cycle de 8 s par commande ; humidifie à 55 % et fait tremper
+    20 % des taches (selon leur réponse à l'eau) en saleté détachée — **rien n'est retiré** : il faut brosser et rincer.
+  - Intégration : nécessite le tapis d'une commande en cours (un cycle par commande), réputation requise vérifiée par la
+    même règle d'achat partout (`ShopRules`, carrière de chaque joueur chez l'hôte), sauvegarde (achats), réseau (l'hôte
+    décide et publie possession + marche ; chaque poste reproduit l'effet, l'hôte corrige par la réplication lente ; un
+    invité demande l'activation à l'hôte). Pas de « machine à laver » qui nettoierait le tapis : elle contredirait la règle
+    « jamais un nettoyage complet » et le cœur du jeu.
+- **Paliers de décor (5.2)** : cinq paliers séparés des machines (améliorations décoratives à part, onglet Atelier) :
+  0 *Cagibi* (départ : cartons, fenêtres condamnées par des planches, ampoule nue, taches au mur, lumière à 60 %),
+  1 *Atelier rangé* (400 €, rép. 3), 2 *Atelier professionnel* (1 200 €, rép. 15), 3 *Loft industriel* (3 000 €, rép. 35),
+  4 *Penthouse — vue sur Los Angeles* (7 500 €, rép. 63 : baies panoramiques au fond et à droite, skyline de Los Angeles
+  au crépuscule générée procéduralement, finitions dorées, palmier d'intérieur). Paliers achetés dans l'ordre ; chaque
+  palier ajoute ou retire de vrais objets (groupes activés selon le palier) et règle l'éclairage. La surface au sol ne
+  change pas : l'aire de lavage, les outils, le robot et les machines gardent leurs positions (repères des tests, des
+  sauvegardes et du réseau) — c'est la qualité et le contenu de l'espace qui évoluent, pas sa taille.
+  Migration v3 → v4 : une partie commencée garde l'atelier « rangé » qu'elle avait (palier 1) ; nouvelle partie : cagibi.
+- **Appartenance en ligne (5.2)** : le décor et les machines visibles sont ceux de **l'atelier de l'hôte** (la session) ;
+  chaque joueur achète pour **sa** carrière (chez l'hôte, qui valide) et retrouve ses achats quand il héberge. La carrière
+  individuelle n'est jamais écrasée.
+- **Personnalisation (5.3)** : bouton « Personnage » du menu principal. Choix limités à ce que la silhouette procédurale
+  permet réellement, indiqué dans la fenêtre : tenue (6 couleurs), casquette (4 couleurs ou « Aucune »), gants
+  (3 couleurs). Aperçu 3D rendu par une caméra dédiée (rotation automatique, boutons, LB / RB). Sauvegardé dans le profil
+  du joueur (pas dans la progression de l'atelier), appliqué aux gants de la vue à la première personne, répliqué aux
+  autres joueurs (une valeur compacte possédée par chaque joueur).
+- **Ragdoll (5.4)** : chute contrôlée réglable (élan maximal 6 m/s, durée 1 à 3 s, chute 0,35 s, relevé 0,6 s). Joueur
+  local : contrôles et outils coupés, caméra au sol inclinée, capsule de collision inchangée (impossible de passer sous le
+  sol ou de rester coincé), relevé garanti. Autres joueurs : vrai ragdoll de la silhouette (corps et membres articulés,
+  vitesse et rotation bornées, durée maximale 6 s, retour en douceur à la pose). Réseau : seuls l'état « à terre » et
+  l'élan sont transmis (aucun os). Déclencheur de ce jalon : glissade en **courant** sur une mousse épaisse (≥ 0,45,
+  ≥ 4 m/s, une fois toutes les 30 s au plus, désactivable). Les coups de batte (jalon 6) appelleront la même chute.
+- **Musique (5.5)** : deux boucles composées par le générateur audio du projet (menu 30 s, atelier 24 s), aucune musique
+  externe. Un seul lecteur persistant (deux sources pour le fondu enchaîné de 1,5 s), gain maximal 0,45 (sous les sons de
+  jeu), atténuée à 40 % en pause, curseur « Musique » dans les réglages (0 = muette).
+- Sauvegarde v4 (`character`, `musicVolume`), protocole `rugwash-coop-6`.

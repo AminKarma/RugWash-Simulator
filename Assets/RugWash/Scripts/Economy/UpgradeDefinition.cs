@@ -24,6 +24,8 @@ namespace RugWash.Economy
         FiberPickup,
         /// <summary>Équipement de l'atelier (machine) rendu disponible, identifié par <see cref="UpgradeDefinition.targetToolId"/>.</summary>
         WorkshopEquipment,
+        /// <summary>Palier de décor de l'atelier (valeur = numéro du palier, du cagibi au penthouse) : purement visuel.</summary>
+        WorkshopTier,
     }
 
     /// <summary>Amélioration achetable. Prix et valeurs modifiables dans l'Inspector.</summary>
@@ -41,5 +43,10 @@ namespace RugWash.Economy
         public string targetToolId;
         [Tooltip("Amélioration à posséder avant celle-ci (optionnel).")]
         public UpgradeDefinition prerequisite;
+        [Tooltip("Réputation nécessaire pour l'acheter (0 = aucune condition).")]
+        [Min(0)] public int requiredReputation;
+
+        /// <summary>Article de l'onglet « Atelier » (machines, robot, décor) plutôt que du matériel tenu en main.</summary>
+        public bool IsWorkshopItem => effect == UpgradeEffect.WorkshopEquipment || effect == UpgradeEffect.WorkshopTier;
     }
 }

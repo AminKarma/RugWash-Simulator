@@ -417,7 +417,7 @@ namespace RugWash.Tests
             Assert.AreEqual(InputScheme.Gamepad, menu.InputMonitor.Scheme);
             Assert.IsFalse(Cursor.visible, "Manette : curseur masqué.");
 
-            for (int i = 0; i < 6 && Selected != menu.RugDexButton.gameObject; i++)
+            for (int i = 0; i < 9 && Selected != menu.RugDexButton.gameObject; i++)
                 yield return Press(GamepadButton.DpadDown);
             Assert.AreSame(menu.RugDexButton.gameObject, Selected);
             yield return Press(GamepadButton.South);

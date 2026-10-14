@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using RugWash.Cleaning;
 using RugWash.Economy;
 using RugWash.Orders;
@@ -366,6 +366,27 @@ namespace RugWash.Editor
             c.Upgrades.Add(EnsureUpgrade("up_boots", "Bottes de lavage",
                 "Semelles lisses qui retiennent peu la boue : vos pas salissent beaucoup moins l'aire de lavage et les tapis.",
                 90, UpgradeEffect.FootprintTransfer, 0.3f, null, null));
+            // v0.1.2 jalon 5 : machines fonctionnelles de l'atelier (réputation requise) et décor par paliers.
+            c.Upgrades.Add(Reputation(EnsureUpgrade("up_machine_duster", "Plaque vibrante de dépoussiérage",
+                "Sous l'aire de lavage : un cycle de 8 s par commande secoue le tapis sec et fait tomber environ la moitié de la " +
+                "poussière, des poils et des débris. Sans effet sur les taches ni sur un tapis mouillé.",
+                350, UpgradeEffect.WorkshopEquipment, 1f, "duster", null), 3));
+            c.Upgrades.Add(Reputation(EnsureUpgrade("up_machine_blower", "Souffleur de séchage",
+                "Ventilateur orienté vers l'aire de lavage : allumé, il sèche le tapis bien plus vite. Il ne retire ni saleté ni résidus.",
+                500, UpgradeEffect.WorkshopEquipment, 1f, "blower", null), 8));
+            c.Upgrades.Add(Reputation(EnsureUpgrade("up_machine_prewet", "Rampe de pré-mouillage",
+                "Au-dessus de l'aire : un cycle de 8 s par commande humidifie tout le tapis et fait tremper les taches (une part se " +
+                "détache, à brosser puis rincer). Elle ne nettoie rien seule.",
+                750, UpgradeEffect.WorkshopEquipment, 1f, "prewet", null), 15));
+            var tier1 = Reputation(EnsureUpgrade("up_base_1", "Atelier rangé", "Les cartons partent, une étagère et un tableau de liège arrivent, " +
+                "les fenêtres sont dégagées et la lumière revient.", 400, UpgradeEffect.WorkshopTier, 1f, null, null), 3);
+            var tier2 = Reputation(EnsureUpgrade("up_base_2", "Atelier professionnel", "Enseigne, banc d'attente, coin café et plantes : " +
+                "un vrai atelier pour recevoir les clients.", 1200, UpgradeEffect.WorkshopTier, 2f, null, tier1), 15);
+            var tier3 = Reputation(EnsureUpgrade("up_base_3", "Loft industriel", "Mur de briques, coin salon sous des suspensions, " +
+                "tapis exposés aux murs.", 3000, UpgradeEffect.WorkshopTier, 3f, null, tier2), 35);
+            var tier4 = Reputation(EnsureUpgrade("up_base_4", "Penthouse à Los Angeles", "Le dernier étage d'une tour : baies " +
+                "panoramiques sur Los Angeles au crépuscule, finitions dorées, palmier d'intérieur.", 7500, UpgradeEffect.WorkshopTier, 4f, null, tier3), 63);
+            c.Upgrades.AddRange(new[] { tier1, tier2, tier3, tier4 });
             c.Upgrades.Add(EnsureUpgrade("up_robot", "Robot aspirateur",
                 "Aspire seul la poussière, les poils et les débris secs de l'aire de lavage (pas l'eau ni les taches) ; contourne " +
                 "le tapis et les joueurs, rentre se recharger. E sur le robot ou sa base pour le lancer ou l'arrêter.",
@@ -373,6 +394,17 @@ namespace RugWash.Editor
         }
 
         static System.Collections.Generic.Dictionary<string, UpgradeDefinition> toolUnlocks;
+
+        /// <summary>Réputation requise (fixée à la création ; modifiable ensuite dans l'Inspector).</summary>
+        static UpgradeDefinition Reputation(UpgradeDefinition upgrade, int reputation)
+        {
+            if (upgrade.requiredReputation == 0 && reputation > 0)
+            {
+                upgrade.requiredReputation = reputation;
+                EditorUtility.SetDirty(upgrade);
+            }
+            return upgrade;
+        }
 
         static UpgradeDefinition EnsureUpgrade(string id, string name, string description, int price, UpgradeEffect effect, float value,
             string toolId, UpgradeDefinition prerequisite)
@@ -726,6 +758,16 @@ namespace RugWash.Editor
             content.Materials["Bristle"] = EnsureLit("M_Bristle", new Color(0.85f, 0.55f, 0.15f), 0.2f);
             content.Materials["Pegboard"] = EnsureLit("M_Pegboard", new Color(0.62f, 0.5f, 0.36f), 0.15f);
             content.Materials["Cardboard"] = EnsureLit("M_Cardboard", new Color(0.6f, 0.45f, 0.3f), 0.1f);
+            // Décor de l'atelier par paliers (v0.1.2 jalon 5).
+            content.Materials["Plywood"] = EnsureLit("M_Plywood", new Color(0.85f, 0.72f, 0.52f), 0.15f, Tex(RugWashTextureGenerator.WoodAlbedo), null, tiling: 1f);
+            content.Materials["WallStain"] = EnsureCutout("M_WallStain", Tex(RugWashTextureGenerator.WallStain), 0.05f);
+            content.Materials["Brick"] = EnsureLit("M_Brick", Color.white, 0.12f, Tex(RugWashTextureGenerator.BrickAlbedo), null, tiling: 1f);
+            content.Materials["Leather"] = EnsureLit("M_Leather", new Color(0.3f, 0.17f, 0.1f), 0.55f);
+            content.Materials["Plant"] = EnsureLit("M_Plant", new Color(0.2f, 0.45f, 0.18f), 0.3f);
+            content.Materials["Terracotta"] = EnsureLit("M_Terracotta", new Color(0.7f, 0.36f, 0.22f), 0.2f);
+            content.Materials["Gold"] = EnsureLit("M_Gold", new Color(0.95f, 0.75f, 0.35f), 0.8f, metallic: 1f);
+            content.Materials["WarmBulb"] = EnsureEmissive("M_WarmBulb", new Color(1f, 0.78f, 0.5f), 3f);
+            content.Materials["Skyline"] = EnsureUnlitTexture("M_Skyline", Tex(RugWashTextureGenerator.Skyline));
             content.Materials["DoorPaint"] = EnsureLit("M_DoorPaint", new Color(0.2f, 0.3f, 0.42f), 0.4f);
             content.Materials["Signage"] = EnsureLit("M_Signage", new Color(0.1f, 0.13f, 0.16f), 0.3f);
             // Gants et silhouettes des joueurs (placeholders procéduraux : tenue de travail, peau, bottes, casquette).
@@ -807,6 +849,33 @@ namespace RugWash.Editor
             material.SetFloat("_WetDarkening", wetDarkening);
             material.SetFloat("_CleanBoost", 0f);
             material.SetFloat("_ScanResponse", scanResponse);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>Matériau éclairé découpé par l'alpha de sa texture (taches au mur) : valeurs réappliquées à chaque génération.</summary>
+        static Material EnsureCutout(string name, Texture2D texture, float smoothness)
+        {
+            var material = EnsureMaterial(name, "Universal Render Pipeline/Lit", out _);
+            material.SetTexture("_BaseMap", texture);
+            material.SetColor("_BaseColor", Color.white);
+            material.SetFloat("_Smoothness", smoothness);
+            material.SetFloat("_Metallic", 0f);
+            material.SetFloat("_AlphaClip", 1f);
+            material.SetFloat("_Cutoff", 0.5f);
+            material.EnableKeyword("_ALPHATEST_ON");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+            material.SetOverrideTag("RenderType", "TransparentCutout");
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>Texture affichée telle quelle, sans éclairage (vue par une baie vitrée).</summary>
+        static Material EnsureUnlitTexture(string name, Texture2D texture)
+        {
+            var material = EnsureMaterial(name, "Universal Render Pipeline/Unlit", out _);
+            material.SetTexture("_BaseMap", texture);
+            material.SetColor("_BaseColor", Color.white);
             EditorUtility.SetDirty(material);
             return material;
         }

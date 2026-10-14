@@ -40,6 +40,8 @@ namespace RugWash.Player
 
         /// <summary>Utilisation forcée (tests automatisés uniquement) ; jamais activée en jeu.</summary>
         public bool AutomationUseOverride { get; set; }
+        /// <summary>Joueur à terre (chute) : aucun outil utilisable.</summary>
+        public bool Locked { get; set; }
 
         public event Action<CleaningToolBase> ActiveToolChanged;
         /// <summary>Le joueur a demandé un outil pas encore acheté.</summary>
@@ -112,7 +114,7 @@ namespace RugWash.Player
             var tool = ActiveTool;
             if (tool == null) return;
 
-            if (!gameState.IsGameplayActive)
+            if (!gameState.IsGameplayActive || Locked)
             {
                 tool.StopUsing();
                 targetIndicator.Hide();

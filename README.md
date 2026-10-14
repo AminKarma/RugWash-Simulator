@@ -4,7 +4,7 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 jalons 1 à 3** (game feel, scan, nouveaux
+> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 jalons 1 à 5** (game feel, scan, nouveaux
 > outils, aire de lavage, robot aspirateur, tapis de soie, nouvelles salissures, produits spécialisés, RugDex, manette,
 > **coopératif jusqu'à 4 joueurs** — réseau local testé, Steam implémenté mais pas encore testé en réel, voir § Multijoueur).
 > v0.1.2 jalon 1 : outils posés sur le point visé (manche télescopique), modèles détaillés chez les autres joueurs,
@@ -17,6 +17,9 @@ et voit le motif d'origine réapparaître progressivement.
 > détergent consommable (réserve de 4 L, bidons de 40 L) — `VALIDATION.md` § 15.
 > v0.1.2 jalon 4 : raclette qui pousse réellement l'eau et la boue jusqu'au caniveau, monobrosse professionnelle, bottes de
 > lavage, accessoire anti-poils pour l'aspirateur, robot aspirateur à acheter, traces boueuses aussi sur le tapis.
+> v0.1.2 jalon 5 : machines d'atelier fonctionnelles (dépoussiérage, séchage, pré-mouillage), atelier qui évolue du cagibi
+> au penthouse avec vue sur Los Angeles, personnalisation du personnage (menu « Personnage »), chute avec ragdoll, musique
+> de fond — `VALIDATION.md` § 17.
 > Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
@@ -66,7 +69,7 @@ fenêtre des touches) suivent le dernier périphérique utilisé, le curseur est
 | Regarder | Souris | Stick droit |
 | Utiliser l'outil | Clic gauche (maintenu) | RT · R2 (maintenue) |
 | Outil suivant / précédent | Molette, ou 1–9 et 0 (rangée du haut ou pavé numérique) ; le 11ᵉ outil (monobrosse) à la molette | RB / LB · R1 / L1 (les outils pas encore achetés sont sautés) |
-| Interagir (postes, caniveau, comptoir des commandes, boutique, robot aspirateur ou sa base) | E | A · Croix |
+| Interagir (postes, caniveau, ordinateur, robot aspirateur ou sa base, machines de l'atelier) | E | A · Croix |
 | Scanner la saleté (surligne les zones encore sales, puis recharge) | R | Y · Triangle |
 | Changer de produit spécialisé (produits en stock, puis détergent standard) | T | X · Carré |
 | Inspecter le tapis (avant/après) | F | Vue · Partager |
@@ -80,7 +83,7 @@ Dans les menus, la fenêtre ouverte reçoit le focus (premier élément, ou celu
 par-dessus) et les listes défilent jusqu'à l'élément sélectionné.
 
 **Paramètres** (menu principal ou pause → « Paramètres », trois onglets) — chaque option est réellement appliquée :
-- **Général** : volumes général / effets / interface, résolution, mode d'affichage (plein écran, plein écran fenêtré,
+- **Général** : volumes général / effets / interface / **musique** (0 % = muette), résolution, mode d'affichage (plein écran, plein écran fenêtré,
   fenêtré), niveau de qualité ;
 - **Commandes** : sensibilité de la souris, inversion de l'axe vertical (souris et stick), **balancement** de la caméra et des
   outils (0 % = désactivé), **vitesse de la caméra au stick** (30–360 °/s), **zone morte des sticks** (2–50 %),
@@ -283,6 +286,29 @@ difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste
   visuels : densité, durée de vie et taille maximale à l'écran des particules, distance des effets des autres joueurs),
   `Surface_WorkSurface` (taille, résolution, séchage), composant `RobotVacuum` (vitesse, rayon, puissance).
 
+## 4 octies. Atelier : machines, paliers, personnage (v0.1.2 jalon 5)
+
+- **Onglet « Atelier »** de la boutique (ordinateur) : paliers de décor, machines et robot. Chaque achat d'atelier exige
+  une **réputation** minimale (affichée sur la ligne) en plus du prix ; les paliers s'achètent dans l'ordre.
+- **Machines** (cachées avant l'achat, **E** pour les actionner ; jamais un nettoyage complet) :
+  - *Plaque vibrante de dépoussiérage* (350 €, réputation 3) — sous l'aire : un cycle de 8 s **par commande** fait tomber
+    environ la moitié de la poussière, des poils et des débris d'un tapis **sec** ; sans effet sur les taches ;
+  - *Souffleur de séchage* (500 €, réputation 8) — marche / arrêt : sèche le tapis (0,03 d'humidité par seconde) sans
+    retirer de saleté ;
+  - *Rampe de pré-mouillage* (750 €, réputation 15) — un cycle de 8 s par commande : humidifie le tapis et fait tremper une
+    part des taches, qui se détachent ; il faut toujours brosser et rincer.
+- **Paliers de l'atelier** (décor, séparé des machines) : *Cagibi* au départ (cartons, fenêtres condamnées, ampoule nue),
+  *Atelier rangé* (400 €, rép. 3), *Atelier professionnel* (1 200 €, rép. 15), *Loft industriel* (3 000 €, rép. 35),
+  *Penthouse — vue sur Los Angeles* (7 500 €, rép. 63 : baies vitrées sur la ville au crépuscule). Chaque palier change
+  réellement les objets et l'éclairage de la salle ; l'aire de lavage, les postes et les machines restent à leur place.
+- **Personnage** (menu principal) : tenue (6 couleurs), casquette (4 couleurs ou aucune), gants (3 couleurs), avec aperçu 3D
+  qui tourne (boutons ou LB / RB). Les choix sont limités à ce que la silhouette actuelle permet (indiqué dans la fenêtre),
+  sauvegardés dans votre profil, visibles sur vos gants à la première personne et par les autres joueurs en ligne.
+- **Chute** : courir sur une mousse épaisse fait glisser (au plus une fois toutes les 30 s) — le joueur tombe, la caméra va
+  au sol, puis il se relève seul après une à deux secondes ; les autres joueurs voient sa silhouette basculer (ragdoll).
+- **Musique** : boucles douces au menu et dans l'atelier, fondu entre les deux, atténuée en pause, toujours plus basse
+  que les sons du jeu (curseur « Musique » dans les paramètres).
+
 ## 4 septies. Multijoueur coopératif
 
 Jusqu'à 4 joueurs dans le même atelier, sur les mêmes tapis. Détails (architecture, configuration Steam, procédure de
@@ -296,7 +322,8 @@ test, limites) : [Assets/RugWash/Documentation/MULTIPLAYER.md](Assets/RugWash/Do
 - **Progression personnelle** (v0.1.2) : chaque joueur garde **sa** carrière (argent, réputation, achats, produits, RugDex,
   commandes livrées), sauvegardée chez lui. L'hôte la valide pendant la partie (achats payés avec l'argent de l'invité,
   récompense complète versée à chaque joueur présent) ; elle n'est jamais remplacée par celle de l'hôte. L'atelier
-  (tapis, aire de lavage, robot, tableau des commandes) est celui de l'hôte et n'est sauvegardé que chez lui.
+  (tapis, aire de lavage, robot, machines, palier de décor, tableau des commandes) est celui de l'hôte et n'est sauvegardé
+  que chez lui. Chaque joueur montre sa propre apparence (menu « Personnage »).
 - **Arrivée d'un invité** : « Connexion à l'atelier de l'hôte — synchronisation… » (contrôles coupés) jusqu'à réception de
   l'atelier et de sa carrière validée ; le HUD affiche ensuite directement ses propres valeurs.
 - **Autres joueurs** : même modèle d'outil détaillé que le sien, posé sur le point qu'ils visent, jet depuis leur buse.
@@ -308,8 +335,9 @@ test, limites) : [Assets/RugWash/Documentation/MULTIPLAYER.md](Assets/RugWash/Do
 
 ## 4 bis. Audio
 
-Les 34 sons (outils et **contact avec le tapis** propres à chaque outil, prise en main, interface, refus, remplissage,
-vidange, éclat de zone propre, scan, paliers, objectif, paiement, ambiance, pas, robot aspirateur) sont **générés par synthèse**
+Les sons (outils et **contact avec le tapis** propres à chaque outil, prise en main, interface, refus, remplissage,
+vidange, éclat de zone propre, scan, paliers, objectif, paiement, ambiance, pas, robot aspirateur, machines) **et les deux
+musiques** (menu, atelier) sont **générés par synthèse**
 (`RugWashAudioGenerator`) dans `Assets/RugWash/Audio/Generated/tmp_*.wav` : aucune licence tierce. Ce sont des
 **substituts temporaires** clairement préfixés `tmp_`, à remplacer en changeant le clip assigné.
 Inventaire complet, règles de lecture (catégories, pause, anti-empilement) et licences :
@@ -441,8 +469,10 @@ Fichier JSON local : `%USERPROFILE%\AppData\LocalLow\RugWash Studio\RugWash Simu
   jamais écrites.
 - **Récupération** : fichier illisible → copie de secours restaurée ; les deux illisibles → nouvelle partie,
   sans blocage. Les fichiers endommagés sont conservés (`*.corrupt-<date>`).
-- **Versions** : `SaveMigration` convertit les anciens formats (v0 → v1) ; une sauvegarde d'une version plus
-  récente du jeu n'est ni chargée ni écrasée.
+- **Versions** : `SaveMigration` convertit les anciens formats (v0 → … → v4) ; une sauvegarde d'une version plus
+  récente du jeu n'est ni chargée ni écrasée. v4 (v0.1.2 jalon 5) : `character` (tenue, casquette, gants),
+  `settings.musicVolume` ; une partie commencée avant garde l'atelier « rangé » qu'elle avait (palier 1), une nouvelle
+  partie commence dans le cagibi.
 - **Pas de double récompense** : le paiement et le passage de la commande à « Terminée » sont sauvegardés ensemble ;
   au chargement, le solde est restauré tel quel et la commande ne peut pas être refaite.
 - **Commande en cours non sauvegardée** : quitter ou revenir au menu pendant une commande l'abandonne (elle reste disponible).
@@ -469,7 +499,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel : 198 tests EditMode et 112 / 112 tests PlayMode réussis (v0.1.2 jalon 4), et 32 / 32 vérifications multijoueur (scénario du jalon 1 ; scénario mis à jour pour les jalons 3 et 4 non encore exécuté) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel : 207 tests EditMode et 119 / 119 tests PlayMode réussis (v0.1.2 jalon 5), et 32 / 32 vérifications multijoueur (scénario du jalon 1 ; scénario mis à jour pour les jalons 3 à 5 non encore exécuté) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

@@ -96,6 +96,9 @@ namespace RugWash.Editor
             RugWashDecor.Ceiling(environment, content, meshes);
             RugWashDecor.WallDetails(environment, content, meshes);
             BuildLights(lighting, content, meshes);
+            // Décor de l'atelier par paliers (v0.1.2 jalon 5) : du cagibi au penthouse avec vue sur Los Angeles.
+            var roomLights = new List<Light>(lighting.GetComponentsInChildren<Light>(true));
+            var decor = RugWashWorkshopTiers.Build(environment, environment.Find("Room"), content, meshes, roomLights);
             var ambient = new GameObject("Ambience");
             ambient.transform.SetParent(environment, false);
             ambient.AddComponent<AudioSource>();
@@ -154,6 +157,7 @@ namespace RugWash.Editor
             WireList(upgrades, "catalog", content.Upgrades);
             var productInventory = player.GetComponent<ProductInventory>();
             var shop = game.AddComponent<ShopManager>();
+            Wire(shop, ("reputation", reputation));
             Wire(shop, ("wallet", wallet), ("upgrades", upgrades), ("audioManager", audio), ("products", productInventory),
                 ("detergent", player.GetComponent<DetergentSupply>()));
             var orders = game.AddComponent<OrderManager>();
@@ -170,6 +174,23 @@ namespace RugWash.Editor
             Wire(progressFeedback, ("rug", rug), ("orders", orders), ("audioManager", audio),
                 ("milestoneClip", Clip(RugWashAudioGenerator.Milestone)), ("celebrationPool", cleanPool));
             WireList(orders, "orders", content.Orders);
+
+            // Machines fonctionnelles de l'atelier (v0.1.2 jalon 5), cachées tant qu'elles ne sont pas achetées.
+            var machineRoot = new GameObject("Machines").transform;
+            machineRoot.SetParent(gameplay, false);
+            Vector3 rugCenter = WashPadCenter + Vector3.up * WashPadSize.y;
+            var machines = new List<WorkshopMachine>
+            {
+                RugWashMachineModels.DustPlate(machineRoot, meshes, content, rug, orders, Clip(RugWashAudioGenerator.PlateLoop),
+                    new Vector3(-2.85f, 0f, -1.6f), 0f, rugCenter, new Vector2(3f, 2f)),
+                RugWashMachineModels.Blower(machineRoot, meshes, content, rug, orders, Clip(RugWashAudioGenerator.BlowerLoop),
+                    new Vector3(3.4f, 0f, 2.2f), -112f),
+                RugWashMachineModels.PreWet(machineRoot, meshes, content, rug, orders, Clip(RugWashAudioGenerator.RinseContactLoop),
+                    new Vector3(-3.0f, 0f, 2.95f), 90f, new Vector3(0f, 2.75f, WashPadCenter.z), 4.2f, RoomHeight),
+            };
+            foreach (var machine in machines)
+                if (!machine.IsConfigured(out string missingMachine))
+                    throw new InvalidOperationException($"[RugWash] Machine incomplète : {machine.name}.{missingMachine}");
             var rugDexService = game.AddComponent<RugDexService>();
             Wire(rugDexService, ("catalog", content.Catalog), ("rug", rug), ("orders", orders));
 
@@ -179,7 +200,8 @@ namespace RugWash.Editor
             var save = game.AddComponent<SaveManager>();
             Wire(save, ("settings", settings), ("wallet", wallet), ("reputation", reputation), ("upgrades", upgrades),
                 ("orders", orders), ("shop", shop), ("workshop", workshopState), ("products", productInventory), ("rugDex", rugDexService),
-                ("equipment", player.GetComponent<PlayerEquipment>()), ("detergent", player.GetComponent<DetergentSupply>()));
+                ("equipment", player.GetComponent<PlayerEquipment>()), ("detergent", player.GetComponent<DetergentSupply>()),
+                ("firstPersonAppearance", player.GetComponentInChildren<CharacterAppearance>(true)));
 
             var ui = BuildUI(uiRoot, sprites, performance);
 
@@ -195,6 +217,8 @@ namespace RugWash.Editor
             Wire(deskInteractable, ("computer", ui.Computer), ("orderBoard", ui.Board), ("shop", ui.Shop), ("orders", orders));
             SetInt(deskInteractable, "target", (int)PanelInteractable.Target.Computer);
 
+            Wire(bootstrap, ("workshopMusic", Clip(RugWashAudioGenerator.MusicWorkshop)), ("decor", decor));
+            WireList(bootstrap, "machines", machines);
             Wire(bootstrap,
                 ("gameState", gameState),
                 ("audioManager", audio),
@@ -318,7 +342,7 @@ namespace RugWash.Editor
             AddText(CreateRect("Subtitle", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(94f, -200f), new Vector2(640f, 40f)),
                 "Atelier de nettoyage de tapis", 28, TextAnchor.MiddleLeft, Accent);
 
-            var column = CreateRect("Buttons", canvas.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(90f, -90f), new Vector2(460f, 600f));
+            var column = CreateRect("Buttons", canvas.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(90f, -90f), new Vector2(460f, 700f));
             AddVerticalLayout(column.gameObject, 14, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
             var play = CreateButton("Play", column, "Nouvelle partie", sprites.Rounded, new Vector2(460f, 70f));
             var resume = CreateButton("Continue", column, "Continuer", sprites.Rounded, new Vector2(460f, 70f));
@@ -326,6 +350,7 @@ namespace RugWash.Editor
                 string.Empty, 20, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f));
             summary.gameObject.AddComponent<LayoutElement>().preferredHeight = 30f;
             var multiplayerMenuButton = CreateButton("Multiplayer", column, "Multijoueur", sprites.Rounded, new Vector2(460f, 70f));
+            var characterMenuButton = CreateButton("Character", column, "Personnage", sprites.Rounded, new Vector2(460f, 70f));
             var rugDexMenuButton = CreateButton("RugDex", column, "RugDex", sprites.Rounded, new Vector2(460f, 70f));
             var settingsButton = CreateButton("Settings", column, "Paramètres", sprites.Rounded, new Vector2(460f, 70f));
             var quit = CreateButton("Quit", column, "Quitter", sprites.Rounded, new Vector2(460f, 70f));
@@ -357,6 +382,7 @@ namespace RugWash.Editor
             AddText(Stretch("Text", loading), "Chargement de l'atelier…", 40, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
 
             var rugDexUI = BuildRugDexUI(canvas, sprites);
+            var characterUI = BuildCharacterUI(canvas, sprites, content, meshes);
             var settingsUI = BuildSettingsUI(canvas, sprites);
             var multiplayerUI = BuildMultiplayerUI(canvas, sprites, content.Network);
 
@@ -365,7 +391,9 @@ namespace RugWash.Editor
             Wire(controller, ("rugDexUI", rugDexUI), ("rugDexButton", rugDexMenuButton), ("rugCatalog", content.Catalog),
                 ("dirtLibrary", content.DirtLibrary));
             WireList(controller, "orders", content.Orders);
+            Wire(controller, ("characterUI", characterUI), ("characterButton", characterMenuButton));
             Wire(controller, ("inputMonitor", menuNavigator.Monitor));
+            Wire(controller, ("menuMusic", Clip(RugWashAudioGenerator.MusicMenu)));
             Wire(controller, ("save", save), ("settings", settings), ("audioManager", audio), ("settingsUI", settingsUI),
                 ("playButton", play), ("continueButton", resume), ("settingsButton", settingsButton), ("quitButton", quit),
                 ("continueSummary", summary), ("messageLabel", message), ("confirmPanel", confirm.gameObject),
@@ -382,6 +410,74 @@ namespace RugWash.Editor
             AssetDatabase.SaveAssets();
             Debug.Log($"[RugWash] Scène générée : {RugWashPaths.MainMenuScene}");
             return scene;
+        }
+
+        /// <summary>
+        /// Fenêtre « Personnage » (v0.1.2) : aperçu 3D de la silhouette (scène isolée sous l'atelier, filmée dans une texture
+        /// seulement fenêtre ouverte) et sélecteurs des options réellement disponibles.
+        /// </summary>
+        static CharacterMenuUI BuildCharacterUI(Canvas canvas, UISprites sprites, RugWashContentBuilder.Content c, MeshStore meshes)
+        {
+            var window = BuildWindow(canvas.transform, "Character", new Vector2(1300f, 860f), sprites, "Personnage", out var panel, out var close);
+            var frame = CreateRect("PreviewFrame", window, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(40f, -10f), new Vector2(460f, 640f));
+            AddImage(frame, sprites.Rounded, new Color(0.05f, 0.06f, 0.08f, 0.95f));
+            var image = Stretch("Preview", frame, 8f).gameObject.AddComponent<RawImage>();
+            image.raycastTarget = false;
+            var rotateLeft = CreateButton("RotateLeft", window, "‹ Tourner", sprites.Rounded, new Vector2(220f, 56f));
+            PlaceBottomLeft((RectTransform)rotateLeft.transform, new Vector2(40f, 36f));
+            var rotateRight = CreateButton("RotateRight", window, "Tourner ›", sprites.Rounded, new Vector2(220f, 56f));
+            PlaceBottomLeft((RectTransform)rotateRight.transform, new Vector2(280f, 36f));
+
+            var options = CreateRect("Options", window, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -130f), new Vector2(700f, 260f));
+            AddVerticalLayout(options.gameObject, 18, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
+            var outfit = StepperRow(options, "Tenue de travail", sprites);
+            var cap = StepperRow(options, "Casquette", sprites);
+            var gloves = StepperRow(options, "Gants", sprites);
+            AddText(CreateRect("Note", window, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -420f), new Vector2(700f, 200f)),
+                "Silhouette provisoire (modèle procédural) : seules les couleurs de la tenue et des gants, et la casquette (ou pas), " +
+                "sont personnalisables pour l'instant.\nVos choix sont sauvegardés et visibles par les autres joueurs en ligne.",
+                20, TextAnchor.UpperLeft, new Color(0.8f, 0.83f, 0.86f));
+            panel.GetComponent<NavigationScope>().FirstSelected = outfit.NextButton;
+
+            // Aperçu : silhouette et éclairage propres, loin sous la salle (la caméra du menu ne les voit pas).
+            var rig = new GameObject("CharacterPreview").transform;
+            rig.position = new Vector3(0f, -50f, 0f);
+            var model = new GameObject("Model").transform;
+            model.SetParent(rig, false);
+            model.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            var parts = RugWashNetworkBuilder.BuildAvatarVisuals(model, c, meshes);
+            var appearance = RugWashNetworkBuilder.AddAppearance(parts.Visuals, c);
+            var cameraGo = new GameObject("PreviewCamera");
+            cameraGo.transform.SetParent(rig, false);
+            cameraGo.transform.localPosition = new Vector3(0f, 1.05f, -3.1f);
+            cameraGo.transform.localRotation = Quaternion.Euler(4f, 0f, 0f);
+            var camera = cameraGo.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.07f, 0.09f, 0.11f);
+            camera.fieldOfView = 34f;
+            camera.nearClipPlane = 0.1f;
+            camera.farClipPlane = 8f;
+            camera.enabled = false;
+            foreach (var (name, position, intensity) in new[] { ("Key", new Vector3(1.4f, 2.4f, -2f), 3.5f), ("Fill", new Vector3(-1.6f, 1.6f, -1.6f), 1.6f), ("Rim", new Vector3(0f, 2.2f, 1.8f), 2f) })
+            {
+                var lightGo = new GameObject($"PreviewLight_{name}");
+                lightGo.transform.SetParent(rig, false);
+                lightGo.transform.localPosition = position;
+                var light = lightGo.AddComponent<Light>();
+                light.type = LightType.Point;
+                light.range = 7f;
+                light.intensity = intensity;
+                light.shadows = LightShadows.None;
+                lightGo.AddComponent<UniversalAdditionalLightData>();
+            }
+
+            var ui = window.parent.parent.gameObject.AddComponent<CharacterMenuUI>();
+            Wire(ui, ("panel", panel), ("preview", image), ("outfitStepper", outfit), ("capStepper", cap), ("glovesStepper", gloves),
+                ("rotateLeftButton", rotateLeft), ("rotateRightButton", rotateRight), ("closeButton", close), ("previewModel", model),
+                ("previewCamera", camera), ("previewAppearance", appearance));
+            if (!ui.IsConfigured(out string missing)) throw new InvalidOperationException($"[RugWash] Fenêtre Personnage incomplète : {missing}");
+            panel.SetActive(false);
+            return ui;
         }
 
         /// <summary>
@@ -797,9 +893,15 @@ namespace RugWash.Editor
             int aimMask = ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5));
             SetInt(toolController, "aimMask", aimMask);
 
+            // Personnalisation (v0.1.2) : couleur des gants choisie dans « Personnage », aussi à la première personne.
+            var firstPersonLook = RugWashNetworkBuilder.AddAppearance(rig, c);
             Wire(rig.gameObject.AddComponent<ViewModelRig>(), ("input", input), ("controller", fps), ("tools", toolController),
                 ("audioManager", audio), ("equipClip", Clip(RugWashAudioGenerator.ToolEquip)));
             Wire(cameraGo.AddComponent<CameraMotion>(), ("controller", fps));
+            // Chute contrôlée (ragdoll du joueur local, v0.1.2) : caméra au sol, contrôles coupés, relevé garanti.
+            var knockdown = player.AddComponent<PlayerKnockdown>();
+            Wire(knockdown, ("controller", fps), ("cameraMotion", cameraGo.GetComponent<CameraMotion>()), ("tools", toolController));
+            SetInt(knockdown, "surfaceMask", aimMask);
             var footprints = player.AddComponent<FootprintTrail>();
             Wire(footprints, ("controller", fps), ("equipment", player.GetComponent<PlayerEquipment>()));
             SetInt(footprints, "surfaceMask", aimMask);
@@ -812,6 +914,7 @@ namespace RugWash.Editor
             interactor = player.AddComponent<PlayerInteractor>();
             Wire(interactor, ("playerCamera", camera), ("input", input), ("equipment", equipment), ("gameState", gameState));
             SetInt(interactor, "mask", aimMask);
+            Wire(player.GetComponent<PlayerKnockdown>(), ("interactor", interactor));
             return player;
         }
 
@@ -1499,8 +1602,9 @@ namespace RugWash.Editor
             // ---- Boutique
             var shopWindow = BuildWindow(canvas.transform, "Shop", new Vector2(1500f, 980f), sprites, "Boutique", out var shopPanel, out var shopClose);
             var equipmentTab = CreateButton("Tab_Equipment", shopWindow, "Matériel", sprites.Rounded, new Vector2(240f, 50f));
+            var workshopTab = CreateButton("Tab_Workshop", shopWindow, "Atelier", sprites.Rounded, new Vector2(240f, 50f));
             var productsTab = CreateButton("Tab_Products", shopWindow, "Produits", sprites.Rounded, new Vector2(240f, 50f));
-            foreach (var (tab, x) in new[] { (equipmentTab, -125f), (productsTab, 125f) })
+            foreach (var (tab, x) in new[] { (equipmentTab, -250f), (workshopTab, 0f), (productsTab, 250f) })
             {
                 StyleTab(tab);
                 var rect = (RectTransform)tab.transform;
@@ -1522,7 +1626,7 @@ namespace RugWash.Editor
                 string.Empty, 24, TextAnchor.MiddleCenter, Color.white);
             built.Shop = shopWindow.parent.parent.gameObject.AddComponent<ShopUI>();
             Wire(built.Shop, ("panel", shopPanel), ("balanceLabel", balance), ("listRoot", grid), ("rowTemplate", shopRow), ("messageLabel", shopMessage),
-                ("closeButton", shopClose), ("equipmentTabButton", equipmentTab), ("productsTabButton", productsTab));
+                ("closeButton", shopClose), ("equipmentTabButton", equipmentTab), ("productsTabButton", productsTab), ("workshopTabButton", workshopTab));
 
             // ---- Résultats
             var resultsWindow = BuildWindow(canvas.transform, "Results", new Vector2(1600f, 940f), sprites, "Résultats de la commande", out var resultsPanel, out var resultsClose);
@@ -1801,6 +1905,7 @@ namespace RugWash.Editor
             var master = SliderRow(audioColumn, "Volume général", sprites, out var masterValue);
             var effects = SliderRow(audioColumn, "Effets", sprites, out var effectsValue);
             var interfaceSlider = SliderRow(audioColumn, "Interface", sprites, out var interfaceValue);
+            var musicSlider = SliderRow(audioColumn, "Musique", sprites, out var musicValue);
             var displayColumn = Column(general, false);
             SectionTitle(displayColumn, "Affichage");
             var resolution = StepperRow(displayColumn, "Résolution", sprites);
@@ -1879,6 +1984,7 @@ namespace RugWash.Editor
                 string.Empty, 22, TextAnchor.MiddleCenter, new Color(0.55f, 0.95f, 0.6f));
 
             var ui = window.parent.parent.gameObject.AddComponent<SettingsUI>();
+            Wire(ui, ("musicSlider", musicSlider), ("musicValue", musicValue));
             Wire(ui, ("panel", panel), ("masterSlider", master), ("effectsSlider", effects), ("interfaceSlider", interfaceSlider),
                 ("sensitivitySlider", sensitivity), ("masterValue", masterValue), ("effectsValue", effectsValue), ("interfaceValue", interfaceValue),
                 ("sensitivityValue", sensitivityValue), ("motionSlider", motion), ("motionValue", motionValue), ("invertYStepper", invert), ("resolutionStepper", resolution),

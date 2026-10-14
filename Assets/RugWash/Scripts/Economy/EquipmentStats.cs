@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace RugWash.Economy
 {
@@ -20,6 +21,8 @@ namespace RugWash.Economy
 
         /// <summary>Part de la boue des semelles transférée à chaque pas (1 = chaussures ordinaires).</summary>
         public float FootprintTransfer = 1f;
+        /// <summary>Palier de décor de l'atelier (0 = cagibi de départ).</summary>
+        public int WorkshopTier;
 
         /// <summary>Multiplicateur de l'outil sur les poils, cheveux et peluches (accessoire).</summary>
         public float FiberMultiplier(string toolId) => toolId != null && fiber.TryGetValue(toolId, out float v) ? v : 1f;
@@ -49,11 +52,12 @@ namespace RugWash.Economy
                     case UpgradeEffect.UnlockTool:
                         if (!string.IsNullOrEmpty(upgrade.targetToolId)) stats.unlocked.Add(upgrade.targetToolId);
                         break;
-                    case UpgradeEffect.FootprintTransfer: stats.FootprintTransfer *= UnityEngine.Mathf.Clamp01(upgrade.value); break;
+                    case UpgradeEffect.FootprintTransfer: stats.FootprintTransfer *= Mathf.Clamp01(upgrade.value); break;
                     case UpgradeEffect.FiberPickup: Multiply(stats.fiber, upgrade.targetToolId, upgrade.value); break;
                     case UpgradeEffect.WorkshopEquipment:
                         if (!string.IsNullOrEmpty(upgrade.targetToolId)) stats.machines.Add(upgrade.targetToolId);
                         break;
+                    case UpgradeEffect.WorkshopTier: stats.WorkshopTier = Mathf.Max(stats.WorkshopTier, Mathf.RoundToInt(upgrade.value)); break;
                 }
             }
             return stats;
@@ -73,6 +77,8 @@ namespace RugWash.Economy
         MissingPrerequisite,
         InsufficientFunds,
         Unknown,
+        /// <summary>Réputation inférieure à celle requise par l'article.</summary>
+        ReputationTooLow,
         /// <summary>Multijoueur (invité) : demande envoyée à l'hôte.</summary>
         Requested = 100,
     }
@@ -91,18 +97,20 @@ namespace RugWash.Economy
     /// <summary>Règle d'achat pure : le solde n'est débité que si l'achat est entièrement valide.</summary>
     public static class ShopRules
     {
-        public static PurchaseResult Check(UpgradeDefinition upgrade, ICollection<string> owned, Wallet wallet)
+        /// <param name="reputation">Réputation de l'acheteur (sans valeur : aucune condition de réputation vérifiée).</param>
+        public static PurchaseResult Check(UpgradeDefinition upgrade, ICollection<string> owned, Wallet wallet, int reputation = int.MaxValue)
         {
             if (upgrade == null) return PurchaseResult.Unknown;
             if (owned.Contains(upgrade.id)) return PurchaseResult.AlreadyOwned;
             if (upgrade.prerequisite != null && !owned.Contains(upgrade.prerequisite.id)) return PurchaseResult.MissingPrerequisite;
+            if (reputation < upgrade.requiredReputation) return PurchaseResult.ReputationTooLow;
             if (!wallet.CanAfford(upgrade.price)) return PurchaseResult.InsufficientFunds;
             return PurchaseResult.Purchased;
         }
 
-        public static PurchaseResult TryPurchase(UpgradeDefinition upgrade, ICollection<string> owned, Wallet wallet)
+        public static PurchaseResult TryPurchase(UpgradeDefinition upgrade, ICollection<string> owned, Wallet wallet, int reputation = int.MaxValue)
         {
-            var check = Check(upgrade, owned, wallet);
+            var check = Check(upgrade, owned, wallet, reputation);
             if (check != PurchaseResult.Purchased) return check;
             if (!wallet.TrySpend(upgrade.price)) return PurchaseResult.InsufficientFunds;
             owned.Add(upgrade.id);
@@ -138,6 +146,7 @@ namespace RugWash.Economy
                 case PurchaseResult.AlreadyOwned: return "Déjà acheté";
                 case PurchaseResult.MissingPrerequisite: return "Amélioration précédente requise";
                 case PurchaseResult.InsufficientFunds: return "Fonds insuffisants";
+                case PurchaseResult.ReputationTooLow: return "Réputation insuffisante";
                 case PurchaseResult.Requested: return "Demande envoyée à l'hôte…";
                 default: return "Article inconnu";
             }

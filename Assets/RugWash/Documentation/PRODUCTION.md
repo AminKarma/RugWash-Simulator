@@ -268,6 +268,24 @@ Décisions : `AUDIT_V012.md` § 6. Résultats d'exécution : `VALIDATION.md` § 
 | En ligne : raclette d'un invité, robot de l'hôte, protocole `rugwash-coop-5` | **Implémenté, deux processus non exécutés** | Opération « ramassage » transmise et bornée (`SqueegeeAndFiberBonus_AreTransmissible_AndClamped`) |
 | Jeu compilé (benchmark) | **Non exécuté** (ouvre une fenêtre du jeu) | — |
 
+## Update v0.1.2 — Jalon 5 (base et personnage)
+
+Décisions : `AUDIT_V012.md` § 7. Résultats d'exécution : `VALIDATION.md` § 17.
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 5.1 Machines fonctionnelles : plaque de dépoussiérage, souffleur de séchage, rampe de pré-mouillage — prix, réputation requise, cachées avant l'achat, E pour les actionner, effet mesuré et jamais un nettoyage complet, un cycle par commande, sauvegarde (achats) | Testé (EditMode + PlayMode, capture) | `Blower_RemovesMoistureOnly`, `DustPlate_ShakesDryDustOnly`, `PreWet_WetsAndSoaks_ButRemovesNothing`, `Machines_NeedPurchaseAndReputation_…`, capture `71_machines` |
+| 5.1 En ligne : machines de l'atelier de l'hôte, activation demandée par un invité, effet reproduit et corrigé | **Implémenté, deux processus non exécutés** | `NetworkWorkshop` (état d'atelier, `RequestMachine`) |
+| 5.2 Paliers de décor : cagibi → atelier rangé → professionnel → loft → penthouse vue sur Los Angeles ; prix, réputation, ordre, sauvegarde, migration v3 → v4 ; objets et éclairage réellement modifiés | Testé (EditMode + PlayMode, captures) | `WorkshopTier_IsTheHighestOwned`, `Migration_V3WithProgress_KeepsTheTidyWorkshop`, `Decor_StartsInTheCagibi_…`, captures `70_tier_0..4`, `70b_tier_4_view` |
+| 5.2 Appartenance en ligne : décor et machines de l'hôte (session), achats dans la carrière de chaque joueur | Implémenté (règle d'achat testée) | `Purchases_RespectRequiredReputation` (même règle chez l'hôte), `MULTIPLAYER.md` |
+| 5.3 Personnalisation : menu « Personnage », aperçu 3D qui tourne, tenue / casquette (ou aucune) / gants, limites affichées, sauvegarde par joueur, gants à la première personne | Testé (EditMode + PlayMode, capture) | `CharacterLook_RoundTrips_…`, `Character_IsCustomizedInTheMenu_…`, capture `72_character` |
+| 5.3 Réplication de l'apparence aux autres joueurs | **Implémenté, deux processus non exécutés** | `NetworkPlayerAvatar` (valeur `look` possédée par chaque joueur) |
+| 5.4 Ragdoll : chute réglable (élan, durée), contrôles coupés, caméra au sol, relevé garanti, pas de passage sous le sol ; ragdoll de la silhouette (bornes de vitesse, durée maximale, retour à la pose) ; glissade en courant sur la mousse | Testé (EditMode + PlayMode) | `Slip_OnlyWhenSprintingFastOnThickFoam`, `Knockdown_LocksControls_…`, `RemoteAvatar_Ragdolls_ThenReturnsToItsPose` |
+| 5.4 Ragdoll en ligne (état « à terre » + élan, aucun os) ; coups de batte | **Implémenté, deux processus non exécutés** ; batte : jalon 6 | `NetworkPlayerAvatar` (`knockedDown`, `knockImpulse`) |
+| 5.5 Musique : boucles générées (menu, atelier), lecteur unique persistant, fondu enchaîné, atténuée en pause, curseur « Musique », sous les sons de jeu | Testé (EditMode + PlayMode) | `Music_StaysUnderGameplaySounds`, `Music_IsASinglePlayer_…` |
+| Tests Unity (batch) | Testé | EditMode 207 / 207, PlayMode 119 / 119 (`VALIDATION.md` § 17) |
+| Jeu compilé (build, benchmark, deux processus) | **Non exécuté** (ouvre des fenêtres du jeu) | — |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

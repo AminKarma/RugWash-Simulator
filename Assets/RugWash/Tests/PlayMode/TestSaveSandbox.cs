@@ -26,6 +26,7 @@ namespace RugWash.Tests
                 var data = new SaveData();
                 data.upgrades.AddRange(SaveMigration.LegacyToolUnlocks);
                 data.upgrades.AddRange(SaveMigration.LegacyWorkshopUnlocks);
+                data.upgrades.AddRange(SaveMigration.LegacyDecorUnlocks);
                 new SaveFileStore(Directory, SaveManager.DefaultFileName).Save(data, out _);
             }
             return Directory;

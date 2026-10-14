@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.IO;
 using NUnit.Framework;
 using RugWash.Cleaning;
@@ -314,7 +314,11 @@ namespace RugWash.Tests
             yield return null;
             int upgrades = 0;
             foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) upgrades++;
-            Assert.AreEqual(game.Upgrades.Catalog.Count, upgrades, "L'onglet Matériel liste toujours les améliorations.");
+            // v0.1.2 (jalon 5) : l'équipement d'atelier (paliers, machines, robot) a son propre onglet.
+            game.ShopUI.ShowTab(ShopUI.Tab.Workshop);
+            yield return null;
+            foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) upgrades++;
+            Assert.AreEqual(game.Upgrades.Catalog.Count, upgrades, "Les onglets Matériel et Atelier listent toutes les améliorations.");
             game.ShopUI.Close();
         }
 

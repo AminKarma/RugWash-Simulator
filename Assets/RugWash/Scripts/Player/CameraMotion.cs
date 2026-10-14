@@ -32,6 +32,9 @@ namespace RugWash.Player
         }
 
         public Vector3 Offset => transform.localPosition - restPosition;
+        /// <summary>Chute (ragdoll du joueur local) : descente verticale de la caméra (m) et inclinaison latérale (°).</summary>
+        public float KnockdownDrop { get; set; }
+        public float KnockdownRoll { get; set; }
         public float Roll => roll;
 
         void Awake()
@@ -56,8 +59,10 @@ namespace RugWash.Player
             roll = Mathf.Lerp(roll, targetRoll, 1f - Mathf.Exp(-smoothing * dt));
 
             var bob = new Vector3(Mathf.Sin(phase * Mathf.PI) * bobHorizontal, Mathf.Abs(Mathf.Cos(phase * Mathf.PI)) * bobVertical - bobVertical * 0.5f, 0f);
-            transform.localPosition = restPosition + bob * (weight * intensity);
-            transform.localRotation = restRotation * Quaternion.Euler(0f, 0f, roll * intensity);
+            // La chute s'ajoute verticalement dans le monde, quel que soit le tangage de la tête.
+            Vector3 drop = transform.parent != null ? transform.parent.InverseTransformVector(Vector3.down * KnockdownDrop) : Vector3.down * KnockdownDrop;
+            transform.localPosition = restPosition + bob * (weight * intensity) + drop;
+            transform.localRotation = restRotation * Quaternion.Euler(0f, 0f, roll * intensity + KnockdownRoll);
         }
     }
 }

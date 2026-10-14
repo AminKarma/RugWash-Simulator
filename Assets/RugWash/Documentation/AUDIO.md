@@ -16,8 +16,11 @@ par l'initialisation automatique).
 
 ## Règles de lecture
 
-- **Catégories** : *Effets* (outils, contacts, postes, pas, ambiance, scan) et *Interface* (clics, paliers, notifications),
-  plus le volume général — réglables dans les paramètres et sauvegardés.
+- **Catégories** : *Effets* (outils, contacts, postes, pas, ambiance, scan, machines), *Interface* (clics, paliers,
+  notifications) et *Musique* (v0.1.2), plus le volume général — réglables dans les paramètres et sauvegardés.
+- **Musique** (v0.1.2) : un seul lecteur persistant (`MusicPlayer`, conservé d'une scène à l'autre, jamais dupliqué) avec
+  deux sources pour un fondu enchaîné de 1,5 s entre le menu et l'atelier. Gain maximal 0,45 à 100 % (toujours sous les
+  sons de jeu), atténuée à 40 % en pause (pas coupée net), muette à 0 % (curseur « Musique »).
 - **Pause** : tous les sons du jeu sont suspendus (`AudioListener.pause`) ; les sons d'interface continuent.
 - **Boucles sans couture** : la fin générée est fondue dans le début (0,12 s).
 - **Pas d'empilement** : un même son ponctuel n'est pas rejoué à moins de 0,06 s d'intervalle (`AudioManager`),
@@ -36,7 +39,7 @@ par l'initialisation automatique).
 | `tmp_brush_loop` | Mouvement de la brosse | Effets | Brush → `loop` |
 | `tmp_brush_contact_loop` | Frottement des poils dans les fibres | Effets | Brush → `contactLoop` |
 | `tmp_rinse_loop` | Jet d'eau de la lance | Effets | Rinse → `loop` |
-| `tmp_rinse_contact_loop` | Eau qui frappe le tissu | Effets | Rinse → `contactLoop` |
+| `tmp_rinse_contact_loop` | Eau qui frappe le tissu | Effets | Rinse → `contactLoop` ; rampe de pré-mouillage → `loopSource` |
 | `tmp_extractor_loop` | Moteur de l'extracteur | Effets | Extractor → `loop` |
 | `tmp_extractor_contact_loop` | Eau aspirée hors des fibres | Effets | Extractor → `contactLoop` |
 | `tmp_foam_cannon_loop` | Canon à mousse (air comprimé et mousse) | Effets | FoamCannon → `loop` (contact : `tmp_foam_contact_loop`) |
@@ -63,3 +66,7 @@ par l'initialisation automatique).
 | `tmp_ui_deny` | Refus : appui sur « utiliser » sans effet possible (réserve de détergent vide…) — deux bips graves descendants (v0.1.2) | Interface | `AudioManager.uiDeny` (joué par `PlayerToolController`) |
 | `tmp_workshop_ambient_loop` | Ambiance de l'atelier | Effets | `AmbientAudio.loop` |
 | `tmp_footstep_1..3` | Pas (selon la distance parcourue) | Effets | `FootstepAudio.steps` |
+| `tmp_music_menu_loop` | Musique du menu : nappe douce et arpège lent, 30 s en boucle (v0.1.2) | Musique | `MainMenuController.menuMusic` |
+| `tmp_music_workshop_loop` | Musique de l'atelier : rythme léger, basse et nappe, 24 s en boucle (v0.1.2) | Musique | `GameBootstrap.workshopMusic` |
+| `tmp_blower_loop` | Souffle du ventilateur de séchage (son 3D) (v0.1.2) | Effets | Machine « blower » → `loopSource` |
+| `tmp_plate_loop` | Vibration de la plaque de dépoussiérage (son 3D) (v0.1.2) | Effets | Machine « duster » → `loopSource` |
