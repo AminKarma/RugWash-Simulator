@@ -25,6 +25,8 @@ namespace RugWash.Player
         public IProductSupply Products => productInventory;
         public IInputPrompts Prompts => input;
         public DetergentSupply Detergent => detergent;
+        /// <summary>Part de la boue des semelles transférée à chaque pas (bottes : moins de 1).</summary>
+        public float FootprintTransfer { get; set; } = 1f;
         public float DetergentStock => detergent != null ? detergent.Stock : -1f;
 
         public ResourceTank Get(ToolResource resource)

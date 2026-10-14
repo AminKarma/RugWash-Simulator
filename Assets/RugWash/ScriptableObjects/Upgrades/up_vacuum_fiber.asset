@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d333a16da8f21469968da14f880b1f, type: 3}
+  m_Name: up_vacuum_fiber
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
+  id: up_vacuum_fiber
+  displayName: Brosse turbo anti-poils
+  description: "Accessoire d'aspirateur : une brosse rotative d\xE9colle les poils,
+    cheveux et peluches accroch\xE9s aux fibres."
+  price: 130
+  effect: 8
+  value: 2
+  targetToolId: vacuum
+  prerequisite: {fileID: 11400000, guid: dd161e1d6b53abc418c1d02acaa7e099, type: 2}

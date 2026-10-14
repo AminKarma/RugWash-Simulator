@@ -223,6 +223,9 @@ namespace RugWash.Core
             toolbar.Bind(toolController);
             upgrades.Changed += toolbar.Refresh;
             robot.Message += hud.ShowToast;
+            // Robot aspirateur : présent seulement une fois acheté (en ligne, l'invité suit l'état de l'hôte).
+            SyncRobotOwnership();
+            upgrades.Changed += SyncRobotOwnership;
             orderBoard.SetWorkSurface(workSurface);
             hud.BindProducts(productInventory.Book);
             rugDexUI.Bind(rugDex.Catalog, rugDex.Book, orders.Book.Orders, dirtLibrary, gameState);
@@ -259,6 +262,11 @@ namespace RugWash.Core
 
         Network.MultiplayerSession session;
 
+        void SyncRobotOwnership()
+        {
+            if (robot != null && !robot.IsReplica) robot.SetOwned(upgrades.OwnsRobot);
+        }
+
         void OnSoloExitRequested()
         {
             if (session != null && session.InSession) return;
@@ -282,6 +290,7 @@ namespace RugWash.Core
             if (orders != null) orders.ObjectiveReached -= OnObjectiveReached;
             if (upgrades != null && toolbar != null) upgrades.Changed -= toolbar.Refresh;
             if (robot != null && hud != null) robot.Message -= hud.ShowToast;
+            if (upgrades != null) upgrades.Changed -= SyncRobotOwnership;
             if (rugDex != null) rugDex.NewRugDiscovered -= OnNewRugDiscovered;
             if (session != null) session.SoloExitRequested -= OnSoloExitRequested;
             if (gameState == null) return;

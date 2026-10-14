@@ -55,6 +55,8 @@ namespace RugWash.Player
         public Vector3 Velocity => horizontalVelocity + Vector3.up * verticalVelocity;
         /// <summary>Inclinaison de la caméra en degrés (positif = vers le bas).</summary>
         public float Pitch => pitch;
+        /// <summary>Vitesse de marche réduite par l'outil en cours (monobrosse : machine lourde) ; 1 = normale.</summary>
+        public float SpeedMultiplier { get; set; } = 1f;
         public bool IsGrounded => controller != null && controller.isGrounded;
 
         public bool IsConfigured(out string missing)
@@ -97,7 +99,7 @@ namespace RugWash.Player
         {
             Vector3 wish = transform.right * moveInput.x + transform.forward * moveInput.y;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
-            Vector3 target = wish * (sprint ? sprintSpeed : walkSpeed);
+            Vector3 target = wish * (sprint ? sprintSpeed : walkSpeed) * SpeedMultiplier;
             float rate = target.sqrMagnitude > 0.0001f ? acceleration : deceleration;
             horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, rate * dt);
 

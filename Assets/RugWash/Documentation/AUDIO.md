@@ -41,7 +41,10 @@ par l'initialisation automatique).
 | `tmp_extractor_contact_loop` | Eau aspirée hors des fibres | Effets | Extractor → `contactLoop` |
 | `tmp_foam_cannon_loop` | Canon à mousse (air comprimé et mousse) | Effets | FoamCannon → `loop` (contact : `tmp_foam_contact_loop`) |
 | `tmp_broom_loop` | Allers-retours du balai | Effets | Broom → `loop` |
-| `tmp_broom_contact_loop` | Poils raides qui raclent un sol mouillé | Effets | Broom → `contactLoop` |
+| `tmp_broom_contact_loop` | Poils raides qui raclent un sol mouillé | Effets | Broom → `contactLoop` ; Squeegee → `contactLoop` |
+| `tmp_squeegee_loop` | Lame en caoutchouc qui glisse sur le sol mouillé, petits couinements (v0.1.2) | Effets | Squeegee → `loop` |
+| `tmp_rotary_loop` | Moteur de la monobrosse : ronflement grave et engrenages (v0.1.2) | Effets | Rotary → `loop` |
+| `tmp_rotary_contact_loop` | Disque qui frotte les fibres, modulé par la rotation (v0.1.2) | Effets | Rotary → `contactLoop` |
 | `tmp_robot_hum_loop` | Moteur du robot aspirateur (son 3D) | Effets | `RobotVacuum.motorSource` |
 | `tmp_robot_bump` | Robot arrêté par un obstacle | Effets | `RobotVacuum.bumpClip` |
 | `tmp_robot_start` / `tmp_robot_stop` | Démarrage / arrêt du robot | Effets | `RobotVacuum.startClip` / `stopClip` |

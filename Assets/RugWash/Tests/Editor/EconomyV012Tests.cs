@@ -386,7 +386,7 @@ namespace RugWash.Tests
         {
             const string v2 = "{\"version\":2,\"profileId\":\"p\",\"completedOrders\":[\"order_salon\",\"gen.1.2.0.0.0\"]," +
                               "\"missionSeed\":1,\"missionSequence\":-4,\"missionOffers\":[\"gen.1.3.0.0.0\",\"faux\"],\"detergentStock\":-3}";
-            Assert.AreEqual(SaveMigration.Outcome.UpToDate, SaveMigration.TryParse(v2, out var data));
+            Assert.AreEqual(SaveMigration.Outcome.Migrated, SaveMigration.TryParse(v2, out var data), "v2 → v3 (jalon 4).");
             CollectionAssert.AreEqual(new[] { "order_salon" }, data.completedOrders, "Les missions générées ne sont pas des contrats terminés.");
             CollectionAssert.AreEqual(new[] { "gen.1.3.0.0.0" }, data.missionOffers);
             Assert.AreEqual(0, data.missionSequence);

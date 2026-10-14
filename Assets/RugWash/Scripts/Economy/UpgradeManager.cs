@@ -48,6 +48,9 @@ namespace RugWash.Economy
 
         public bool IsOwned(UpgradeDefinition upgrade) => upgrade != null && owned.Contains(upgrade.id);
 
+        /// <summary>Vrai si l'identifiant correspond à une amélioration du catalogue.</summary>
+        public bool IsKnown(string id) => id != null && catalog.Exists(u => u != null && u.id == id);
+
         /// <summary>Calcule et applique les effets de toutes les améliorations possédées.</summary>
         public void ApplyAll()
         {
@@ -60,8 +63,10 @@ namespace RugWash.Economy
             equipment.Water.SetCapacity(Stats.WaterCapacity);
             equipment.Soap.SetCapacity(Stats.SoapCapacity);
             equipment.Recovery.SetCapacity(Stats.RecoveryCapacity);
+            equipment.FootprintTransfer = Stats.FootprintTransfer;
             foreach (var tool in tools.Tools)
             {
+                tool.FiberMultiplier = Stats.FiberMultiplier(tool.Definition.id);
                 tool.PowerMultiplier = Stats.PowerMultiplier(tool.Definition.id);
                 tool.ConsumptionMultiplier = Stats.ConsumptionMultiplier(tool.Definition.id);
                 tool.RadiusMultiplier = Stats.RadiusMultiplier(tool.Definition.id);
@@ -111,13 +116,32 @@ namespace RugWash.Economy
                 case UpgradeEffect.UnlockTool:
                 {
                     var tool = FindTool(upgrade.targetToolId);
-                    return tool == null ? "Nouvel outil"
-                        : $"Nouvel outil : {tool.Definition.displayName} (touche {tool.Definition.slot})";
+                    if (tool == null) return "Nouvel outil";
+                    string key = Player.RugWashInputActions.SlotKeyLabel(tool.Definition.slot);
+                    return key.Length > 0 ? $"Nouvel outil : {tool.Definition.displayName} (touche {key})"
+                        : $"Nouvel outil : {tool.Definition.displayName} (molette ou LB / RB)";
                 }
+                case UpgradeEffect.FootprintTransfer:
+                    return $"Boue laissée par vos pas : {stats.FootprintTransfer * 100f:0} % → {stats.FootprintTransfer * Mathf.Clamp01(upgrade.value) * 100f:0} %";
+                case UpgradeEffect.FiberPickup:
+                {
+                    float current = stats.FiberMultiplier(upgrade.targetToolId);
+                    return $"Poils et peluches ({ToolName(upgrade.targetToolId)}) : ×{current:0.##} → ×{current * upgrade.value:0.##}";
+                }
+                case UpgradeEffect.WorkshopEquipment:
+                    return upgrade.targetToolId == RobotMachineId
+                        ? "Équipement de l'atelier : robot aspirateur sur sa base (aire de lavage)"
+                        : "Équipement de l'atelier";
                 default:
                     return string.Empty;
             }
         }
+
+        /// <summary>Identifiant d'équipement du robot aspirateur (amélioration « WorkshopEquipment »).</summary>
+        public const string RobotMachineId = "robot";
+
+        /// <summary>Vrai si le robot aspirateur a été acheté.</summary>
+        public bool OwnsRobot => Stats != null && Stats.HasMachine(RobotMachineId);
 
         string ToolName(string toolId)
         {

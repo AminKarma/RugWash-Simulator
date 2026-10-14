@@ -152,8 +152,12 @@ namespace RugWash.Cleaning
         public DirtTypeTable Table;
         public float Power;
         public float DeltaTime;
+        /// <summary>Multiplicateur sur les poils, cheveux et peluches (accessoire anti-poils) ; 0 ou 1 = aucun.</summary>
+        public float FiberBonus;
 
         public float Removed;
+        /// <summary>Statistique de sortie : poils, cheveux et peluches aspirés.</summary>
+        public float FibersRemoved;
         public int CellsCleaned;
 
         public void Apply(ref RugCell cell, float weight)
@@ -162,7 +166,10 @@ namespace RugWash.Cleaning
             if (k <= 0f) return;
             bool wasDirty = cell.Dirt >= RugCleaningGrid.CleanCellThreshold;
 
-            float dust = Mathf.Min(cell.Dust, k * Table.GetResponse(cell.DustType).vacuum);
+            bool fiber = DirtTypes.IsFiber(cell.DustType);
+            float bonus = fiber && FiberBonus > 0f ? FiberBonus : 1f;
+            float dust = Mathf.Min(cell.Dust, k * bonus * Table.GetResponse(cell.DustType).vacuum);
+            if (fiber) FibersRemoved += dust;
             cell.Dust -= dust;
 
             float dryness = 1f - Mathf.Clamp01(cell.Moisture * 4f);
@@ -289,6 +296,37 @@ namespace RugWash.Cleaning
     }
 
     /// <summary>
+    /// Raclette (v0.1.2) : ramasse une part de l'eau, de la mousse et de la boue détachée sous la lame (pondérée par la
+    /// zone) ; l'outil la redépose devant lui (<see cref="DepositOperation"/>) ou l'évacue au caniveau. Les taches fixées et
+    /// la poussière ne bougent pas. Statistiques de sortie : quantités ramassées et somme des poids (pour redéposer
+    /// exactement la même quantité sur une zone de même forme).
+    /// </summary>
+    public struct GatherOperation : ICellOperation
+    {
+        /// <summary>Part ramassée par application pour un poids de 1 (0..1).</summary>
+        public float Efficiency;
+
+        public float Water;
+        public float Foam;
+        public float Mud;
+        public float WeightSum;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            float k = Mathf.Clamp01(Efficiency * weight);
+            if (k <= 0f) return;
+            WeightSum += weight;
+            float water = cell.Moisture * k, foam = cell.Foam * k, mud = cell.Loosened * k;
+            cell.Moisture -= water;
+            cell.Foam -= foam;
+            cell.Loosened -= mud;
+            Water += water;
+            Foam += foam;
+            Mud += mud;
+        }
+    }
+
+    /// <summary>
     /// Dépôt sur une surface : ruissellement depuis le tapis (eau sale, mousse), débris projetés, empreintes.
     /// Les quantités sont données pour un poids de 1 et réparties selon l'atténuation de la zone.
     /// </summary>
@@ -301,6 +339,12 @@ namespace RugWash.Cleaning
         public float Foam;
         public float Water;
 
+        /// <summary>Statistiques de sortie : ce qui n'a pas tenu dans des cellules déjà saturées (raclette : reporté plus loin).</summary>
+        public float WaterOverflow, FoamOverflow, MudOverflow;
+
+        /// <summary>Saturation d'une cellule (au-delà, la grille écrête) : humidité et mousse 1, boue détachée 2.</summary>
+        public const float MaxWater = 1f, MaxFoam = 1f, MaxMud = 2f;
+
         public void Apply(ref RugCell cell, float weight)
         {
             if (weight <= 0f) return;
@@ -308,15 +352,29 @@ namespace RugWash.Cleaning
             {
                 float amount = Mud * weight;
                 if (cell.StainType == DirtType.None || amount > cell.Loosened) cell.StainType = Type != DirtType.None ? Type : DirtType.Soil;
-                cell.Loosened += amount;
+                float put = Mathf.Min(amount, Mathf.Max(0f, MaxMud - cell.Loosened));
+                cell.Loosened += put;
+                MudOverflow += amount - put;
             }
             if (Debris > 0f)
             {
                 if (cell.DustType == DirtType.None) cell.DustType = DirtType.Dust;
                 cell.Dust += Debris * weight;
             }
-            if (Foam > 0f) cell.Foam = Mathf.Min(1f, cell.Foam + Foam * weight);
-            if (Water > 0f) cell.Moisture += Water * weight;
+            if (Foam > 0f)
+            {
+                float amount = Foam * weight;
+                float put = Mathf.Min(amount, Mathf.Max(0f, MaxFoam - cell.Foam));
+                cell.Foam += put;
+                FoamOverflow += amount - put;
+            }
+            if (Water > 0f)
+            {
+                float amount = Water * weight;
+                float put = Mathf.Min(amount, Mathf.Max(0f, MaxWater - cell.Moisture));
+                cell.Moisture += put;
+                WaterOverflow += amount - put;
+            }
         }
     }
 

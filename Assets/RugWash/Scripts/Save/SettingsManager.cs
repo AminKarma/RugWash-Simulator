@@ -104,8 +104,8 @@ namespace RugWash.Save
             new RebindableAction("Changer de produit", "Product"),
             new RebindableAction("Inspecter", "Inspect"),
             new RebindableAction("Utiliser l'outil", "Use", keyboardRebindable: false, keyboardHint: "Clic gauche"),
-            new RebindableAction("Outil suivant", "ToolNext", keyboardRebindable: false, keyboardHint: "Molette / 1-9"),
-            new RebindableAction("Outil précédent", "ToolPrevious", keyboardRebindable: false, keyboardHint: "Molette / 1-9"),
+            new RebindableAction("Outil suivant", "ToolNext", keyboardRebindable: false, keyboardHint: "Molette / 1-0"),
+            new RebindableAction("Outil précédent", "ToolPrevious", keyboardRebindable: false, keyboardHint: "Molette / 1-0"),
         };
 
         static readonly FullScreenMode[] DisplayModes = { FullScreenMode.ExclusiveFullScreen, FullScreenMode.FullScreenWindow, FullScreenMode.Windowed };

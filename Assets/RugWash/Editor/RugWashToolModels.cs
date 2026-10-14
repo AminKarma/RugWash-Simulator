@@ -371,6 +371,66 @@ namespace RugWash.Editor
             return new Model { Root = root, Tip = Tip(root, new Vector3(0f, -0.12f, 0.136f)), RightHand = right };
         }
 
+        // ------------------------------------------------------------------ Raclette (v0.1.2 jalon 4)
+
+        public static Model Squeegee(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var root = Root(camera, "Squeegee", new Vector3(0.2f, -0.3f, 0.42f), new Vector3(10f, -9f, 0f));
+            var start = new Vector3(0f, 0.12f, -0.25f);
+            var end = new Vector3(0f, -0.17f, 0.56f);
+            Vector3 axis = (end - start).normalized;
+            var shaft = Shaft(root, store, "Tool_SqueegeeHandle", c["Steel"], start, end, 0.012f, out float length);
+            Part("Grip", root, store.Add("Tool_SqueegeeGrip", () => Tube(new[] { new Vector3(0f, 0.1f, -0.2f), new Vector3(0f, 0.06f, -0.08f) }, 0.016f, 12)),
+                c["BluePlastic"], Vector3.zero, Quaternion.identity);
+            var head = HeadGroup(root);
+            // Support en plastique et lame en caoutchouc, larges, perpendiculaires au manche.
+            Part("Holder", head, store.Add("Tool_SqueegeeHolder", () => RoundedBox(new Vector3(0.55f, 0.035f, 0.045f), 0.01f)), c["BluePlastic"],
+                new Vector3(0f, -0.19f, 0.6f), Quaternion.Euler(18f, 0f, 0f));
+            Part("Blade", head, store.Add("Tool_SqueegeeBlade", () => RoundedBox(new Vector3(0.57f, 0.05f, 0.012f), 0.004f)), c["Rubber"],
+                new Vector3(0f, -0.225f, 0.612f), Quaternion.Euler(18f, 0f, 0f));
+            var tip = Tip(head, new Vector3(0f, -0.255f, 0.622f));
+            var right = Glove(root, store, c, "Glove_R", new Vector3(0f, 0.08f, -0.14f), axis, new Vector3(0.3f, -0.6f, -0.74f), left: false);
+            var leftHand = Support(root, start + axis * 0.5f);
+            return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right, LeftHand = leftHand };
+        }
+
+        // ------------------------------------------------------------------ Monobrosse (v0.1.2 jalon 4)
+
+        /// <summary>Monobrosse : guidon à deux mains, manche vers la machine (moteur, jupe, disque rotatif « Head/Disc »).</summary>
+        public static Model Rotary(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var root = Root(camera, "Rotary", new Vector3(0.1f, -0.34f, 0.4f), new Vector3(8f, -4f, 0f));
+            var start = new Vector3(0f, 0.06f, -0.2f);
+            var end = new Vector3(0f, -0.2f, 0.5f);
+            var shaft = Shaft(root, store, "Tool_RotaryShaft", c["Steel"], start, end, 0.018f, out float length);
+            Part("Handlebar", root, store.Add("Tool_RotaryHandlebar", () => Tube(new[] { new Vector3(-0.17f, 0.06f, -0.2f), new Vector3(0.17f, 0.06f, -0.2f) }, 0.015f, 12)),
+                c["Rubber"], Vector3.zero, Quaternion.identity);
+            Part("Switch", root, store.Add("Tool_RotarySwitch", () => RoundedBox(new Vector3(0.05f, 0.03f, 0.04f), 0.008f)), c["RedPlastic"],
+                new Vector3(0f, 0.075f, -0.19f), Quaternion.identity);
+            var head = HeadGroup(root);
+            Part("Motor", head, store.Add("Tool_RotaryMotor", () => Lathe(new[]
+            {
+                new Vector2(0f, 0.17f), new Vector2(0.05f, 0.165f), new Vector2(0.1f, 0.13f), new Vector2(0.12f, 0.06f), new Vector2(0.12f, 0f),
+            }, 28, capBottom: false)), c["SafetyYellow"], new Vector3(0f, -0.43f, 0.56f), Quaternion.identity);
+            Part("Skirt", head, store.Add("Tool_RotarySkirt", () => Cylinder(0.2f, 0.05f, 32)), c["DarkMetal"], new Vector3(0f, -0.455f, 0.56f), Quaternion.identity);
+            // Disque rotatif : plateau et brosse, plus large que la jupe pour que ses repères tournent à la vue.
+            var disc = new GameObject("Disc").transform;
+            disc.SetParent(head, false);
+            disc.localPosition = new Vector3(0f, -0.49f, 0.56f);
+            Part("Plate", disc, store.Add("Tool_RotaryPlate", () => Cylinder(0.215f, 0.02f, 32)), c["RedPlastic"], Vector3.zero, Quaternion.identity);
+            Part("Pad", disc, store.Add("Tool_RotaryPad", () => Cylinder(0.205f, 0.02f, 32)), c["Bristle"], new Vector3(0f, -0.018f, 0f), Quaternion.identity);
+            for (int i = 0; i < 6; i++)
+            {
+                float a = i * Mathf.PI / 3f;
+                Part($"Marker_{i}", disc, store.Add("Tool_RotaryMarker", () => RoundedBox(new Vector3(0.03f, 0.024f, 0.03f), 0.006f)), c["Chrome"],
+                    new Vector3(Mathf.Cos(a) * 0.21f, 0.002f, Mathf.Sin(a) * 0.21f), Quaternion.Euler(0f, -a * Mathf.Rad2Deg, 0f));
+            }
+            var tip = Tip(head, new Vector3(0f, -0.515f, 0.56f));
+            var right = Glove(root, store, c, "Glove_R", new Vector3(0.13f, 0.06f, -0.2f), Vector3.right, new Vector3(0.15f, -0.45f, -0.88f), left: false);
+            var left = Glove(root, store, c, "Glove_L", new Vector3(-0.13f, 0.06f, -0.2f), Vector3.right, new Vector3(-0.15f, -0.45f, -0.88f), left: true);
+            return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right, LeftHand = left };
+        }
+
         /// <summary>Vue à la première personne : couche « Player », sans ombres, sans collisions.</summary>
         public static void Finish(Model model)
         {

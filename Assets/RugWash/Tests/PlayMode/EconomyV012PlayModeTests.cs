@@ -80,7 +80,7 @@ namespace RugWash.Tests
             foreach (var tool in game.ToolController.Tools)
                 if (tool.IsUnlocked) unlocked.Add(tool.Definition.id);
             CollectionAssert.AreEquivalent(new[] { "brush", "soap", "bucket" }, unlocked, "Kit de départ : brosse, détergent, seau d'eau.");
-            Assert.AreEqual(9, game.ToolController.Tools.Count, "Les autres outils existent toujours (à acheter).");
+            Assert.AreEqual(11, game.ToolController.Tools.Count, "Les autres outils existent toujours (à acheter).");
             Assert.AreEqual(0, game.Upgrades.OwnedIds.Count);
             Assert.AreEqual(SaveMigration.StarterDetergentStock, game.Detergent.Stock, 1e-4f);
             var soap = game.ToolController.Equipment.Soap;
@@ -209,7 +209,8 @@ namespace RugWash.Tests
             Assert.IsFalse(soapTool.IsUsing);
             Assert.IsNotNull(audio.LastPlayedClip);
             StringAssert.Contains("deny", audio.LastPlayedClip.name);
-            yield return null;
+            // Le HUD se rafraîchit toutes les 0,1 s (temps réel) : on attend un rafraîchissement.
+            yield return new WaitForSecondsRealtime(0.15f);
             StringAssert.Contains("Réserve de détergent vide", game.Hud.PromptText, "Raison visible à l'écran.");
             StringAssert.Contains("stock", game.Hud.ToolStatusText, "Stock en bidons affiché avec la réserve.");
         }

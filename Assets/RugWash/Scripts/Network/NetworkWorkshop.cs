@@ -22,9 +22,12 @@ namespace RugWash.Network
         public float X;
         public float Z;
         public float Yaw;
+        /// <summary>Robot acheté par l'hôte (sinon caché chez tous).</summary>
+        public bool Owned;
 
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
+            serializer.SerializeValue(ref Owned);
             serializer.SerializeValue(ref Mode);
             serializer.SerializeValue(ref Battery);
             serializer.SerializeValue(ref Resume);
@@ -34,7 +37,7 @@ namespace RugWash.Network
         }
 
         public bool Equals(RobotNetState other) =>
-            Mode == other.Mode && Battery == other.Battery && Resume == other.Resume &&
+            Owned == other.Owned && Mode == other.Mode && Battery == other.Battery && Resume == other.Resume &&
             Mathf.Abs(X - other.X) < 0.005f && Mathf.Abs(Z - other.Z) < 0.005f && Mathf.Abs(Mathf.DeltaAngle(Yaw, other.Yaw)) < 0.5f;
     }
 
@@ -390,7 +393,7 @@ namespace RugWash.Network
                 var net = new RobotNetState
                 {
                     Mode = (byte)state.mode, Battery = (byte)Mathf.RoundToInt(Mathf.Clamp01(state.battery) * 255f), Resume = state.resumeAfterCharge,
-                    X = state.x, Z = state.z, Yaw = state.yaw,
+                    X = state.x, Z = state.z, Yaw = state.yaw, Owned = game.Robot.IsOwned,
                 };
                 if (!net.Equals(robotState.Value)) robotState.Value = net;
             }
@@ -595,6 +598,7 @@ namespace RugWash.Network
         void ApplyRobot(RobotNetState state)
         {
             if (game.Robot == null) return;
+            game.Robot.SetOwned(state.Owned);
             game.Robot.ApplyRemote(new RobotState
             {
                 mode = state.Mode, battery = state.Battery / 255f, resumeAfterCharge = state.Resume, x = state.X, z = state.Z, yaw = state.Yaw,

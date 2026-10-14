@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d333a16da8f21469968da14f880b1f, type: 3}
+  m_Name: up_robot
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
+  id: up_robot
+  displayName: Robot aspirateur
+  description: "Aspire seul la poussi\xE8re, les poils et les d\xE9bris secs de l'aire
+    de lavage (pas l'eau ni les taches) ; contourne le tapis et les joueurs, rentre
+    se recharger. E sur le robot ou sa base pour le lancer ou l'arr\xEAter."
+  price: 650
+  effect: 9
+  value: 1
+  targetToolId: robot
+  prerequisite: {fileID: 0}

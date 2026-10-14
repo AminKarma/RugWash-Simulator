@@ -24,6 +24,8 @@ namespace RugWash.Editor
         public const string BroomToolPath = RugWashPaths.ToolDefinitions + "/Tool_Broom.asset";
         public const string DetailBrushToolPath = RugWashPaths.ToolDefinitions + "/Tool_DetailBrush.asset";
         public const string BucketToolPath = RugWashPaths.ToolDefinitions + "/Tool_Bucket.asset";
+        public const string SqueegeeToolPath = RugWashPaths.ToolDefinitions + "/Tool_Squeegee.asset";
+        public const string RotaryToolPath = RugWashPaths.ToolDefinitions + "/Tool_Rotary.asset";
         public const string WorkSurfacePath = RugWashPaths.RugDefinitions + "/Surface_WorkSurface.asset";
         public const string FloorSurfacePath = RugWashPaths.RugDefinitions + "/Surface_Floor.asset";
         public const string TuningPath = RugWashPaths.Root + "/ScriptableObjects/CleaningTuning.asset";
@@ -44,6 +46,8 @@ namespace RugWash.Editor
             public ToolDefinition FoamCannon, Broom, DetailBrush;
             /// <summary>Seau d'eau (kit de départ, v0.1.2).</summary>
             public ToolDefinition Bucket;
+            /// <summary>v0.1.2 jalon 4 : raclette (aire de lavage) et monobrosse.</summary>
+            public ToolDefinition Squeegee, Rotary;
             public RugDefinition Oriental, Classic, Shag, Luxury;
             public ProductLibrary ProductLibrary;
             public RugCatalog Catalog;
@@ -101,7 +105,20 @@ namespace RugWash.Editor
                     "Le rinçage du kit de départ : on verse l'eau de près pour évacuer la saleté détachée et la mousse. " +
                     "Moins puissant et moins précis que la lance haute pression. Se remplit au poste d'eau.",
                     range: 1.9f, radius: 0.3f, hardness: 1.6f, power: 0.5f, wetting: 1f, ToolResource.Water, 2f),
+                Squeegee = EnsureTool(SqueegeeToolPath, "squeegee", "Raclette", 10,
+                    "Lame en caoutchouc pour l'aire de lavage : poussez l'eau, la mousse et la boue dans le sens du geste jusqu'au " +
+                    "caniveau, où elles sont évacuées. Sans effet sur un tapis.",
+                    range: 2.4f, radius: 0.3f, hardness: 4f, power: 1f, wetting: 0f, ToolResource.None, 0f),
+                Rotary = EnsureTool(RotaryToolPath, "rotary", "Monobrosse", 11,
+                    "Machine à disque rotatif : détache la saleté sur une large zone et fait monter la mousse. Pleine efficacité sur " +
+                    "fibres humides ou savonneuses, faible à sec (et use alors les fibres fragiles). Ne retire rien : rincez et " +
+                    "extrayez ensuite. Lourde : on avance moins vite quand elle tourne.",
+                    range: 2.2f, radius: 0.3f, hardness: 3f, power: 1.3f, wetting: 0f, ToolResource.None, 0f),
             };
+            EnsureToolBehaviour(content.Squeegee, aspect: 4f, requiresUnlock: true);
+            EnsureToolBehaviour(content.Rotary, requiresUnlock: true);
+            EnsureToolRumble(content.Squeegee, 0.05f, 0.08f);
+            EnsureToolRumble(content.Rotary, 0.35f, 0.25f);
             EnsureToolBehaviour(content.FoamCannon, aspect: 2.6f);
             EnsureToolBehaviour(content.Broom, aspect: 2.2f, runoffDirt: 0.9f, dry: true);
             EnsureToolBehaviour(content.DetailBrush, requiresUnlock: true);
@@ -301,9 +318,16 @@ namespace RugWash.Editor
                 320, UpgradeEffect.UnlockTool, 1f, "extractor", null);
             var foamTool = EnsureUpgrade("up_tool_foam", "Canon à mousse", "Couvre une grande zone de mousse épaisse (consomme du détergent).",
                 380, UpgradeEffect.UnlockTool, 1f, "foam_cannon", null);
+            // v0.1.2 jalon 4 : raclette et monobrosse.
+            var squeegeeTool = EnsureUpgrade("up_tool_squeegee", "Raclette", "Pousse l'eau et la boue de l'aire de lavage jusqu'au caniveau.",
+                90, UpgradeEffect.UnlockTool, 1f, "squeegee", null);
+            var rotaryTool = EnsureUpgrade("up_tool_rotary", "Monobrosse professionnelle",
+                "Disque rotatif : détache vite sur fibres humides ou savonneuses et fait monter la mousse (à rincer ensuite).",
+                650, UpgradeEffect.UnlockTool, 1f, "rotary", null);
             toolUnlocks = new System.Collections.Generic.Dictionary<string, UpgradeDefinition>
             {
                 ["vacuum"] = vacuumTool, ["broom"] = broomTool, ["rinse"] = rinseTool, ["extractor"] = extractorTool, ["foam_cannon"] = foamTool,
+                ["squeegee"] = squeegeeTool, ["rotary"] = rotaryTool,
             };
 
             var water1 = EnsureUpgrade("up_water_1", "Réservoir d'eau 60 L", "Rincez plus longtemps entre deux remplissages.",
@@ -334,6 +358,18 @@ namespace RugWash.Editor
             // En fin de catalogue : l'ordre (et les indices) des améliorations existantes reste inchangé ; c'est la boutique
             // (ShopUI) qui affiche les outils à acheter en premier.
             c.Upgrades.AddRange(new[] { vacuumTool, broomTool, rinseTool, extractorTool, foamTool });
+            // v0.1.2 jalon 4 (ajoutés en fin de catalogue, mêmes raisons).
+            c.Upgrades.AddRange(new[] { squeegeeTool, rotaryTool });
+            c.Upgrades.Add(EnsureUpgrade("up_vacuum_fiber", "Brosse turbo anti-poils",
+                "Accessoire d'aspirateur : une brosse rotative décolle les poils, cheveux et peluches accrochés aux fibres.",
+                130, UpgradeEffect.FiberPickup, 2f, "vacuum", null));
+            c.Upgrades.Add(EnsureUpgrade("up_boots", "Bottes de lavage",
+                "Semelles lisses qui retiennent peu la boue : vos pas salissent beaucoup moins l'aire de lavage et les tapis.",
+                90, UpgradeEffect.FootprintTransfer, 0.3f, null, null));
+            c.Upgrades.Add(EnsureUpgrade("up_robot", "Robot aspirateur",
+                "Aspire seul la poussière, les poils et les débris secs de l'aire de lavage (pas l'eau ni les taches) ; contourne " +
+                "le tapis et les joueurs, rentre se recharger. E sur le robot ou sa base pour le lancer ou l'arrêter.",
+                650, UpgradeEffect.WorkshopEquipment, 1f, UpgradeManager.RobotMachineId, null));
         }
 
         static System.Collections.Generic.Dictionary<string, UpgradeDefinition> toolUnlocks;

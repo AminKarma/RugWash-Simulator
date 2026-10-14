@@ -251,6 +251,23 @@ Décisions : `AUDIT_V012.md` § 5. Résultats d'exécution : `VALIDATION.md` § 
 | 3.1 En ligne : achat de bidon et remplissage validés par l'hôte sur la carrière du joueur | Implémenté (format de carrière v2 testé en EditMode, stock de détergent compris) ; **deux processus non exécutés** | `CareerCodec_RoundTrips_…`, RPC `DetergentCanRpc` / `DetergentRefillRpc` |
 | Banc d'essai du jeu compilé adapté au kit de départ | **Non exécuté** (ouvre une fenêtre du jeu) | `BuildBenchmark` : vérifie le kit puis débloque les outils mesurés |
 
+## Update v0.1.2 — Jalon 4 (outils et salissures)
+
+Décisions : `AUDIT_V012.md` § 6. Résultats d'exécution : `VALIDATION.md` § 16.
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 3.2 Poils, cheveux, débris : méthodes d'enlèvement propres (existantes) + accessoire anti-poils de l'aspirateur (×2, mesuré) | Testé (EditMode + PlayMode) | `FiberAccessory_PicksUpHairFaster_AndOnlyHair`, `FiberAccessory_DoublesHairPickup_OfTheVacuum` |
+| 3.3 Raclette : eau, mousse et boue poussées dans le sens réel du geste jusqu'au caniveau, sans effet sur un tapis, sans création de matière ; gouttes bornées ; opération transmise en ligne | Testé (EditMode + PlayMode, captures) | `Squeegee_Transport_…`, `Gather_…`, `Squeegee_PushesWaterAlongTheStroke_IntoTheDrain_…` |
+| 3.4 Monobrosse : modèle, disque animé, son, effets définis (détache, mousse, pas d'eau, usure à sec), efficacité selon les fibres, marche ralentie, achat | Testé (EditMode + PlayMode, capture) | `RotaryScrubber_IsWeakOnDryFibers_…`, `Rotary_ScrubsWetFibersFar_…` |
+| 3.5 Bottes : transfert de boue réduit à 30 %, effet affiché à la boutique | Testé (EditMode + PlayMode) | `Upgrades_BootsAccessoryAndRobot_…`, `MuddySoles_MarkTheRug_AndBootsReduceTheTransfer` |
+| 3.6 Robot aspirateur à acheter (caché avant l'achat, base explicative, sauvegarde, migration, état de l'hôte en ligne) | Testé (EditMode + PlayMode ; en ligne non exécuté) | `Robot_MustBeBought_ThenRuns_…`, `Migration_V2WithProgress_KeepsTheRobot_…` |
+| 4.4 Traces boueuses sur le tapis (en plus de l'aire), une par pas, réduites par les bottes, jamais sur le sol de la salle | Testé (PlayMode) | `MuddySoles_MarkTheRug_…` |
+| Sauvegarde : achats inconnus du catalogue conservés | Implémenté | `SaveManager.Capture` |
+| Tests Unity (batch) | Testé | EditMode 198 / 198, PlayMode 112 / 112 (`VALIDATION.md` § 16) |
+| En ligne : raclette d'un invité, robot de l'hôte, protocole `rugwash-coop-5` | **Implémenté, deux processus non exécutés** | Opération « ramassage » transmise et bornée (`SqueegeeAndFiberBonus_AreTransmissible_AndClamped`) |
+| Jeu compilé (benchmark) | **Non exécuté** (ouvre une fenêtre du jeu) | — |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

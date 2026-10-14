@@ -97,6 +97,10 @@ namespace RugWash.Cleaning
         public float RadiusMultiplier { get; set; } = 1f;
         /// <summary>Multiplicateur de consommation issu des améliorations (1 = aucune).</summary>
         public float ConsumptionMultiplier { get; set; } = 1f;
+        /// <summary>Multiplicateur sur les poils, cheveux et peluches (accessoire acheté, v0.1.2).</summary>
+        public float FiberMultiplier { get; set; } = 1f;
+        /// <summary>Vitesse de marche autorisée pendant l'utilisation (1 = normale ; machine lourde : moins).</summary>
+        public virtual float MoveSpeedFactor => 1f;
 
         /// <summary>Puissance réellement appliquée (définition × améliorations).</summary>
         public float EffectivePower => definition != null ? definition.power * PowerMultiplier : 0f;

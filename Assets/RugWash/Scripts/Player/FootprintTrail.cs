@@ -6,9 +6,11 @@ using UnityEngine;
 namespace RugWash.Player
 {
     /// <summary>
-    /// Traces de pas : en marchant dans l'eau sale, la mousse ou la boue du plan de travail, les semelles se chargent ;
-    /// chaque pas suivant laisse une empreinte (de moins en moins marquée) sur le plan de travail. Ni les tapis, ni le sol
-    /// de la salle (hors zone de nettoyage) ne sont marqués. Les empreintes sont de vraies données de surface, nettoyables.
+    /// Traces de pas : en marchant dans l'eau sale, la mousse ou la boue de l'aire de lavage, les semelles se chargent ;
+    /// chaque pas suivant laisse une empreinte (de moins en moins marquée) sur l'aire. Des semelles boueuses marquent aussi
+    /// le tapis de la commande (boue seulement, moins que sur un sol dur). Le sol de la salle (hors zone de nettoyage)
+    /// n'est jamais marqué. Les empreintes sont de vraies données de surface (aucun objet créé), nettoyables ; les bottes
+    /// réduisent la boue transférée sans l'annuler.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class FootprintTrail : MonoBehaviour
@@ -23,6 +25,10 @@ namespace RugWash.Player
         [SerializeField, Range(0f, 1f)] float pickup = 0.5f;
         [Tooltip("Part de la charge de la semelle déposée à chaque pas.")]
         [SerializeField, Range(0f, 1f)] float deposit = 0.35f;
+        [Tooltip("Part de la boue déposée sur un tapis, par rapport à un sol dur (les fibres en retiennent moins).")]
+        [SerializeField, Range(0f, 1f)] float rugDepositScale = 0.5f;
+        [Tooltip("Équipement du joueur : les bottes réduisent la boue transférée (optionnel).")]
+        [SerializeField] PlayerEquipment equipment;
 
         readonly Dictionary<Collider, RugCleaningController> cache = new Dictionary<Collider, RugCleaningController>();
         FootstepCadence cadence;
@@ -33,6 +39,15 @@ namespace RugWash.Player
         public float WaterLoad { get; private set; }
         public float FoamLoad { get; private set; }
         public int FootprintsLeft { get; private set; }
+        /// <summary>Empreintes boueuses laissées sur un tapis.</summary>
+        public int RugFootprintsLeft { get; private set; }
+        /// <summary>Boue réellement déposée (cumul) : sert à mesurer l'effet des bottes.</summary>
+        public float MudDeposited { get; private set; }
+        /// <summary>Part de la boue des semelles transférée à chaque pas (bottes : moins de 1).</summary>
+        public float Transfer => equipment != null ? Mathf.Clamp01(equipment.FootprintTransfer) : 1f;
+
+        /// <summary>Remet les semelles propres (réapparition, changement de scène, tests).</summary>
+        public void CleanSoles() => MudLoad = WaterLoad = FoamLoad = 0f;
 
         void Awake() => cadence = new FootstepCadence(strideMeters);
 
@@ -53,18 +68,37 @@ namespace RugWash.Player
             leftFoot = !leftFoot;
             if (!Physics.Raycast(foot + Vector3.up * 0.3f, Vector3.down, out RaycastHit hit, 0.7f, surfaceMask, QueryTriggerInteraction.Ignore)) return;
             var surface = Resolve(hit.collider);
-            if (surface == null || surface.Kind == SurfaceKind.Rug || !surface.AcceptsDirt) return;
+            if (surface == null || !surface.AcceptsDirt) return;
+            bool onRug = surface.Kind == SurfaceKind.Rug;
+            float transfer = Transfer;
+
+            if (onRug)
+            {
+                // Tapis : seule la boue marque les fibres (l'eau et la mousse des semelles s'y perdent sans trace).
+                if (MudLoad * transfer > 0.01f)
+                {
+                    var print = new DepositOperation { Type = loadType, Mud = MudLoad * deposit * 3f * transfer * rugDepositScale };
+                    surface.ApplyOperation(hit.point, printRadius, 6f, printAspect, forward, default, ref print);
+                    MudDeposited += print.Mud;
+                    RugFootprintsLeft++;
+                }
+                MudLoad *= 1f - deposit;
+                WaterLoad *= 1f - deposit;
+                FoamLoad *= 1f - deposit;
+                return;
+            }
 
             if (MudLoad + WaterLoad + FoamLoad > 0.02f)
             {
                 var print = new DepositOperation
                 {
                     Type = loadType,
-                    Mud = MudLoad * deposit * 3f,
-                    Water = WaterLoad * deposit * 3f,
-                    Foam = FoamLoad * deposit * 3f,
+                    Mud = MudLoad * deposit * 3f * transfer,
+                    Water = WaterLoad * deposit * 3f * transfer,
+                    Foam = FoamLoad * deposit * 3f * transfer,
                 };
                 surface.ApplyOperation(hit.point, printRadius, 6f, printAspect, forward, default, ref print);
+                MudDeposited += print.Mud;
                 MudLoad *= 1f - deposit;
                 WaterLoad *= 1f - deposit;
                 FoamLoad *= 1f - deposit;

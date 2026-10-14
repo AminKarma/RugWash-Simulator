@@ -26,6 +26,8 @@ namespace RugWash.Player
         [SerializeField] float maxAimDistance = 6f;
         [Tooltip("Son de refus quand l'outil ne peut pas agir (réserve vide…), optionnel.")]
         [SerializeField] Audio.AudioManager audioManager;
+        [Tooltip("Déplacement du joueur : ralenti par un outil lourd en marche (monobrosse), optionnel.")]
+        [SerializeField] FirstPersonController movement;
         bool wantedUse;
 
         readonly Dictionary<Collider, RugCleaningController> rugCache = new Dictionary<Collider, RugCleaningController>();
@@ -114,6 +116,7 @@ namespace RugWash.Player
             {
                 tool.StopUsing();
                 targetIndicator.Hide();
+                if (movement != null) movement.SpeedMultiplier = 1f;
                 return;
             }
 
@@ -129,6 +132,7 @@ namespace RugWash.Player
             if (wantsUse && !wantedUse && !tool.IsUsing && tool.IsUnlocked && tool.GetBlockReason() != null && audioManager != null)
                 audioManager.PlayInterface(audioManager.DenyClip, 0.8f);
             wantedUse = wantsUse;
+            if (movement != null) movement.SpeedMultiplier = tool.MoveSpeedFactor;
 
             if (aim.HasRug)
             {

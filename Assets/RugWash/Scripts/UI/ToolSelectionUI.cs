@@ -55,9 +55,9 @@ namespace RugWash.UI
                 slotBackgrounds[i].gameObject.SetActive(used);
                 if (!used) continue;
                 var tool = list[i];
-                slotLabels[i].text = tool.IsUnlocked
-                    ? $"{tool.Definition.slot}  {tool.Definition.displayName}"
-                    : $"{tool.Definition.slot}  {tool.Definition.displayName} (boutique)";
+                string key = Player.RugWashInputActions.SlotKeyLabel(tool.Definition.slot);
+                string name = key.Length > 0 ? $"{key}  {tool.Definition.displayName}" : tool.Definition.displayName;
+                slotLabels[i].text = tool.IsUnlocked ? name : $"{name} (boutique)";
                 slotLabels[i].color = tool.IsUnlocked ? Color.white : lockedTextColor;
                 slotBackgrounds[i].color = !tool.IsUnlocked ? lockedColor : tool == tools.ActiveTool ? activeColor : normalColor;
             }

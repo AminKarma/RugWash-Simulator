@@ -127,6 +127,13 @@ partie »). Après une perte de connexion, le menu affiche la raison et propose 
   Les missions générées tiennent compte des outils de l'**hôte** (un objectif de séchage n'est proposé que s'il possède
   l'extracteur) ; une mission livrée en ligne compte dans les statistiques de chaque joueur mais n'est pas ajoutée à
   l'historique des contrats.
-- Protocole `rugwash-coop-4` (v0.1.2 jalon 3 : carrière avec stock de détergent, offres de missions) : les versions
-  précédentes sont refusées avec un message clair.
+- Protocole `rugwash-coop-5` (v0.1.2 jalon 4 : opération de raclette, accessoire anti-poils de l'aspirateur, robot acheté
+  ou non) : les versions précédentes sont refusées avec un message clair.
+- Raclette d'un invité : il prédit le transport et envoie à l'hôte le ramassage (réglage seulement) puis le dépôt devant la
+  lame (quantités bornées) ; l'hôte ramasse ses propres valeurs et dépose celles de l'invité, d'où un léger écart possible
+  sur l'eau déplacée, corrigé par la réplication des cellules. Une raclette visant un tapis n'a aucun effet, même pour un
+  message trafiqué.
+- Robot aspirateur : présent dans la session seulement si l'**hôte** l'a acheté (c'est son atelier) ; un invité qui
+  l'achète l'aura dans son propre atelier. Traces de pas : chaque joueur applique les siennes (avec ses bottes) comme
+  des opérations de surface ordinaires, validées par l'hôte.
 - 4 joueurs au maximum ; version de protocole identique requise (message clair sinon).

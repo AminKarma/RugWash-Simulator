@@ -16,7 +16,13 @@ namespace RugWash.Player
     {
         public const string GameplayMap = "Gameplay";
         public const string SystemMap = "System";
-        public const int ToolSlotCount = 9;
+        /// <summary>Outils sélectionnables au clavier : touches 1 à 9, puis 0 pour le dixième.</summary>
+        public const int ToolSlotCount = 10;
+        /// <summary>Emplacements de la barre d'outils (au-delà des touches : molette, LB / RB).</summary>
+        public const int ToolbarSlotCount = 11;
+
+        /// <summary>Touche affichée pour un emplacement (« 0 » pour le dixième, vide au-delà).</summary>
+        public static string SlotKeyLabel(int slot) => slot >= 1 && slot <= 9 ? slot.ToString() : slot == 10 ? "0" : string.Empty;
 
         const string Kbm = InputSchemes.KeyboardMouseGroup;
         const string Pad = InputSchemes.GamepadGroup;
@@ -44,8 +50,8 @@ namespace RugWash.Player
             Button(gameplay, "ToolScroll", "<Mouse>/scroll/y", null, InputActionType.Value, "Axis");
             for (int i = 1; i <= ToolSlotCount; i++)
             {
-                var slot = Button(gameplay, $"Tool{i}", $"<Keyboard>/{i}", null);
-                slot.AddBinding($"<Keyboard>/numpad{i}").WithGroup(Kbm);
+                var slot = Button(gameplay, $"Tool{i}", $"<Keyboard>/{i % 10}", null);
+                slot.AddBinding($"<Keyboard>/numpad{i % 10}").WithGroup(Kbm);
             }
             // Manette : sticks lus sans processeur (zone morte et courbe appliquées par PlayerInputReader, réglables).
             Button(gameplay, "MoveStick", null, "<Gamepad>/leftStick", InputActionType.Value, "Vector2");

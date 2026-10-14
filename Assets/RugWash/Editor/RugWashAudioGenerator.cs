@@ -41,6 +41,9 @@ namespace RugWash.Editor
         public const string FoamCannonLoop = Folder + "/tmp_foam_cannon_loop.wav";
         public const string BroomLoop = Folder + "/tmp_broom_loop.wav";
         public const string BroomContactLoop = Folder + "/tmp_broom_contact_loop.wav";
+        public const string SqueegeeLoop = Folder + "/tmp_squeegee_loop.wav";
+        public const string RotaryLoop = Folder + "/tmp_rotary_loop.wav";
+        public const string RotaryContactLoop = Folder + "/tmp_rotary_contact_loop.wav";
         public const string RobotHumLoop = Folder + "/tmp_robot_hum_loop.wav";
         public const string RobotBump = Folder + "/tmp_robot_bump.wav";
         public const string RobotStart = Folder + "/tmp_robot_start.wav";
@@ -83,6 +86,9 @@ namespace RugWash.Editor
             Write(FoamCannonLoop, force, true, 2f, FoamCannon);
             Write(BroomLoop, force, true, 2f, BroomSwish);
             Write(BroomContactLoop, force, true, 2f, BroomOnSurface);
+            Write(SqueegeeLoop, force, true, 2f, SqueegeeSlide);
+            Write(RotaryLoop, force, true, 2f, RotaryMotor);
+            Write(RotaryContactLoop, force, true, 2f, RotaryScrub);
             Write(RobotHumLoop, force, true, 2f, RobotHum);
             Write(RobotBump, force, false, 0.18f, RobotBumpThud);
             Write(RobotStart, force, false, 0.45f, (float t, float d, ref State s) => RobotBeeps(t, 660f, 880f));
@@ -310,6 +316,32 @@ namespace RugWash.Editor
             s.Env *= 0.994f;
             float splash = s.Env * LowPass(ref s.Lp2, s.Noise(), 1200f);
             return scrape * stroke * 0.7f + splash * 0.5f;
+        }
+
+        static float SqueegeeSlide(float t, float d, ref State s)
+        {
+            // Lame en caoutchouc sur un sol mouillé : glissement doux (une poussée par seconde) et petits couinements.
+            float stroke = 0.4f + 0.6f * Mathf.Pow(Mathf.Abs(Sine(t, 0.5f)), 1.2f);
+            float slide = LowPass(ref s.Lp1, HighPass(ref s, s.Noise(), 400f), 2200f);
+            if (s.Random.NextDouble() < 0.0008) s.Env = 0.4f + 0.4f * (float)s.Random.NextDouble();
+            s.Env *= 0.9992f;
+            float squeak = s.Env * Sine(t, 1100f);
+            return slide * stroke * 0.45f + squeak * 0.1f;
+        }
+
+        static float RotaryMotor(float t, float d, ref State s)
+        {
+            // Moteur de monobrosse : ronflement grave, harmoniques et engrenages (périodes entières sur 2 s).
+            float motor = 0.2f * Sine(t, 50f) + 0.14f * Sine(t, 100f) + 0.06f * Sine(t, 150f) + 0.03f * Sine(t, 1200f);
+            float gear = LowPass(ref s.Lp1, s.Noise(), 900f) * 0.35f;
+            return (motor + gear) * (0.92f + 0.08f * Sine(t, 12.5f)) * 0.8f;
+        }
+
+        static float RotaryScrub(float t, float d, ref State s)
+        {
+            // Disque qui frotte les fibres : souffle rugueux modulé par la rotation.
+            float swirl = 0.7f + 0.3f * Sine(t, 12.5f);
+            return LowPass(ref s.Lp1, HighPass(ref s, s.Noise(), 600f), 4000f) * swirl * 0.6f;
         }
 
         static float RobotHum(float t, float d, ref State s)

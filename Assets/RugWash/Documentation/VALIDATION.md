@@ -352,3 +352,35 @@ n'a été ouverte). Décisions : `AUDIT_V012.md` § 5.
 `-Step multiplayer`) : scénario à deux processus avec la nouvelle vérification « missions du tableau identiques chez
 l'hôte et l'invité » et les demandes de détergent de l'invité (achat de bidon, remplissage) ; benchmark du jeu compilé
 adapté au kit de départ. Steam en réel : inchangé (non testé).
+
+## 16. Update v0.1.2 — jalon 4 (outils et salissures)
+
+Exécutions réelles du 14/10/2026, en mode batch uniquement (aucune fenêtre du jeu). L'éditeur Unity ayant été ouvert
+pendant une partie du travail, la compilation a d'abord été vérifiée hors éditeur (SDK .NET sur des copies des projets
+générés par Unity : 0 erreur), puis toute la chaîne a été relancée une fois l'éditeur fermé. Décisions : `AUDIT_V012.md` § 6.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation, contenu, scènes (batch Unity) | ✅ 0 erreur, 0 avertissement |
+| Tests EditMode | ✅ **198 / 198** (189 + 9 `ToolsV012Tests` : ramassage de la raclette, transport sans création ni perte de matière, surplus des cellules saturées, accessoire anti-poils, bottes / accessoire / robot dans les statistiques d'équipement, monobrosse selon les fibres, migration v2 → v3, format réseau, touches 1-9 et 0 ; tests existants adaptés : sauvegardes migrées en v3) |
+| Tests PlayMode | ✅ **112 / 112** (106 + 6 `ToolsV012PlayModeTests` : raclette jusqu'au caniveau et sans effet sur un tapis, monobrosse, bottes et traces boueuses sur le tapis, robot à acheter, accessoire mesuré, captures ; tests existants adaptés : onze outils) |
+| Build Windows, jeu compilé (solo, deux processus) | **Non exécutés** : ils ouvrent des fenêtres du jeu |
+
+**Défauts trouvés et corrigés pendant la validation**
+
+- Raclette : en concentrant l'eau devant la lame, des cellules dépassaient la saturation et la grille écrêtait le surplus
+  (34 % de l'eau disparaissait au premier geste). Le dépôt mesure désormais ce qui déborde et la raclette le reporte plus
+  loin devant elle (vague), jusqu'au caniveau ou à la bordure.
+- Raclette : l'animation inclinait le modèle de 8° ; sur un manche télescopique de 2 m, la lame s'enfonçait de 16 cm dans
+  le sol et devenait invisible (constaté sur capture, mesuré par un relevé de position). Animation limitée à un va-et-vient
+  le long du manche ; un test vérifie que la lame reste posée sur l'aire.
+- HUD : lignes d'état de la raclette et de la monobrosse trop longues (elles recouvraient le nom de l'outil) ; raccourcies.
+- Test du jalon 3 rendu robuste : le HUD se rafraîchit toutes les 0,1 s, le test attend désormais un rafraîchissement.
+
+**Vérifications visuelles** (captures `Logs/ci/screens`) : `65_squeegee_push` (vague d'eau boueuse devant la lame),
+`65b_squeegee_front` (lame posée sur l'aire), `66_squeegee_drain` (eau poussée au caniveau), `67_rotary` (moteur, jupe,
+disque rotatif à repères sur un tapis mouillé).
+
+**Non exécuté** (à lancer quand le PC est libre : `Tools/RugWash-CI.ps1 -Step build`, puis `-Step benchmark` et
+`-Step multiplayer`) : scénario à deux processus (raclette d'un invité, robot acheté ou non chez l'hôte, protocole
+`rugwash-coop-5`) et benchmark du jeu compilé. Steam en réel : inchangé (non testé).

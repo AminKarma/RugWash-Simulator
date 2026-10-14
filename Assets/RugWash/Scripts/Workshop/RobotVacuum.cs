@@ -102,6 +102,36 @@ namespace RugWash.Workshop
 
         public event Action<string> Message;
 
+        /// <summary>Message quand le robot n'a pas encore été acheté.</summary>
+        public const string NotOwnedMessage = "Robot aspirateur à acheter sur l'ordinateur (Boutique)";
+
+        bool owned = true;
+
+        /// <summary>
+        /// Faux tant que le robot n'a pas été acheté (v0.1.2) : il est caché et inerte, sa base indique où l'acheter.
+        /// Solo et hôte : achat de l'hôte ; invité : état reçu de l'hôte (l'atelier est le sien).
+        /// </summary>
+        public bool IsOwned => owned;
+
+        public void SetOwned(bool value)
+        {
+            if (owned == value) return;
+            owned = value;
+            if (!owned && started)
+            {
+                brain.Restore((int)RobotMode.Docked, brain.Battery01, false);
+                SnapToDock();
+            }
+            ApplyVisibility();
+        }
+
+        void ApplyVisibility()
+        {
+            foreach (var renderer in GetComponentsInChildren<Renderer>(true)) renderer.enabled = owned;
+            foreach (var collider in GetComponentsInChildren<Collider>(true)) collider.enabled = owned;
+            if (!owned && motorSource != null && motorSource.isPlaying) motorSource.Stop();
+        }
+
         /// <summary>
         /// Multijoueur, côté invité : le robot est simulé par l'hôte ; ici il suit la pose et l'état reçus, et un appui
         /// sur E envoie la demande à l'hôte. Null : solo ou hôte.
@@ -168,6 +198,7 @@ namespace RugWash.Workshop
             started = true;
             if (hasPendingState) ApplyState(pendingState);
             else SnapToDock();
+            ApplyVisibility();
         }
 
         void OnDestroy()
@@ -250,7 +281,7 @@ namespace RugWash.Workshop
         void Update()
         {
             float dt = Time.deltaTime;
-            if (!started || dt <= 0f) return;
+            if (!started || dt <= 0f || !owned) return;
             if (IsReplica)
             {
                 if (hasRemotePose)
@@ -592,8 +623,8 @@ namespace RugWash.Workshop
 
         // ------------------------------------------------------------------ Interaction
 
-        public string GetPrompt(PlayerInteractor interactor) =>
-            $"{(brain.Mode == RobotMode.Cleaning || brain.ResumeAfterCharge ? "Arrêter" : "Démarrer")} le robot aspirateur ({brain.Describe()})";
+        public string GetPrompt(PlayerInteractor interactor) => !owned ? $"Base du robot aspirateur — {NotOwnedMessage.ToLowerInvariant()}"
+            : $"{(brain.Mode == RobotMode.Cleaning || brain.ResumeAfterCharge ? "Arrêter" : "Démarrer")} le robot aspirateur ({brain.Describe()})";
 
         public bool CanInteract(PlayerInteractor interactor) => started;
 
@@ -602,6 +633,7 @@ namespace RugWash.Workshop
         /// <summary>Démarre ou arrête le robot ; retourne le message affiché au joueur.</summary>
         public string Toggle()
         {
+            if (!owned) return NotOwnedMessage;
             if (Remote != null)
             {
                 Remote.RequestRobotToggle();

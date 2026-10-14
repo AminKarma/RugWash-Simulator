@@ -156,3 +156,34 @@ monobrosse, bottes, achat du robot), 5 (base, personnalisation, ragdoll, musique
 | Outils débloqués (achats) | Chaque joueur | Hôte | Chaque joueur |
 
 - Version de protocole passée à `rugwash-coop-4` (carrière avec stock de détergent, offres de missions).
+
+## 6. Décisions du jalon 4 (outils et salissures)
+
+Audit : les poils, cheveux, peluches, amas et débris existaient déjà comme salissures sèches avec leurs réponses propres
+(aspirateur, balai, brosse) ; les traces de pas existaient sur l'aire de lavage ; le robot aspirateur existait, gratuit.
+Ces systèmes sont réutilisés et complétés, pas refaits.
+
+- **Poils et débris (3.2)** : outils adaptés déjà en jeu (balai à sec, brosse, aspirateur) ; ajout d'un accessoire
+  d'aspiration (brosse turbo anti-poils, ×2 sur poils, cheveux et peluches, 130 €) qui passe par l'opération d'aspiration
+  existante (paramètre transmis en ligne).
+- **Raclette (3.3)** : nouvel outil (touche 0, 90 €). Transport réel des données de la surface : ramassage pondéré sous la
+  lame (60 % par image), redépôt de la même quantité sur une zone identique juste devant, dans le sens du déplacement du
+  point visé ; au caniveau, évacuation. Immobile : rien ; contre la bordure : blocage ; sur un tapis : rien. L'effet visible
+  est l'eau elle-même (rendu de l'aire), plus quelques gouttes bornées devant la lame et au caniveau. Le balai garde son
+  comportement (testé) ; la raclette est l'outil qui amène vraiment l'eau au caniveau.
+- **Monobrosse (3.4)** : nouvel outil (molette ou LB / RB, 650 €), sans consommable. Détache (opération de brossage
+  existante, puissance 1,3, rayon 0,3 m) avec une efficacité de 35 % à sec et 100 % sur fibres humides ou savonneuses ;
+  fait monter la mousse ×3 par rapport à la brosse ; n'ajoute ni ne retire d'eau ; use deux fois plus les fibres fragiles
+  à sec. Marche ralentie à 55 % quand elle tourne. Le modèle est posé sur le point visé comme les autres outils de contact
+  (pas de collision physique de la vue à la première personne).
+- **Bottes (3.5)** : amélioration (90 €) : 30 % de la boue des semelles transférée (sans l'annuler). Affichée dans la
+  boutique (« Boue laissée par vos pas : 100 % → 30 % »).
+- **Robot achetable (3.6)** : amélioration « équipement d'atelier » (650 €). Non acheté : robot caché et inerte, sa base
+  indique où l'acheter. Sauvegardes v3 : une partie commencée avant ce jalon garde le robot (il était gratuit). En ligne :
+  c'est l'achat de l'hôte qui compte (son atelier). Le robot reste sur sa base fixe (pas de placement libre).
+- **Traces boueuses (4.4)** : aussi sur le tapis de la commande (boue seulement, ×0,5), une opération par pas (aucun objet,
+  rien à chaque image), réduites par les bottes ; jamais sur le sol de la salle.
+- **Sauvegarde** : un achat inconnu du catalogue du build (contenu pas encore généré, version plus ancienne) est désormais
+  conservé au lieu d'être effacé.
+- Onze outils : touches 1 à 9 et 0, le onzième à la molette (et LB / RB).
+- Protocole `rugwash-coop-5`.

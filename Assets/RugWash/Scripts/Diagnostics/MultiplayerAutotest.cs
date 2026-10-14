@@ -54,6 +54,8 @@ namespace RugWash.Diagnostics
                 money = role == "host" ? HostStartMoney : GuestStartMoney, reputation = role == "host" ? 0 : GuestStartReputation,
                 upgrades = new List<string>(SaveMigration.LegacyToolUnlocks), detergentStock = SaveMigration.LegacyDetergentStock,
             };
+            // Robot aspirateur acheté : l'invité le démarre dans l'atelier de l'hôte.
+            seeded.upgrades.AddRange(SaveMigration.LegacyWorkshopUnlocks);
             new SaveFileStore(sandbox, SaveManager.DefaultFileName).Save(seeded, out _);
 
             var go = new GameObject("[MultiplayerAutotest]");

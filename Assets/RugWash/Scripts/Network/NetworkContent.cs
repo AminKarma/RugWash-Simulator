@@ -11,7 +11,7 @@ namespace RugWash.Network
         [Tooltip("Silhouette d'un joueur vue par les autres (position, outil, effets).")]
         public GameObject avatarPrefab;
         /// <summary>Version courante du protocole (imposée à l'asset par le constructeur de contenu).</summary>
-        public const string CurrentProtocol = "rugwash-coop-4";
+        public const string CurrentProtocol = "rugwash-coop-5";
 
         [Tooltip("Version du protocole : un joueur d'une autre version est refusé avec un message clair.")]
         public string protocolVersion = CurrentProtocol;

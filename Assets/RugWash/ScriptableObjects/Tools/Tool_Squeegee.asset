@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a56e950a7c9d1a347aaa213b9612f7e2, type: 3}
+  m_Name: Tool_Squeegee
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.ToolDefinition
+  id: squeegee
+  displayName: Raclette
+  description: "Lame en caoutchouc pour l'aire de lavage : poussez l'eau, la mousse
+    et la boue dans le sens du geste jusqu'au caniveau, o\xF9 elles sont \xE9vacu\xE9es.
+    Sans effet sur un tapis."
+  slot: 10
+  range: 2.4
+  radius: 0.3
+  falloffHardness: 4
+  power: 1
+  wettingPerSecond: 0
+  spreadAspect: 4
+  resource: 0
+  resourcePerSecond: 0
+  runoffDirt: 0
+  runoffFoam: 0
+  runoffWater: 0
+  runoffIsDry: 0
+  requiresUnlock: 1
+  rumbleLow: 0.05
+  rumbleHigh: 0.08

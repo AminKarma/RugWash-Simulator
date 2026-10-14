@@ -18,6 +18,12 @@ namespace RugWash.Economy
         UnlockTool,
         /// <summary>Multiplicateur de la largeur (rayon) de la zone traitée par l'outil ciblé.</summary>
         ToolRadius,
+        /// <summary>Multiplicateur de la boue transférée par les semelles à chaque pas (bottes, v0.1.2 : &lt; 1).</summary>
+        FootprintTransfer,
+        /// <summary>Multiplicateur de l'outil ciblé sur les poils, cheveux et peluches (accessoire, v0.1.2).</summary>
+        FiberPickup,
+        /// <summary>Équipement de l'atelier (machine) rendu disponible, identifié par <see cref="UpgradeDefinition.targetToolId"/>.</summary>
+        WorkshopEquipment,
     }
 
     /// <summary>Amélioration achetable. Prix et valeurs modifiables dans l'Inspector.</summary>

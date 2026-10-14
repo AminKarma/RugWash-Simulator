@@ -16,7 +16,7 @@ namespace RugWash.Save
     /// </summary>
     public static class SaveMigration
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         /// <summary>Stock de détergent d'une nouvelle partie (litres) : trois remplissages de la réserve de 4 L.</summary>
         public const float StarterDetergentStock = 12f;
@@ -28,6 +28,9 @@ namespace RugWash.Save
         {
             "up_tool_vacuum", "up_tool_rinse", "up_tool_extractor", "up_tool_foam", "up_tool_broom",
         };
+
+        /// <summary>Équipements d'atelier gratuits avant la v0.1.2 jalon 4 (robot aspirateur), conservés par une partie commencée.</summary>
+        public static readonly string[] LegacyWorkshopUnlocks = { "up_robot" };
 
         public enum Outcome
         {
@@ -76,14 +79,19 @@ namespace RugWash.Save
                     data = JsonUtility.FromJson<SaveData>(json);
                     return Normalize(data) ? Outcome.UpToDate : Outcome.Invalid;
                 }
+                if (version == 2)
+                {
+                    data = FromV2(JsonUtility.FromJson<SaveData>(json));
+                    return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
+                }
                 if (version == 1)
                 {
-                    data = FromV1(JsonUtility.FromJson<SaveData>(json));
+                    data = FromV2(FromV1(JsonUtility.FromJson<SaveData>(json)));
                     return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
                 }
                 if (version == 0)
                 {
-                    data = FromV1(FromV0(JsonUtility.FromJson<SaveDataV0>(json)));
+                    data = FromV2(FromV1(FromV0(JsonUtility.FromJson<SaveDataV0>(json))));
                     return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
                 }
             }
@@ -98,6 +106,19 @@ namespace RugWash.Save
         /// v1 → v2 : une partie déjà commencée garde ses outils (déblocages ajoutés) et reçoit un bidon de détergent ; une
         /// sauvegarde v1 sans progression devient une nouvelle partie avec le kit de départ.
         /// </summary>
+        /// <summary>v2 → v3 : le robot aspirateur devient un achat ; une partie déjà commencée le garde.</summary>
+        public static SaveData FromV2(SaveData data)
+        {
+            if (data == null) return null;
+            if (data.HasProgress)
+            {
+                data.upgrades ??= new System.Collections.Generic.List<string>();
+                foreach (string id in LegacyWorkshopUnlocks)
+                    if (!data.upgrades.Contains(id)) data.upgrades.Add(id);
+            }
+            return data;
+        }
+
         public static SaveData FromV1(SaveData data)
         {
             if (data == null) return null;

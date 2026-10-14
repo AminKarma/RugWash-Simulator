@@ -477,7 +477,7 @@ namespace RugWash.UI
             if (input.Scheme == InputScheme.Gamepad)
                 return $"{input.Label("Use")} : {verb}   ·   {input.Label("ToolPrevious")} / {input.Label("ToolNext")} : outils   ·   " +
                        common + $"{input.Label("Pause")} : pause";
-            return $"Clic gauche : {verb}   ·   1-9 / molette : outils   ·   " + common + "Échap : pause";
+            return $"Clic gauche : {verb}   ·   1-0 / molette : outils   ·   " + common + "Échap : pause";
         }
     }
 }

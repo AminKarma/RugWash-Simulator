@@ -14,7 +14,17 @@ namespace RugWash.Economy
         readonly Dictionary<string, float> power = new Dictionary<string, float>();
         readonly Dictionary<string, float> consumption = new Dictionary<string, float>();
         readonly Dictionary<string, float> radius = new Dictionary<string, float>();
+        readonly Dictionary<string, float> fiber = new Dictionary<string, float>();
         readonly HashSet<string> unlocked = new HashSet<string>();
+        readonly HashSet<string> machines = new HashSet<string>();
+
+        /// <summary>Part de la boue des semelles transférée à chaque pas (1 = chaussures ordinaires).</summary>
+        public float FootprintTransfer = 1f;
+
+        /// <summary>Multiplicateur de l'outil sur les poils, cheveux et peluches (accessoire).</summary>
+        public float FiberMultiplier(string toolId) => toolId != null && fiber.TryGetValue(toolId, out float v) ? v : 1f;
+        /// <summary>Vrai si l'équipement d'atelier (robot…) a été acheté.</summary>
+        public bool HasMachine(string machineId) => machineId != null && machines.Contains(machineId);
 
         public float PowerMultiplier(string toolId) => toolId != null && power.TryGetValue(toolId, out float v) ? v : 1f;
         public float RadiusMultiplier(string toolId) => toolId != null && radius.TryGetValue(toolId, out float v) ? v : 1f;
@@ -38,6 +48,11 @@ namespace RugWash.Economy
                     case UpgradeEffect.ToolRadius: Multiply(stats.radius, upgrade.targetToolId, upgrade.value); break;
                     case UpgradeEffect.UnlockTool:
                         if (!string.IsNullOrEmpty(upgrade.targetToolId)) stats.unlocked.Add(upgrade.targetToolId);
+                        break;
+                    case UpgradeEffect.FootprintTransfer: stats.FootprintTransfer *= UnityEngine.Mathf.Clamp01(upgrade.value); break;
+                    case UpgradeEffect.FiberPickup: Multiply(stats.fiber, upgrade.targetToolId, upgrade.value); break;
+                    case UpgradeEffect.WorkshopEquipment:
+                        if (!string.IsNullOrEmpty(upgrade.targetToolId)) stats.machines.Add(upgrade.targetToolId);
                         break;
                 }
             }

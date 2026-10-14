@@ -142,6 +142,7 @@ namespace RugWash.Tests
             // v0 → v1 → v2 : partie commencée, les outils hors kit de départ restent acquis.
             var expected = new System.Collections.Generic.List<string> { "up_brush" };
             expected.AddRange(SaveMigration.LegacyToolUnlocks);
+            expected.AddRange(SaveMigration.LegacyWorkshopUnlocks);
             CollectionAssert.AreEqual(expected, result.Data.upgrades);
             Assert.AreEqual(SaveMigration.LegacyDetergentStock, result.Data.detergentStock);
             Assert.AreEqual(1, result.Data.ordersDelivered);

@@ -21,7 +21,7 @@ namespace RugWash.Cleaning
         public string id = "tool";
         public string displayName = "Outil";
         [TextArea] public string description;
-        [Tooltip("Touche numérique de sélection (1-9).")]
+        [Tooltip("Emplacement dans la barre d'outils : touches 1-9, 0 pour le 10ᵉ ; au-delà, molette ou LB / RB.")]
         [Range(1, 9)] public int slot = 1;
 
         [Header("Action")]

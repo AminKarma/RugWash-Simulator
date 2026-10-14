@@ -15,6 +15,8 @@ et voit le motif d'origine réapparaître progressivement.
 > v0.1.2 jalon 3 : ordinateur de l'atelier (icônes Missions et Boutique, seul accès aux achats et aux commandes), missions
 > générées sans fin selon la réputation, actualités locales au menu, kit de départ (brosse, détergent, seau d'eau) et
 > détergent consommable (réserve de 4 L, bidons de 40 L) — `VALIDATION.md` § 15.
+> v0.1.2 jalon 4 : raclette qui pousse réellement l'eau et la boue jusqu'au caniveau, monobrosse professionnelle, bottes de
+> lavage, accessoire anti-poils pour l'aspirateur, robot aspirateur à acheter, traces boueuses aussi sur le tapis.
 > Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
@@ -63,7 +65,7 @@ fenêtre des touches) suivent le dernier périphérique utilisé, le curseur est
 | Courir | Maj gauche (maintenue) | Clic du stick gauche (LS · L3) : la course dure jusqu'à l'arrêt |
 | Regarder | Souris | Stick droit |
 | Utiliser l'outil | Clic gauche (maintenu) | RT · R2 (maintenue) |
-| Outil suivant / précédent | Molette, ou 1–8 (rangée du haut ou pavé numérique) | RB / LB · R1 / L1 (les outils pas encore achetés sont sautés) |
+| Outil suivant / précédent | Molette, ou 1–9 et 0 (rangée du haut ou pavé numérique) ; le 11ᵉ outil (monobrosse) à la molette | RB / LB · R1 / L1 (les outils pas encore achetés sont sautés) |
 | Interagir (postes, caniveau, comptoir des commandes, boutique, robot aspirateur ou sa base) | E | A · Croix |
 | Scanner la saleté (surligne les zones encore sales, puis recharge) | R | Y · Triangle |
 | Changer de produit spécialisé (produits en stock, puis détergent standard) | T | X · Carré |
@@ -105,6 +107,13 @@ Résolution et mode d'affichage n'ont d'effet visible que dans un build (l'édit
 | 6 | Canon à mousse | Projette en **éventail large** une mousse épaisse et diluée (moins de résidus que le détergent pur). Laissée en place, la mousse **détache peu à peu** graisse, boissons et boue ; à brosser puis rincer | Détergent (0,22 L/s) |
 | 7 | Balai | Tapis **sec** : chasse poils et débris (à passer avant le produit) ; l'humidité colle les débris, les taches fixées ne bougent pas. Aire de lavage et sol : pousse **eau sale, boue et mousse** vers le caniveau | — |
 | 8 | Brosse de détail | Petite zone, **×2,2 sur la graisse et les taches incrustées** — **à acheter** à la boutique (140 €) | — |
+| 9 | Seau d'eau | Kit de départ : rince de près, moins puissant que la lance | Eau |
+| 0 | Raclette | **Aire de lavage** : la lame ramasse l'eau, la mousse et la boue détachée et les pousse dans le sens du geste ; au caniveau, elles sont évacuées. Immobile, elle ne fait rien ; contre la bordure, elle bloque ; **sans effet sur un tapis** — à acheter (90 €) | — |
+| — (molette) | Monobrosse | Disque rotatif large : détache fort sur fibres **humides ou savonneuses** (35 % à sec, et elle use alors les fibres fragiles deux fois plus vite que la brosse), fait monter la mousse ; ne retire rien (rincer, extraire ensuite) ; machine lourde : marche ralentie quand elle tourne — à acheter (650 €) | — (électrique) |
+
+Hors kit de départ, les outils s'achètent sur l'ordinateur (Boutique). **Accessoire** : la brosse turbo anti-poils (130 €)
+double l'aspiration des poils, cheveux et peluches. **Bottes de lavage** (90 €) : vos semelles transfèrent 30 % de la boue
+(au lieu de 100 %).
 
 Séquence type : **aspirer (ou balayer) → savonner ou mousser (et laisser agir) → brosser → rincer → extraire**,
 puis remettre l'aire de lavage au propre (rincer, balayer vers le caniveau).
@@ -259,11 +268,14 @@ difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste
 - **Tapis terminé** : quand il reste moins de 1 % de la saleté initiale, le reliquat est retiré — propreté 100 %,
   « Tapis terminé », objectif atteint ; séchage et résidus restent notés à la livraison.
 - **Traces de pas** : marcher dans la boue, l'eau ou la mousse charge les semelles, qui laissent des empreintes de plus en
-  plus légères sur l'aire de lavage. Ni les tapis ni le sol de la salle ne sont salis par les pas.
+  plus légères sur l'aire de lavage ; des semelles **boueuses** marquent aussi le tapis de la commande (boue seulement, deux
+  fois moins que sur un sol dur) — une vraie salissure à nettoyer. Les bottes réduisent ce transfert. Le sol de la salle
+  n'est jamais sali. Les empreintes sont des données de surface : aucun objet n'est créé.
 - **Sol de la salle** : hors zone de nettoyage, il ne se salit jamais (ni poussière, ni eau, ni mousse) et n'est pas une
   cible des outils.
-- **Robot aspirateur** (base dans le coin arrière gauche de l'aire de lavage) : **E** sur le robot ou sa base pour le
-  démarrer ou l'arrêter. Il aspire réellement poussière, débris et traces sèches de l'aire (pas l'eau), choisit les zones
+- **Robot aspirateur** (base dans le coin arrière gauche de l'aire de lavage) : **à acheter** sur l'ordinateur (650 € ;
+  une partie commencée avant la v0.1.2 jalon 4 le garde). Avant l'achat, seule sa base est là et indique où l'acheter.
+  **E** sur le robot ou sa base pour le démarrer ou l'arrêter. Il aspire réellement poussière, débris et traces sèches de l'aire (pas l'eau), choisit les zones
   sales par longues lignes, contourne bordures, objets et le tapis posé (grille d'occupation recalculée à chaque tapis +
   chemin A*), ne quitte jamais l'aire, s'arrête devant le joueur, rentre seul se recharger puis repart.
   Voyant : vert = nettoyage, bleu = retour, ambre = charge, blanc = prêt, rouge clignotant = obstacle.
@@ -457,7 +469,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel : 189 tests EditMode et 106 tests PlayMode, tous réussis (v0.1.2 jalon 3), et 32 / 32 vérifications multijoueur (scénario du jalon 1 ; scénario mis à jour pour le jalon 3 non encore exécuté) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel : 198 tests EditMode et 112 / 112 tests PlayMode réussis (v0.1.2 jalon 4), et 32 / 32 vérifications multijoueur (scénario du jalon 1 ; scénario mis à jour pour les jalons 3 et 4 non encore exécuté) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

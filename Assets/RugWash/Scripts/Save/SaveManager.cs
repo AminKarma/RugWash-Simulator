@@ -175,7 +175,12 @@ namespace RugWash.Save
             if (!HasGameSystems) return;
             Current.money = wallet.Balance;
             Current.reputation = reputation.Points;
-            Current.upgrades = new System.Collections.Generic.List<string>(upgrades.OwnedIds);
+            // Achats inconnus du catalogue de ce build (contenu pas encore généré, version plus ancienne) : conservés tels
+            // quels plutôt qu'effacés — un équipement gagné ne disparaît jamais d'une sauvegarde.
+            var kept = new System.Collections.Generic.List<string>(upgrades.OwnedIds);
+            foreach (string id in Current.upgrades)
+                if (!upgrades.IsKnown(id) && !kept.Contains(id)) kept.Add(id);
+            Current.upgrades = kept;
             // Invité : ses commandes livrées sont ajoutées à sa liste (OnOrderFinished), le tableau de l'hôte n'est pas copié.
             if (GuestCareerMode) return;
             Current.completedOrders = new System.Collections.Generic.List<string>(orders.Book.CompletedIds());

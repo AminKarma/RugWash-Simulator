@@ -32,6 +32,9 @@ namespace RugWash.Cleaning
         public static bool IsLooseDry(DirtType type) =>
             type == DirtType.Dust || type == DirtType.HairDebris || type == DirtType.DustClumps || type == DirtType.PetHair || type == DirtType.Lint;
 
+        /// <summary>Fibres et petits débris (poils, cheveux, peluches) : ils s'accrochent au velours.</summary>
+        public static bool IsFiber(DirtType type) => type == DirtType.PetHair || type == DirtType.HairDebris || type == DirtType.Lint;
+
         /// <summary>
         /// Aspect d'une salissure sèche dans le shader du tapis : 0 voile fin (poussière), 0,5 grains
         /// (amas, petits débris), 1 brins (poils d'animaux, peluches). Purement visuel.
