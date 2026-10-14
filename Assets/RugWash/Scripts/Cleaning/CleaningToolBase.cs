@@ -29,6 +29,9 @@ namespace RugWash.Cleaning
         /// <summary>Produits spécialisés ajoutés au détergent (null si aucun inventaire).</summary>
         IProductSupply Products { get; }
 
+        /// <summary>Stock de détergent en bidons (litres), -1 si inconnu.</summary>
+        float DetergentStock { get; }
+
         /// <summary>Libellés des touches pour les indications des outils (null : libellés clavier par défaut).</summary>
         Core.IInputPrompts Prompts { get; }
     }
@@ -324,6 +327,8 @@ namespace RugWash.Cleaning
         protected string ProductStatusLine()
         {
             string tank = GetBaseStatusLine();
+            float detergentStock = Resources != null ? Resources.DetergentStock : -1f;
+            if (definition.resource == ToolResource.Soap && detergentStock >= 0f) tank += $" · stock {detergentStock:0.#} L";
             var active = Resources?.Products?.Active;
             string key = KeyLabel("Product", "T");
             if (active == null) return $"{tank} · produit : standard ({key})";
@@ -373,7 +378,11 @@ namespace RugWash.Cleaning
             switch (definition.resource)
             {
                 case ToolResource.Water when tank.IsEmpty: return "Réservoir d'eau vide — remplissez-le au poste d'eau";
-                case ToolResource.Soap when tank.IsEmpty: return "Détergent épuisé — rechargez au poste produits";
+                case ToolResource.Soap when tank.IsEmpty:
+                    float stock = Resources != null ? Resources.DetergentStock : -1f;
+                    return stock > 0.05f
+                        ? $"Réserve de détergent vide — remplissez-la au poste détergent (stock : {stock:0.#} L)"
+                        : "Réserve de détergent vide et plus de stock — achetez un bidon de 40 L (ordinateur, Boutique)";
                 default: return null;
             }
         }

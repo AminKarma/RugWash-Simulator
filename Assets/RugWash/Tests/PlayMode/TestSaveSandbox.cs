@@ -10,11 +10,23 @@ namespace RugWash.Tests
     {
         public static string Directory { get; private set; }
 
-        public static string Reset()
+        /// <summary>
+        /// Dossier de sauvegarde neuf. Par défaut, il contient une sauvegarde « outils de l'atelier déjà acquis » : les outils
+        /// qui étaient gratuits avant la v0.1.2 (aspirateur, lance, extracteur, canon à mousse, balai) sont débloqués, comme pour
+        /// une partie v1 migrée — les tests d'outils restent indépendants du kit de départ. <paramref name="legacyTools"/> = faux :
+        /// vraie nouvelle partie (kit de départ seul, aucune sauvegarde).
+        /// </summary>
+        public static string Reset(bool legacyTools = true)
         {
             Directory = Path.Combine(Application.temporaryCachePath, "RugWashTests", Guid.NewGuid().ToString("N"));
             System.IO.Directory.CreateDirectory(Directory);
             SaveManager.DirectoryOverride = Directory;
+            if (legacyTools)
+            {
+                var data = new SaveData();
+                data.upgrades.AddRange(SaveMigration.LegacyToolUnlocks);
+                new SaveFileStore(Directory, SaveManager.DefaultFileName).Save(data, out _);
+            }
             return Directory;
         }
 

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: up_soap_capacity
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
   id: up_soap_capacity
-  displayName: "Bidon de d\xE9tergent 6 L"
+  displayName: "R\xE9serve de d\xE9tergent 6 L"
   description: "Plus de produit embarqu\xE9."
   price: 120
   effect: 1

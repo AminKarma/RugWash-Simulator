@@ -140,12 +140,12 @@ namespace RugWash.Tests
             game.PlayerController.Teleport(new Vector3(target.x, 0.06f, target.z - standoff), 0f, pitch);
         }
 
-        /// <summary>Place le joueur face au comptoir des commandes (rayon d'interaction sur son collider).</summary>
+        /// <summary>Place le joueur face au bureau de l'ordinateur (rayon d'interaction sur son collider).</summary>
         void FaceOrderDesk()
         {
             PanelInteractable desk = null;
             foreach (var panel in Object.FindObjectsByType<PanelInteractable>())
-                if (panel.Opens == PanelInteractable.Target.OrderBoard) desk = panel;
+                if (panel.Opens == PanelInteractable.Target.Computer) desk = panel;
             Assert.IsNotNull(desk);
             var bounds = desk.GetComponentInChildren<Collider>().bounds;
             Vector3 center = bounds.center;
@@ -203,15 +203,21 @@ namespace RugWash.Tests
             yield return Trigger(1.2f);
             Assert.Greater(game.Rug.Cleanliness01, before + 0.002f, "RT : l'aspirateur nettoie réellement.");
 
-            // Interaction (A) : le comptoir ouvre la liste, déjà sélectionnée sur la première commande.
+            // Interaction (A) : l'ordinateur s'ouvre sur l'icône « Missions / Commandes », A l'ouvre, la liste est
+            // déjà sélectionnée sur la première commande.
             FaceOrderDesk();
             yield return null;
             yield return null;
-            Assert.IsNotNull(Object.FindAnyObjectByType<PlayerInteractor>().Current, "Le comptoir est visé.");
+            Assert.IsNotNull(Object.FindAnyObjectByType<PlayerInteractor>().Current, "L'ordinateur est visé.");
             yield return new WaitForSecondsRealtime(0.15f);
             Assert.That(game.Hud.PromptText, Does.StartWith("[A]"));
             yield return Press(GamepadButton.South);
-            Assert.IsTrue(game.OrderBoard.IsOpen, "A ouvre la liste des commandes.");
+            Assert.IsTrue(game.Computer.IsOpen, "A ouvre l'ordinateur.");
+            yield return null;
+            Assert.AreSame(game.Computer.MissionsButton.gameObject, Selected, "Focus sur l'icône « Missions / Commandes ».");
+            yield return Press(GamepadButton.South);
+            Assert.IsFalse(game.Computer.IsOpen);
+            Assert.IsTrue(game.OrderBoard.IsOpen, "A sur l'icône ouvre la liste des commandes.");
             yield return null;
             Assert.AreSame(game.OrderBoard.Rows[0].ActionButton.gameObject, Selected, "Focus sur « Accepter » de la première commande.");
             Assert.IsFalse(Cursor.visible, "Manette : pas de curseur dans les menus.");
@@ -401,6 +407,8 @@ namespace RugWash.Tests
         [UnityTest]
         public IEnumerator MainMenu_IsFullyUsableWithAGamepad()
         {
+            // Profil vierge : avec une partie commencée, « Nouvelle partie » demande d'abord une confirmation.
+            TestSaveSandbox.Reset(legacyTools: false);
             yield return Load("MainMenu");
             var menu = Object.FindAnyObjectByType<MainMenuController>();
             Assert.IsNotNull(menu);

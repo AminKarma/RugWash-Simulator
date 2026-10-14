@@ -22,6 +22,8 @@ namespace RugWash.Audio
         [Header("Sons d'interface")]
         [SerializeField] AudioClip uiClick;
         [SerializeField] AudioClip uiConfirm;
+        [Tooltip("Refus : action impossible (réserve vide, outil non acheté).")]
+        [SerializeField] AudioClip uiDeny;
         [SerializeField] AudioClip objectiveClip;
 
         [Header("Volumes")]
@@ -58,6 +60,8 @@ namespace RugWash.Audio
         }
 
         public AudioClip ConfirmClip => uiConfirm;
+        /// <summary>Action impossible (réserve vide, outil non acheté…).</summary>
+        public AudioClip DenyClip => uiDeny != null ? uiDeny : uiClick;
         /// <summary>Dernier son ponctuel réellement joué (diagnostic et tests).</summary>
         public AudioClip LastPlayedClip { get; private set; }
         /// <summary>Nombre de demandes ignorées car trop rapprochées.</summary>

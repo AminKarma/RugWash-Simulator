@@ -23,6 +23,8 @@ des opérations et reçoivent l'état. Les effets visuels et sonores sont produi
 | Simulation lente (mousse qui retombe, séchage) | Oui ; n'en envoie qu'une correction toutes les 2 s (`slowSurfaceSyncSeconds`) | **Reproduite localement** (même règle), corrigée par l'hôte |
 | Ruissellement vers l'aire de lavage, recontamination | Oui | Non (arrive avec les cellules) |
 | Commandes (accepter, livrer, abandonner), évaluation | Oui, une seule fois par commande (tableau de l'hôte, déverrouillé par sa réputation) | Demande à l'hôte ; reçoit l'état et les mesures de livraison de l'hôte pour afficher le même résultat |
+| Missions générées (v0.1.2) | Génère ses offres (graine de sa partie, numéro, palier de sa réputation, outils qu'il possède) ; publie leurs identifiants | Régénère chaque mission à l'identique depuis son identifiant (`gen.graine.numéro.palier.outils.variante`) ; ne démarre que celles du tableau de l'hôte |
+| Détergent en bidons (v0.1.2) | Achat d'un bidon et remplissage de la réserve débités sur la carrière du joueur demandeur (stock borné à 160 L) | Demande à l'hôte ; reçoit la quantité accordée et son stock validé |
 | Carrière (argent, réputation, améliorations, produits) — **personnelle** (v0.1.2) | Sa propre carrière ; tient aussi la carrière de chaque invité : bornée à l'arrivée, puis achats, consommations et récompenses appliqués par lui seul | Annonce à l'arrivée la carrière de SA sauvegarde ; achats demandés à l'hôte ; reçoit sa carrière validée et la sauvegarde chez lui |
 | Livraison payée | Récompense et réputation complètes pour **chaque joueur présent**, chacun dans sa carrière | Reçoit sa récompense (aucun paiement local) |
 | Robot aspirateur (limité à l'aire de lavage) | Simulé chez l'hôte | Suit la position et l'état reçus ; E envoie la demande |
@@ -122,4 +124,9 @@ partie »). Après une perte de connexion, le menu affiche la raison et propose 
 - Pas de serveur dédié : la carrière qu'un invité annonce à son arrivée provient de sa sauvegarde locale (bornée et
   filtrée par l'hôte) ; pendant la partie, seul l'hôte la modifie.
 - Le tableau des commandes d'une session est celui de l'hôte (les commandes terminées de l'invité ne le modifient pas).
+  Les missions générées tiennent compte des outils de l'**hôte** (un objectif de séchage n'est proposé que s'il possède
+  l'extracteur) ; une mission livrée en ligne compte dans les statistiques de chaque joueur mais n'est pas ajoutée à
+  l'historique des contrats.
+- Protocole `rugwash-coop-4` (v0.1.2 jalon 3 : carrière avec stock de détergent, offres de missions) : les versions
+  précédentes sont refusées avec un message clair.
 - 4 joueurs au maximum ; version de protocole identique requise (message clair sinon).

@@ -22,6 +22,7 @@ namespace RugWash.Editor
         public const string ExtractorLoop = Folder + "/tmp_extractor_loop.wav";
         public const string UIClick = Folder + "/tmp_ui_click.wav";
         public const string UIConfirm = Folder + "/tmp_ui_confirm.wav";
+        public const string UIDeny = Folder + "/tmp_ui_deny.wav";
         public const string Refill = Folder + "/tmp_refill.wav";
         public const string Drain = Folder + "/tmp_drain.wav";
         public const string CleanSparkle = Folder + "/tmp_clean_sparkle.wav";
@@ -63,6 +64,7 @@ namespace RugWash.Editor
             Write(ExtractorLoop, force, true, 2f, Extractor);
             Write(UIClick, force, false, 0.05f, Click);
             Write(UIConfirm, force, false, 0.45f, Confirm);
+            Write(UIDeny, force, false, 0.3f, Deny);
             Write(Refill, force, false, 1.1f, Pour);
             Write(Drain, force, false, 1.2f, Gurgle);
             Write(CleanSparkle, force, false, 0.35f, Sparkle);
@@ -164,6 +166,14 @@ namespace RugWash.Editor
         }
 
         static float Click(float t, float d, ref State s) => Sine(t, 1300f) * Mathf.Exp(-t * 90f) * 0.6f;
+
+        /// <summary>Refus : deux bips graves descendants.</summary>
+        static float Deny(float t, float d, ref State s)
+        {
+            float first = t < 0.12f ? Sine(t, 330f) * Mathf.Exp(-t * 18f) : 0f;
+            float second = t >= 0.13f ? Sine(t, 247f) * Mathf.Exp(-(t - 0.13f) * 16f) : 0f;
+            return (first + second) * 0.5f;
+        }
 
         static float Confirm(float t, float d, ref State s)
         {

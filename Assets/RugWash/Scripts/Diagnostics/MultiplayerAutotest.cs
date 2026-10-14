@@ -48,7 +48,12 @@ namespace RugWash.Diagnostics
             if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
             Directory.CreateDirectory(sandbox);
             SaveManager.DirectoryOverride = sandbox;
-            var seeded = new SaveData { money = role == "host" ? HostStartMoney : GuestStartMoney, reputation = role == "host" ? 0 : GuestStartReputation };
+            // Carrières déjà commencées : outils hors kit de départ débloqués, comme une sauvegarde v1 migrée.
+            var seeded = new SaveData
+            {
+                money = role == "host" ? HostStartMoney : GuestStartMoney, reputation = role == "host" ? 0 : GuestStartReputation,
+                upgrades = new List<string>(SaveMigration.LegacyToolUnlocks), detergentStock = SaveMigration.LegacyDetergentStock,
+            };
             new SaveFileStore(sandbox, SaveManager.DefaultFileName).Save(seeded, out _);
 
             var go = new GameObject("[MultiplayerAutotest]");
@@ -267,6 +272,9 @@ namespace RugWash.Diagnostics
             Record("Récompense versée une seule fois (deux demandes de livraison)", delivered != null && positiveChanges == 1 && gained == delivered.Reward,
                 delivered == null ? "-" : $"{positiveChanges} versement(s), {gained} € pour {delivered.Reward} €");
             values["argentHote"] = game.Wallet.Balance.ToString();
+            values["missionsTableau"] = GeneratedOffers(game);
+            Record("Trois missions générées proposées sur le tableau de l'hôte", game.Orders.Missions.Offers.Count == 3,
+                values["missionsTableau"]);
             Record("Récompense versée aussi dans la carrière de l'invité (une fois)", delivered != null && afterDelivery != null
                 && afterDelivery.Money == MultiplayerAutotest.GuestStartMoney + delivered.Reward,
                 afterDelivery != null && delivered != null ? $"{afterDelivery.Money} € (départ {MultiplayerAutotest.GuestStartMoney} + {delivered.Reward})" : "-");
@@ -384,6 +392,7 @@ namespace RugWash.Diagnostics
 
             var upgrade = game.Upgrades.Catalog[0];
             int moneyBeforePurchase = game.Wallet.Balance;
+            int ownedBeforePurchase = game.Upgrades.OwnedIds.Count;
             var request = game.Shop.TryPurchase(upgrade);
             yield return WaitFor(() => game.Upgrades.IsOwned(upgrade), 30f);
             Record("Achat demandé à l'hôte puis reçu, payé avec l'argent de l'invité", request == Economy.PurchaseResult.Requested && game.Upgrades.IsOwned(upgrade)
@@ -395,7 +404,7 @@ namespace RugWash.Diagnostics
             NetworkWorkshop.Instance.SendForgedCareerForDiagnostics(forged);
             yield return new WaitForSeconds(2f);
             Record("Annonce de carrière forgée en cours de partie ignorée par l'hôte", game.Wallet.Balance == honest
-                && game.Upgrades.OwnedIds.Count == 1, $"{game.Wallet.Balance} €, {game.Upgrades.OwnedIds.Count} achat(s)");
+                && game.Upgrades.OwnedIds.Count == ownedBeforePurchase + 1, $"{game.Wallet.Balance} €, {game.Upgrades.OwnedIds.Count} achat(s)");
             values["argentInvite"] = game.Wallet.Balance.ToString();
             values["argentApresAchatVuParInvite"] = game.Wallet.Balance.ToString();
 
@@ -403,9 +412,10 @@ namespace RugWash.Diagnostics
             yield return WaitFor(() => game.Robot.Mode != Workshop.RobotMode.Docked, 30f);
             Record("Robot démarré via l'hôte, état reçu", game.Robot.Mode != Workshop.RobotMode.Docked, game.Robot.Mode.ToString());
 
-            // État stable : empreinte du tapis à comparer avec celle de l'hôte.
+            // État stable : empreinte du tapis et missions du tableau à comparer avec celles de l'hôte.
             yield return new WaitForSeconds(4f);
             values["empreinteTapis"] = MultiplayerAutotest.Hash(game.Rug.Grid).ToString();
+            values["missionsTableau"] = GeneratedOffers(game);
             values["predictionsEnAttente"] = NetworkWorkshop.Instance.ClientSync.Predictor.PendingCount.ToString();
             values["octetsOperationsEnvoyes"] = NetworkWorkshop.Instance.OperationBytesSent.ToString();
             values["fpsMoyenNettoyage"] = AverageFps().ToString("0", System.Globalization.CultureInfo.InvariantCulture);
@@ -420,6 +430,16 @@ namespace RugWash.Diagnostics
                 exists && data.money.ToString() == values["argentInvite"] && data.upgrades.Contains(upgrade.id) && data.completedOrders.Count == 1
                 && string.IsNullOrEmpty(data.workshop.workSurface),
                 exists ? $"{data.money} €, achats {data.upgrades.Count}, commandes {data.completedOrders.Count}, aire de lavage « {data.workshop.workSurface.Length} car. »" : "illisible");
+        }
+
+        /// <summary>Missions générées du tableau (identifiants triés) : identiques chez l'hôte et chez l'invité.</summary>
+        static string GeneratedOffers(GameBootstrap game)
+        {
+            var ids = new List<string>();
+            foreach (var order in game.Orders.Book.Orders)
+                if (MissionKey.IsGenerated(order.id)) ids.Add(order.id);
+            ids.Sort(StringComparer.Ordinal);
+            return string.Join(",", ids);
         }
 
         /// <summary>Diagnostic : pourquoi le joueur contrôle (ou non) son personnage.</summary>

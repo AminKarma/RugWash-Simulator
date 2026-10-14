@@ -307,7 +307,7 @@ namespace RugWash.Tests
                     visible++;
                     foreach (var text in row.GetComponentsInChildren<Text>()) all += text.text + "\n";
                 }
-            Assert.AreEqual(game.Products.Book.Catalog.Count, visible);
+            Assert.AreEqual(game.Products.Book.Catalog.Count + 1, visible, "Bidon de détergent puis produits spécialisés.");
             StringAssert.Contains("Cible :", all);
             StringAssert.Contains("Flacon de", all);
             game.ShopUI.ShowTab(false);

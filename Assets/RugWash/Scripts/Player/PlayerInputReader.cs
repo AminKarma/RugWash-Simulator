@@ -16,7 +16,7 @@ namespace RugWash.Player
     {
         public const string GameplayMap = "Gameplay";
         public const string SystemMap = "System";
-        public const int ToolSlotCount = 8;
+        public const int ToolSlotCount = 9;
 
         const string Kbm = InputSchemes.KeyboardMouseGroup;
         const string Pad = InputSchemes.GamepadGroup;

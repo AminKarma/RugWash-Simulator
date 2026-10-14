@@ -602,6 +602,10 @@ namespace RugWash.Tests
             yield return null;
             yield return Capture(camera, hud, Path.Combine(folder, "37_shop.png"));
             game.ShopUI.Close();
+            Assert.IsTrue(game.Computer.Open());
+            yield return null;
+            yield return Capture(camera, hud, Path.Combine(folder, "39_computer.png"));
+            game.Computer.Close();
             Assert.IsTrue(game.OrderBoard.Open());
             yield return null;
             yield return Capture(camera, hud, Path.Combine(folder, "38_order_board_warning.png"));

@@ -1,4 +1,4 @@
-# Update v0.1.2 — audit (jalon 0) et décisions du jalon 1
+# Update v0.1.2 — audit (jalon 0) et décisions des jalons 1 et 3
 
 Ce document résume l'état des lieux réalisé avant le jalon 1, les problèmes confirmés, les décisions prises et les
 conventions retenues. Les résultats de tests réellement exécutés sont consignés dans `VALIDATION.md` (section 13).
@@ -97,3 +97,62 @@ conventions retenues. Les résultats de tests réellement exécutés sont consig
 ## 4. Hors jalon 1 (rappel de l'ordre)
 Jalon 2 (performance mousse/eau), 3 (ordinateur, missions infinies, détergent consommable), 4 (outils, raclette,
 monobrosse, bottes, achat du robot), 5 (base, personnalisation, ragdoll, musique), 6 (troll), 7 (intégration).
+
+## 5. Décisions du jalon 3 (ordinateur et économie)
+
+### Kit de départ (2.4)
+- Nouvelle partie : **brosse**, **détergent** (réserve de 4 L pleine + 12 L en stock) et **seau d'eau** (nouvel outil,
+  touche 9 : rinçage de près, peu puissant, même moteur que la lance). Les autres outils ne sont pas supprimés : ils
+  demandent une amélioration « déblocage d'outil » achetée à la boutique (aspirateur 150 €, balai 110 €, lance 220 €,
+  extracteur 320 €, canon à mousse 380 € ; la brosse de détail restait déjà à acheter). Les améliorations d'un outil
+  exigent cet outil.
+- Sauvegardes : format **v2**. Migration v1 → v2 prudente : une partie commencée (argent, réputation, achats ou commandes)
+  **garde tous ses outils** (déblocages ajoutés) et reçoit un bidon de 40 L ; une sauvegarde v1 vierge devient une
+  nouvelle partie avec le kit. v0 → v1 → v2 enchaînés.
+
+### Détergent consommable (3.1)
+- Unité unique : le **litre**. Un bidon de 40 L est un **stock de 40 L consommé progressivement** (pas 10 recharges
+  fixes) : le poste détergent remplit la réserve emportée avec ce qui manque, dans la limite du stock (remplissage
+  partiel possible). Prix 45 €, stock entreposé ≤ 160 L ; réglages sur `DetergentSupply`.
+- Affichage : « 2,4 / 4 L · stock 12 L » (HUD), invite du poste (« … · stock X L »), niveau de liquide dans le contenant
+  du pulvérisateur et du canon à mousse (shader `RugWash/Liquid Container`, une valeur `_Fill` envoyée seulement quand
+  elle change). Réserve vide : outil bloqué, raison affichée, son de refus `tmp_ui_deny`.
+- Progression personnelle : stock et réserve sauvegardés chez chaque joueur ; en ligne, achat d'un bidon et
+  remplissage au poste sont demandés à l'hôte, qui débite la carrière du joueur demandeur (stock borné à l'arrivée).
+
+### Ordinateur (2.1)
+- L'écran du bureau devient l'**ordinateur de l'atelier**, seul accès aux commandes et aux achats : exactement deux
+  icônes, « Missions / Commandes » (tableau existant, amélioré) et « Boutique » (boutique existante, défilante, outils à
+  acheter en tête). Le meuble à outils n'ouvre plus la boutique (panneau « MATÉRIEL ») ; la livraison et l'abandon
+  restent dans l'application Missions (pas de second guichet).
+
+### Missions infinies (2.2)
+- Les 10 contrats du catalogue restent (une fois chacun). En plus, **trois missions générées** : deux accessibles, une
+  du palier suivant (objectif visible). Rien n'est généré d'avance : chaque mission livrée est remplacée par la suivante.
+- Paliers de réputation : 0, 3, 8, 15, 24, 35… (`t × (t + 2)`), soit une à deux missions réussies de plus par palier.
+  Le palier augmente la récompense, le nombre et l'étendue des salissures, la propreté exigée et ouvre les tapis
+  précieux (oriental au palier 1, soie au palier 3).
+- Pas de mission impossible : objectif de séchage seulement si l'extracteur est acheté, limite d'usure seulement sur un
+  tapis fragile, résidus à partir du palier 1 (rinçage possible au seau). Pas de doublon immédiat : catégorie et tapis
+  différents des offres affichées et de la dernière mission livrée.
+- Déterminisme : identifiant `gen.graine.numéro.palier.outils.variante` ; graine tirée à la création de la partie.
+  Sauvegardés : graine, numéro suivant, offres, dernière livrée. Une mission en cours au moment de quitter revient,
+  inchangée, comme offre disponible (l'état du tapis n'est pas sauvegardé).
+- Réputation en baisse : au plus une offre verrouillée ; les autres sont remplacées par des missions accessibles
+  (jamais la commande en cours).
+- En ligne : le tableau est celui de l'hôte (outils et réputation de l'hôte) ; les invités régénèrent les offres depuis
+  leurs identifiants. Gains et réputation : comme au jalon 1, pour chaque joueur présent, dans sa carrière.
+
+### Actualités (2.3)
+- Source : `Resources/RugWashNews.json`, livré avec le jeu, format versionné (`format: 1`, titre, date, version, texte).
+  Aucune source distante n'existe : le menu les présente comme des **annonces locales**, sans simuler de connexion.
+- Lecture asynchrone et tolérante (fichier absent ou invalide, entrées sans titre ignorées, textes tronqués, balises
+  neutralisées) ; au plus trois annonces, les plus récentes d'abord.
+
+| Catégorie (ajouts v0.1.2 jalon 3) | Propriétaire | Autorité en ligne | Sauvegardé chez |
+|---|---|---|---|
+| Stock de détergent en bidons, réserve emportée | Chaque joueur | Hôte (achats et remplissages) | Chaque joueur |
+| Offres de missions générées (graine, numéro, offres) | Session (atelier de l'hôte) | Hôte | Hôte |
+| Outils débloqués (achats) | Chaque joueur | Hôte | Chaque joueur |
+
+- Version de protocole passée à `rugwash-coop-4` (carrière avec stock de détergent, offres de missions).

@@ -57,5 +57,6 @@ par l'initialisation automatique).
 | `tmp_reward` | Commande livrée et payée | Interface | `OrderManager.rewardClip` |
 | `tmp_ui_click` | Clic sur un bouton | Interface | `AudioManager.uiClick` |
 | `tmp_ui_confirm` | Confirmation (achat) | Interface | `AudioManager.uiConfirm` |
+| `tmp_ui_deny` | Refus : appui sur « utiliser » sans effet possible (réserve de détergent vide…) — deux bips graves descendants (v0.1.2) | Interface | `AudioManager.uiDeny` (joué par `PlayerToolController`) |
 | `tmp_workshop_ambient_loop` | Ambiance de l'atelier | Effets | `AmbientAudio.loop` |
 | `tmp_footstep_1..3` | Pas (selon la distance parcourue) | Effets | `FootstepAudio.steps` |

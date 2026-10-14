@@ -139,7 +139,11 @@ namespace RugWash.Tests
             Assert.AreEqual(LoadStatus.Migrated, result.Status);
             Assert.AreEqual(75, result.Data.money);
             Assert.AreEqual(2, result.Data.reputation);
-            CollectionAssert.AreEqual(new[] { "up_brush" }, result.Data.upgrades);
+            // v0 → v1 → v2 : partie commencée, les outils hors kit de départ restent acquis.
+            var expected = new System.Collections.Generic.List<string> { "up_brush" };
+            expected.AddRange(SaveMigration.LegacyToolUnlocks);
+            CollectionAssert.AreEqual(expected, result.Data.upgrades);
+            Assert.AreEqual(SaveMigration.LegacyDetergentStock, result.Data.detergentStock);
             Assert.AreEqual(1, result.Data.ordersDelivered);
             Assert.AreEqual(SaveMigration.CurrentVersion, result.Data.version);
             Assert.IsNotNull(result.Data.settings, "Les champs absents de l'ancien format reçoivent des valeurs par défaut.");

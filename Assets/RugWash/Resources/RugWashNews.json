@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "items": [
+    {
+      "id": "v0.1.2-ordinateur",
+      "date": "2026-10-14",
+      "version": "0.1.2",
+      "title": "L'ordinateur de l'atelier arrive",
+      "body": "Missions et boutique se trouvent désormais sur l'ordinateur du bureau. Les missions se renouvellent sans fin et deviennent plus exigeantes à mesure que votre réputation grandit."
+    },
+    {
+      "id": "v0.1.2-detergent",
+      "date": "2026-10-14",
+      "version": "0.1.2",
+      "title": "Le détergent se paie",
+      "body": "La réserve de 4 L se vide réellement. Remplissez-la au poste détergent avec vos bidons de 40 L, achetés dans la Boutique. On démarre avec une brosse, du détergent et un seau d'eau."
+    },
+    {
+      "id": "roadmap-v2-coop",
+      "date": "2026-10-12",
+      "version": "",
+      "title": "Coopération en ligne",
+      "body": "Invitez vos amis dans votre atelier : chaque joueur garde sa propre carrière, son argent et ses outils."
+    }
+  ]
+}

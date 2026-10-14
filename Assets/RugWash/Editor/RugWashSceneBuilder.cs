@@ -80,13 +80,15 @@ namespace RugWash.Editor
             var performance = game.AddComponent<PerformanceMonitor>();
             var audio = game.AddComponent<AudioManager>();
             Wire(audio, ("uiClick", Clip(RugWashAudioGenerator.UIClick)), ("uiConfirm", Clip(RugWashAudioGenerator.UIConfirm)),
+                ("uiDeny", Clip(RugWashAudioGenerator.UIDeny)),
                 ("objectiveClip", Clip(RugWashAudioGenerator.Objective)));
             var bootstrap = game.AddComponent<GameBootstrap>();
 
             BuildRoom(environment, content, meshes);
             BuildWashBay(environment, content, meshes, audio);
             RugWashDecor.WaterStation(environment, content, meshes, audio);
-            var shopCounter = RugWashDecor.ToolStorage(environment, content, meshes);
+            // Meuble à outils : décor seulement (v0.1.2) — achats et missions passent par l'ordinateur du bureau.
+            RugWashDecor.ToolStorage(environment, content, meshes);
             var orderCounter = RugWashDecor.OrderDesk(environment, content, meshes);
             RugWashDecor.DryingArea(environment, content, meshes);
             RugWashDecor.Shelves(environment, content, meshes);
@@ -152,8 +154,10 @@ namespace RugWash.Editor
             WireList(upgrades, "catalog", content.Upgrades);
             var productInventory = player.GetComponent<ProductInventory>();
             var shop = game.AddComponent<ShopManager>();
-            Wire(shop, ("wallet", wallet), ("upgrades", upgrades), ("audioManager", audio), ("products", productInventory));
+            Wire(shop, ("wallet", wallet), ("upgrades", upgrades), ("audioManager", audio), ("products", productInventory),
+                ("detergent", player.GetComponent<DetergentSupply>()));
             var orders = game.AddComponent<OrderManager>();
+            Wire(orders, ("upgrades", upgrades));
             Wire(orders, ("rug", rug), ("workSurface", workSurface), ("snapshots", snapshots), ("gameState", gameState),
                 ("wallet", wallet), ("reputation", reputation), ("audioManager", audio), ("rewardClip", Clip(RugWashAudioGenerator.Reward)));
 
@@ -174,7 +178,8 @@ namespace RugWash.Editor
                 ("viewModelRig", player.GetComponentInChildren<ViewModelRig>(true)), ("cameraMotion", player.GetComponentInChildren<CameraMotion>(true)));
             var save = game.AddComponent<SaveManager>();
             Wire(save, ("settings", settings), ("wallet", wallet), ("reputation", reputation), ("upgrades", upgrades),
-                ("orders", orders), ("shop", shop), ("workshop", workshopState), ("products", productInventory), ("rugDex", rugDexService));
+                ("orders", orders), ("shop", shop), ("workshop", workshopState), ("products", productInventory), ("rugDex", rugDexService),
+                ("equipment", player.GetComponent<PlayerEquipment>()), ("detergent", player.GetComponent<DetergentSupply>()));
 
             var ui = BuildUI(uiRoot, sprites, performance);
 
@@ -185,12 +190,10 @@ namespace RugWash.Editor
             Wire(rumble, ("monitor", ui.Monitor), ("tools", toolController), ("gameState", gameState));
             Wire(settings, ("rumble", rumble));
 
+            // Ordinateur du bureau : seul accès aux missions (acceptation, livraison) et à la boutique.
             var deskInteractable = orderCounter.AddComponent<PanelInteractable>();
-            Wire(deskInteractable, ("orderBoard", ui.Board), ("orders", orders));
-            SetInt(deskInteractable, "target", (int)PanelInteractable.Target.OrderBoard);
-            var shopInteractable = shopCounter.AddComponent<PanelInteractable>();
-            Wire(shopInteractable, ("shop", ui.Shop));
-            SetInt(shopInteractable, "target", (int)PanelInteractable.Target.Shop);
+            Wire(deskInteractable, ("computer", ui.Computer), ("orderBoard", ui.Board), ("shop", ui.Shop), ("orders", orders));
+            SetInt(deskInteractable, "target", (int)PanelInteractable.Target.Computer);
 
             Wire(bootstrap,
                 ("gameState", gameState),
@@ -219,6 +222,7 @@ namespace RugWash.Editor
                 ("inspection", ui.Inspection),
                 ("orderBoard", ui.Board),
                 ("shopUI", ui.Shop),
+                ("computer", ui.Computer),
                 ("results", ui.Results),
                 ("orders", orders),
                 ("wallet", wallet),
@@ -265,6 +269,7 @@ namespace RugWash.Editor
             var menu = new GameObject("[Menu]");
             var audio = menu.AddComponent<AudioManager>();
             Wire(audio, ("uiClick", Clip(RugWashAudioGenerator.UIClick)), ("uiConfirm", Clip(RugWashAudioGenerator.UIConfirm)),
+                ("uiDeny", Clip(RugWashAudioGenerator.UIDeny)),
                 ("objectiveClip", Clip(RugWashAudioGenerator.Objective)));
             var settings = menu.AddComponent<SettingsManager>();
             Wire(settings, ("audioManager", audio));
@@ -331,6 +336,7 @@ namespace RugWash.Editor
                 string.Empty, 20, TextAnchor.LowerLeft, new Color(1f, 0.75f, 0.45f));
             AddText(CreateRect("Version", canvas.transform, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-30f, 24f), new Vector2(600f, 30f)),
                 "Démo en développement — sons temporaires", 18, TextAnchor.LowerRight, Muted);
+            BuildNewsPanel(canvas, sprites);
 
             // Confirmation de nouvelle partie.
             var confirm = Stretch("Confirm", canvas.transform);
@@ -376,6 +382,31 @@ namespace RugWash.Editor
             AssetDatabase.SaveAssets();
             Debug.Log($"[RugWash] Scène générée : {RugWashPaths.MainMenuScene}");
             return scene;
+        }
+
+        /// <summary>
+        /// Zone « Actualités » à droite du menu : annonces locales versionnées (Resources/RugWashNews.json), présentées
+        /// comme telles — aucune connexion n'est simulée.
+        /// </summary>
+        static void BuildNewsPanel(Canvas canvas, UISprites sprites)
+        {
+            var news = CreateRect("News", canvas.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -40f), new Vector2(640f, 600f));
+            AddImage(news, sprites.Rounded, new Color(0.03f, 0.04f, 0.05f, 0.84f));
+            AddText(CreateRect("Header", news, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(590f, 46f)),
+                "Actualités", 34, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
+            AddText(CreateRect("Source", news, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -64f), new Vector2(590f, 28f)),
+                "Annonces locales incluses dans cette version du jeu (hors ligne)", 17, TextAnchor.MiddleLeft, Muted);
+            var body = AddText(CreateRect("Body", news, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -106f), new Vector2(590f, 474f)),
+                string.Empty, 21, TextAnchor.UpperLeft, new Color(0.88f, 0.9f, 0.92f));
+            body.supportRichText = true;
+            body.verticalOverflow = VerticalWrapMode.Truncate;
+            body.resizeTextForBestFit = true;
+            body.resizeTextMinSize = 14;
+            body.resizeTextMaxSize = 21;
+            var panel = news.gameObject.AddComponent<NewsPanelUI>();
+            Wire(panel, ("bodyLabel", body));
+            if (!panel.IsConfigured(out string missing))
+                throw new InvalidOperationException($"[RugWash] Actualités incomplètes : {missing}");
         }
 
         static void c_SetRugMaterials(MeshRenderer renderer, RugWashContentBuilder.Content c)
@@ -731,7 +762,8 @@ namespace RugWash.Editor
             var productInventory = player.AddComponent<ProductInventory>();
             Wire(productInventory, ("library", c.ProductLibrary));
             var equipment = player.AddComponent<PlayerEquipment>();
-            Wire(equipment, ("productInventory", productInventory), ("input", input));
+            var detergent = player.AddComponent<DetergentSupply>();
+            Wire(equipment, ("productInventory", productInventory), ("input", input), ("detergent", detergent));
             fps = player.AddComponent<FirstPersonController>();
             Wire(fps, ("input", input), ("cameraPivot", pivot));
 
@@ -746,16 +778,20 @@ namespace RugWash.Editor
             toolsRoot.SetParent(player.transform, false);
             var rig = new GameObject("ViewModelRig").transform;
             rig.SetParent(cameraGo.transform, false);
-            var ctx = new ToolBuildContext { Root = toolsRoot, Camera = rig, Content = c, Effects = effects, Audio = audio, CleanPool = cleanPool, Meshes = meshes };
+            var ctx = new ToolBuildContext
+            {
+                Root = toolsRoot, Camera = rig, Content = c, Effects = effects, Audio = audio, CleanPool = cleanPool, Meshes = meshes,
+                Equipment = player.GetComponent<PlayerEquipment>(),
+            };
             var tools = new CleaningToolBase[]
             {
                 BuildVacuum(ctx), BuildSoap(ctx), BuildBrush(ctx), BuildRinse(ctx), BuildExtractor(ctx),
-                BuildFoamCannon(ctx), BuildBroom(ctx), BuildDetailBrush(ctx),
+                BuildFoamCannon(ctx), BuildBroom(ctx), BuildDetailBrush(ctx), BuildBucket(ctx),
             };
 
             toolController = player.AddComponent<PlayerToolController>();
             Wire(toolController, ("playerCamera", camera), ("input", input), ("equipment", equipment), ("gameState", gameState),
-                ("targetIndicator", indicator));
+                ("targetIndicator", indicator), ("audioManager", audio));
             WireList(toolController, "tools", tools);
             int aimMask = ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5));
             SetInt(toolController, "aimMask", aimMask);
@@ -785,6 +821,16 @@ namespace RugWash.Editor
             public AudioManager Audio;
             public CleaningVFXPool CleanPool;
             public MeshStore Meshes;
+            public PlayerEquipment Equipment;
+        }
+
+        /// <summary>Niveau de la réserve de détergent visible dans le contenant de l'outil (shader « Liquid Container »).</summary>
+        static void AddContainerLevel(ToolBuildContext ctx, RugWashToolModels.Model model, string partName)
+        {
+            var part = model.Root.Find(partName);
+            if (part == null || ctx.Equipment == null) return;
+            var level = part.gameObject.AddComponent<ContainerLevel>();
+            Wire(level, ("target", part.GetComponent<MeshRenderer>()), ("equipment", ctx.Equipment));
         }
 
         static AudioClip Clip(string path) => AssetDatabase.LoadAssetAtPath<AudioClip>(path);
@@ -841,6 +887,7 @@ namespace RugWash.Editor
             var c = ctx.Content;
             var model = RugWashToolModels.Soap(ctx.Camera, ctx.Meshes, c);
             RugWashToolModels.Finish(model);
+            AddContainerLevel(ctx, model, "Bottle");
             var spray = CreateParticles("SoapMist", model.Tip, c["SoapMist"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.3f, 0.45f), Speed = new Vector2(6f, 8f), Size = new Vector2(0.015f, 0.03f), Color = Color.white,
@@ -899,6 +946,33 @@ namespace RugWash.Editor
             return tool;
         }
 
+        /// <summary>Seau d'eau (kit de départ) : même outil de rinçage que la lance, versé de près, moins puissant.</summary>
+        static WaterRinseTool BuildBucket(ToolBuildContext ctx)
+        {
+            var c = ctx.Content;
+            var model = RugWashToolModels.Bucket(ctx.Camera, ctx.Meshes, c);
+            RugWashToolModels.Finish(model);
+            var pour = CreateParticles("WaterPour", model.Tip, c["WaterJet"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.35f, 0.5f), Speed = new Vector2(2.4f, 3.4f), Size = new Vector2(0.03f, 0.06f), Color = Color.white,
+                Gravity = 1.1f, MaxParticles = 300, Shape = ParticleSystemShapeType.Cone, Angle = 12f, Radius = 0.04f, Rate = 0f,
+                Loop = true, PlayOnAwake = true, SizeGrowth = 1.6f, Stretch = 0.03f,
+            });
+            var splash = CreateParticles("BucketSplash", ctx.Effects, c["Splash"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.25f, 0.5f), Speed = new Vector2(0.8f, 2.2f), Size = new Vector2(0.015f, 0.04f),
+                Color = Color.white, Gravity = 1.3f, MaxParticles = 220, Shape = ParticleSystemShapeType.Hemisphere,
+                Radius = 0.08f, Rate = 0f, Loop = true, PlayOnAwake = true, Stretch = 0.02f,
+            });
+            var tool = CreateTool<WaterRinseTool>(ctx, "Bucket", c.Bucket, model, RugWashAudioGenerator.RinseLoop, 0.25f, 0.1f, -0.25f,
+                RugWashAudioGenerator.RinseContactLoop, 0.35f);
+            Wire(tool, ("jetParticles", pour), ("splashParticles", splash));
+            SetFloat(tool, "jetRate", 180f);
+            SetFloat(tool, "splashRate", 110f);
+            SetBool(tool, "pourMotion", true);
+            return tool;
+        }
+
         static WaterExtractorTool BuildExtractor(ToolBuildContext ctx)
         {
             var c = ctx.Content;
@@ -921,6 +995,7 @@ namespace RugWash.Editor
             var c = ctx.Content;
             var model = RugWashToolModels.FoamCannon(ctx.Camera, ctx.Meshes, c);
             RugWashToolModels.Finish(model);
+            AddContainerLevel(ctx, model, "Canister");
             var stream = CreateParticles("FoamStream", model.Tip, c["Foam"], new ParticleConfig
             {
                 Lifetime = new Vector2(0.35f, 0.5f), Speed = new Vector2(6f, 8f), Size = new Vector2(0.03f, 0.06f), Color = Color.white,
@@ -1011,6 +1086,7 @@ namespace RugWash.Editor
             public InspectionPanelUI Inspection;
             public OrderBoardUI Board;
             public ShopUI Shop;
+            public ComputerUI Computer;
             public ResultsUI Results;
             public SettingsUI Settings;
             public DebugOverlay Debug;
@@ -1097,7 +1173,7 @@ namespace RugWash.Editor
                 ("playersLabel", players));
 
             // ---- Barre d'outils
-            // Huit emplacements entre le panneau d'outil (gauche) et le panneau de scan (droite).
+            // Neuf emplacements entre le panneau d'outil (gauche) et le panneau de scan (droite).
             var bar = CreateRect("ToolBar", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(40f, 24f), new Vector2(1162f, 60f));
             var barLayout = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
             barLayout.spacing = 6;
@@ -1109,9 +1185,9 @@ namespace RugWash.Editor
             var slotLabels = new List<Text>();
             for (int i = 0; i < RugWashInputActions.ToolSlotCount; i++)
             {
-                var slot = CreateRect($"Slot_{i}", bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(140f, 60f));
+                var slot = CreateRect($"Slot_{i}", bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(124f, 60f));
                 var element = slot.gameObject.AddComponent<LayoutElement>();
-                element.preferredWidth = 140f;
+                element.preferredWidth = 124f;
                 element.preferredHeight = 60f;
                 slotImages.Add(AddImage(slot, sprites.Rounded, PanelColor));
                 var slotLabel = AddText(Stretch("Label", slot, 4f), "-", 19, TextAnchor.MiddleCenter, Color.white);
@@ -1331,6 +1407,8 @@ namespace RugWash.Editor
             title.resizeTextForBestFit = true;
             title.resizeTextMinSize = 15;
             title.resizeTextMaxSize = 24;
+            // Hauteur bornée : un titre long rétrécit au lieu de passer à la ligne par-dessus les détails.
+            title.verticalOverflow = VerticalWrapMode.Truncate;
             var details = AddText(CreateRect("Details", row, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -40f), new Vector2(width - 260f, height - 44f)),
                 "Détails", 18, TextAnchor.UpperLeft, new Color(0.82f, 0.85f, 0.88f));
             var status = AddText(CreateRect("Status", row, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-200f, -8f), new Vector2(statusWidth, 32f)),
@@ -1388,12 +1466,14 @@ namespace RugWash.Editor
             }
             var balance = AddText(CreateRect("Balance", shopWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -28f), new Vector2(500f, 40f)),
                 string.Empty, 24, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
-            var grid = CreateRect("Grid", shopWindow, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(1440f, 700f));
+            // Liste défilante : le catalogue (outils à acheter, améliorations, détergent) dépasse la hauteur de la fenêtre.
+            var grid = CreateScrollList(shopWindow, "Grid", new Vector2(0f, -150f), new Vector2(1440f, 700f), sprites);
             var gridLayout = grid.gameObject.AddComponent<GridLayoutGroup>();
             gridLayout.cellSize = new Vector2(714f, 110f);
             gridLayout.spacing = new Vector2(12f, 8f);
             gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             gridLayout.constraintCount = 2;
+            gridLayout.childAlignment = TextAnchor.UpperCenter;
             var shopRow = BuildRowTemplate(grid, sprites, 714f, 110f, 120f);
             var shopMessage = AddText(CreateRect("Message", shopWindow, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(1300f, 44f)),
                 string.Empty, 24, TextAnchor.MiddleCenter, Color.white);
@@ -1429,7 +1509,73 @@ namespace RugWash.Editor
             boardPanel.SetActive(false);
             shopPanel.SetActive(false);
             resultsPanel.SetActive(false);
+            BuildComputerUI(canvas, sprites, built);
         }
+
+        /// <summary>
+        /// Ordinateur de l'atelier : un bureau avec exactement deux icônes cliquables, « Missions / Commandes » (bloc-notes
+        /// coché) et « Boutique » (sac d'achats), et sous chacune un résumé tiré des données du jeu.
+        /// </summary>
+        static void BuildComputerUI(Canvas canvas, UISprites sprites, BuiltUI built)
+        {
+            var window = BuildWindow(canvas.transform, "Computer", new Vector2(1180f, 760f), sprites, "Ordinateur de l'atelier", out var panel, out var close);
+            AddText(CreateRect("Hint", window, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -80f), new Vector2(1000f, 34f)),
+                "Choisissez une application", 22, TextAnchor.MiddleCenter, new Color(0.75f, 0.8f, 0.85f));
+            var desktop = CreateRect("Desktop", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 34f), new Vector2(1100f, 600f));
+            AddImage(desktop, sprites.Rounded, new Color(0.06f, 0.16f, 0.24f, 0.95f));
+
+            var missions = BuildDesktopIcon(desktop, "App_Missions", "Missions / Commandes", new Vector2(-265f, 0f), sprites, out var missionsStatus, out var missionsIcon);
+            // Bloc-notes à pince, trois lignes cochées.
+            IconShape(missionsIcon, "Board", new Vector2(0f, -6f), new Vector2(136f, 176f), new Color(0.62f, 0.45f, 0.28f), sprites.Rounded);
+            IconShape(missionsIcon, "Paper", new Vector2(0f, -14f), new Vector2(112f, 142f), new Color(0.96f, 0.95f, 0.9f), sprites.Rounded);
+            IconShape(missionsIcon, "Clip", new Vector2(0f, 76f), new Vector2(66f, 26f), new Color(0.55f, 0.58f, 0.62f), sprites.Rounded);
+            for (int i = 0; i < 3; i++)
+            {
+                float y = 32f - 38f * i;
+                IconShape(missionsIcon, $"Check_{i}", new Vector2(-34f, y), new Vector2(20f, 20f), new Color(0.3f, 0.75f, 0.4f), sprites.Rounded);
+                IconShape(missionsIcon, $"Line_{i}", new Vector2(14f, y), new Vector2(62f, 10f), new Color(0.35f, 0.38f, 0.42f), sprites.White);
+            }
+
+            var shop = BuildDesktopIcon(desktop, "App_Shop", "Boutique", new Vector2(265f, 0f), sprites, out var shopStatus, out var shopIcon);
+            // Sac d'achats à anses, marqué « € ».
+            var handle = new Color(0.55f, 0.32f, 0.12f);
+            IconShape(shopIcon, "Handle_L", new Vector2(-32f, 62f), new Vector2(12f, 50f), handle, sprites.White);
+            IconShape(shopIcon, "Handle_R", new Vector2(32f, 62f), new Vector2(12f, 50f), handle, sprites.White);
+            IconShape(shopIcon, "Handle_Top", new Vector2(0f, 84f), new Vector2(76f, 12f), handle, sprites.White);
+            IconShape(shopIcon, "Bag", new Vector2(0f, -12f), new Vector2(156f, 136f), new Color(0.95f, 0.68f, 0.25f), sprites.Rounded);
+            AddText(CreateRect("Euro", shopIcon, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -12f), new Vector2(130f, 120f)),
+                "€", 86, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
+
+            panel.GetComponent<NavigationScope>().FirstSelected = missions;
+            built.Computer = window.parent.parent.gameObject.AddComponent<ComputerUI>();
+            Wire(built.Computer, ("panel", panel), ("missionsButton", missions), ("missionsStatus", missionsStatus), ("shopButton", shop),
+                ("shopStatus", shopStatus), ("closeButton", close));
+            panel.SetActive(false);
+        }
+
+        static Button BuildDesktopIcon(RectTransform desktop, string name, string label, Vector2 position, UISprites sprites, out Text status,
+            out RectTransform icon)
+        {
+            var button = CreateButton(name, desktop, label, sprites.Rounded, new Vector2(470f, 500f));
+            var rect = (RectTransform)button.transform;
+            rect.anchoredPosition = position;
+            var title = button.GetComponentInChildren<Text>();
+            title.fontSize = 34;
+            title.fontStyle = FontStyle.Bold;
+            var titleRect = title.rectTransform;
+            titleRect.anchorMin = new Vector2(0f, 0f);
+            titleRect.anchorMax = new Vector2(1f, 0f);
+            titleRect.pivot = new Vector2(0.5f, 0f);
+            titleRect.anchoredPosition = new Vector2(0f, 120f);
+            titleRect.sizeDelta = new Vector2(-24f, 50f);
+            status = AddText(CreateRect("Status", rect, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 18f), new Vector2(-32f, 96f)),
+                string.Empty, 22, TextAnchor.UpperCenter, new Color(0.88f, 0.9f, 0.92f));
+            icon = CreateRect("Icon", rect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(220f, 220f));
+            return button;
+        }
+
+        static void IconShape(RectTransform icon, string name, Vector2 position, Vector2 size, Color color, Sprite sprite) =>
+            AddImage(CreateRect(name, icon, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), position, size), sprite, color);
 
         static RectTransform SettingRow(Transform column, string label)
         {

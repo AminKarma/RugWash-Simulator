@@ -145,6 +145,10 @@ if ($Step -eq 'multiplayer') {
         $career = $reports['host'].values.carriereInviteVueParHote -eq $reports['guest'].values.argentInvite
         Write-Host ("  [{0}] Carrière de l'invité identique chez l'hôte et chez l'invité ({1} / {2})" -f ($(if ($career) { 'OK ' } else { 'ÉCHEC' })), $reports['host'].values.carriereInviteVueParHote, $reports['guest'].values.argentInvite)
         if (-not $career) { $failed = $true }
+        # Missions générées : l'invité régénère exactement les offres du tableau de l'hôte.
+        $missions = $reports['host'].values.missionsTableau -and ($reports['host'].values.missionsTableau -eq $reports['guest'].values.missionsTableau)
+        Write-Host ("  [{0}] Missions du tableau identiques chez l'hôte et l'invité ({1} / {2})" -f ($(if ($missions) { 'OK ' } else { 'ÉCHEC' })), $reports['host'].values.missionsTableau, $reports['guest'].values.missionsTableau)
+        if (-not $missions) { $failed = $true }
     }
     if ($failed) { throw "[multiplayer] des vérifications ont échoué." }
     Write-Host "==> [multiplayer] OK"

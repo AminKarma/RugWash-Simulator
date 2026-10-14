@@ -311,7 +311,7 @@ namespace RugWash.Tests
         public void OldSaveWithoutWorkshop_LoadsWithDefaultWorkshop()
         {
             const string json = "{\"version\":1,\"profileId\":\"profile0\",\"money\":50,\"reputation\":0,\"upgrades\":[],\"completedOrders\":[],\"settings\":{}}";
-            Assert.AreEqual(SaveMigration.Outcome.UpToDate, SaveMigration.TryParse(json, out SaveData data));
+            Assert.AreEqual(SaveMigration.Outcome.Migrated, SaveMigration.TryParse(json, out SaveData data), "Version 1 migrée en version 2.");
             Assert.IsNotNull(data.workshop);
             Assert.IsFalse(data.workshop.hasRobot);
             Assert.AreEqual(string.Empty, data.workshop.floor);
@@ -353,7 +353,7 @@ namespace RugWash.Tests
             var broom = AssetDatabase.LoadAssetAtPath<ToolDefinition>(RugWashContentBuilder.BroomToolPath);
             var rinse = AssetDatabase.LoadAssetAtPath<ToolDefinition>(RugWashContentBuilder.RinseToolPath);
             Assert.IsTrue(detail.requiresUnlock);
-            Assert.IsFalse(cannon.requiresUnlock);
+            Assert.IsTrue(cannon.requiresUnlock, "v0.1.2 : hors kit de départ (brosse, détergent, seau), à acheter.");
             Assert.AreEqual(ToolResource.Soap, cannon.resource);
             Assert.Greater(cannon.spreadAspect, 1f);
             Assert.Greater(cannon.radius, 0.24f, "Le canon couvre plus large que le détergent.");

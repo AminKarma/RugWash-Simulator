@@ -86,6 +86,17 @@ namespace RugWash.Save
         /// <summary>Progression du RugDex.</summary>
         public List<RugDexRecord> rugDex = new List<RugDexRecord>();
 
+        /// <summary>Réserve de détergent emportée (litres) ; -1 = pleine (nouvelle partie).</summary>
+        public float soapReserve = -1f;
+        /// <summary>Stock de détergent en bidons (litres), qui sert à remplir la réserve au poste détergent.</summary>
+        public float detergentStock = SaveMigration.StarterDetergentStock;
+
+        /// <summary>Missions générées : graine (0 = à tirer), numéro de la prochaine mission, offres affichées, dernière livrée.</summary>
+        public int missionSeed;
+        public int missionSequence;
+        public List<string> missionOffers = new List<string>();
+        public string lastMission = string.Empty;
+
         /// <summary>Vrai si le joueur a commencé à progresser (sert à « Continuer » et à confirmer « Nouvelle partie »).</summary>
         public bool HasProgress => money > 0 || reputation > 0 || ordersDelivered > 0 || upgrades.Count > 0 || completedOrders.Count > 0;
 

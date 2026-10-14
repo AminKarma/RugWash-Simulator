@@ -379,7 +379,8 @@ namespace RugWash.Tests
         public void OldSave_LoadsWithEmptyProductsAndRugDex()
         {
             const string json = "{\"version\":1,\"profileId\":\"p\",\"money\":5,\"upgrades\":[],\"completedOrders\":[],\"settings\":{}}";
-            Assert.AreEqual(SaveMigration.Outcome.UpToDate, SaveMigration.TryParse(json, out SaveData data));
+            // Version 1 : migrée en version 2 (kit de départ, détergent en bidons) sans perdre les champs existants.
+            Assert.AreEqual(SaveMigration.Outcome.Migrated, SaveMigration.TryParse(json, out SaveData data));
             Assert.IsNotNull(data.products);
             Assert.AreEqual(0, data.products.Count);
             Assert.IsNotNull(data.rugDex);

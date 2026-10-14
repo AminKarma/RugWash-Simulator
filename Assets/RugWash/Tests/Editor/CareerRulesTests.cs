@@ -123,7 +123,7 @@ namespace RugWash.Tests
         [Test]
         public void CareerCodec_RoundTrips_AndRejectsTruncatedOrForgedMessages()
         {
-            var career = new PlayerCareer { Money = 12345, Reputation = 17, ActiveProduct = "product_enzyme" };
+            var career = new PlayerCareer { Money = 12345, Reputation = 17, ActiveProduct = "product_enzyme", DetergentStock = 37.5f };
             career.Upgrades.Add("up_brush");
             career.Upgrades.Add("up_rinse");
             career.Products["product_enzyme"] = 2.5f;
@@ -134,9 +134,11 @@ namespace RugWash.Tests
             CollectionAssert.AreEquivalent(career.Upgrades, back.Upgrades);
             Assert.AreEqual(2.5f, back.StockOf("product_enzyme"));
             Assert.AreEqual("product_enzyme", back.ActiveProduct);
+            Assert.AreEqual(37.5f, back.DetergentStock, "Stock de détergent en bidons (v0.1.2).");
 
             Assert.Throws<FormatException>(() => CareerCodec.Decode(new byte[] { CareerCodec.Version, 1, 2 }), "Message tronqué.");
             Assert.Throws<FormatException>(() => CareerCodec.Decode(new byte[] { 99 }), "Version inconnue.");
+            Assert.Throws<FormatException>(() => CareerCodec.Decode(new byte[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }), "Ancien format (sans détergent) refusé.");
             var forged = (byte[])data.Clone();
             forged[9] = 200;
             Assert.Throws<FormatException>(() => CareerCodec.Decode(forged), "Nombre d'entrées hors limites.");

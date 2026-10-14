@@ -153,6 +153,12 @@ namespace RugWash.Diagnostics
             yield return null;
             Record("Atelier chargé et câblé", game != null && game.IsReady);
             if (game == null || !game.IsReady) { fatal = "atelier non prêt"; yield break; }
+            Record("Nouvelle partie : seulement le kit de départ (brosse, détergent, seau)", game.Upgrades.OwnedIds.Count == 0,
+                $"{game.Upgrades.OwnedIds.Count} amélioration(s)");
+            // Banc d'essai : les outils mesurés (lance, extracteur, canon à mousse…) sont débloqués sans achat.
+            var owned = new List<string>(game.Upgrades.OwnedIds);
+            owned.AddRange(SaveMigration.LegacyToolUnlocks);
+            game.Upgrades.Restore(owned);
 
             // 3. Commande acceptée.
             var order = game.Orders.Book.Orders[0];

@@ -19,4 +19,4 @@ MonoBehaviour:
   effect: 6
   value: 1.35
   targetToolId: broom
-  prerequisite: {fileID: 0}
+  prerequisite: {fileID: 11400000, guid: fdf3e60739fa3834096444458f0e4378, type: 2}

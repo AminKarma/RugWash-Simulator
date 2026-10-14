@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a56e950a7c9d1a347aaa213b9612f7e2, type: 3}
+  m_Name: Tool_Bucket
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.ToolDefinition
+  id: bucket
+  displayName: Seau d'eau
+  description: "Le rin\xE7age du kit de d\xE9part : on verse l'eau de pr\xE8s pour
+    \xE9vacuer la salet\xE9 d\xE9tach\xE9e et la mousse. Moins puissant et moins
+    pr\xE9cis que la lance haute pression. Se remplit au poste d'eau."
+  slot: 9
+  range: 1.9
+  radius: 0.3
+  falloffHardness: 1.6
+  power: 0.5
+  wettingPerSecond: 1
+  spreadAspect: 1
+  resource: 1
+  resourcePerSecond: 2
+  runoffDirt: 0.7
+  runoffFoam: 0.8
+  runoffWater: 0.5
+  runoffIsDry: 0
+  requiresUnlock: 0
+  rumbleLow: 0.06
+  rumbleHigh: 0.02

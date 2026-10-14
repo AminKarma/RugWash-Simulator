@@ -10,8 +10,9 @@ using UnityEngine.UI;
 namespace RugWash.UI
 {
     /// <summary>
-    /// Tableau des commandes (comptoir, touche E) : liste avec difficulté, récompense, objectifs et état ;
-    /// acceptation, livraison avec estimation de la note, abandon. Chaque bouton agit réellement.
+    /// Application « Missions / Commandes » de l'ordinateur : liste avec difficulté, récompense, objectifs et état ;
+    /// acceptation, livraison avec estimation de la note, abandon. Chaque bouton agit réellement. Ordre d'affichage :
+    /// commande en cours, missions générées accessibles, contrats accessibles, offres verrouillées, contrats terminés.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class OrderBoardUI : MonoBehaviour, IModalPanel
@@ -35,6 +36,7 @@ namespace RugWash.UI
         [SerializeField] Button closeButton;
 
         readonly List<ListRowView> rows = new List<ListRowView>();
+        readonly List<OrderDefinition> display = new List<OrderDefinition>();
         GameStateManager gameState;
         OrderManager orders;
         WalletManager wallet;
@@ -45,6 +47,15 @@ namespace RugWash.UI
 
         public bool IsOpen { get; private set; }
         public IReadOnlyList<ListRowView> Rows => rows;
+        /// <summary>Commande affichée sur chaque ligne (même indice que <see cref="Rows"/>).</summary>
+        public IReadOnlyList<OrderDefinition> DisplayedOrders => display;
+
+        /// <summary>Ligne qui affiche cette commande (null si elle n'est pas affichée).</summary>
+        public ListRowView RowOf(OrderDefinition order)
+        {
+            int index = display.IndexOf(order);
+            return index >= 0 && index < rows.Count ? rows[index] : null;
+        }
         public Button DeliverButton => deliverButton;
         public Button AbandonButton => abandonButton;
         public string LastMessage => messageLabel.text;
@@ -110,8 +121,11 @@ namespace RugWash.UI
         {
             headerLabel.text = $"Solde : {WalletManager.Format(wallet.Balance)}     Réputation : {orders.Reputation}";
             if (orders.BoardReputation != orders.Reputation) headerLabel.text += $"     Tableau de l'hôte (réputation {orders.BoardReputation})";
+            if (orders.Missions.IsInitialized || orders.IsReplica)
+                headerLabel.text += $"     Missions : niveau {MissionRules.TierFor(orders.BoardReputation) + 1}";
             headerLabel.text += WorkAreaWarning();
-            var list = orders.Book.Orders;
+            BuildDisplay();
+            var list = display;
             while (rows.Count < list.Count)
             {
                 var row = Instantiate(rowTemplate, listRoot);
@@ -130,12 +144,37 @@ namespace RugWash.UI
             RefreshActive();
         }
 
+        /// <summary>Ordre d'affichage (le carnet garde l'ordre du catalogue, suivi des missions générées).</summary>
+        void BuildDisplay()
+        {
+            display.Clear();
+            var book = orders.Book;
+            int reputation = orders.BoardReputation;
+            int Rank(OrderDefinition order)
+            {
+                var state = book.StateOf(order);
+                if (state == OrderState.Active) return 0;
+                if (state == OrderState.Completed) return 5;
+                if (book.IsLocked(order, reputation)) return 3;
+                return MissionKey.IsGenerated(order.id) ? 1 : 2;
+            }
+            for (int rank = 0; rank <= 5; rank++)
+            {
+                int start = display.Count;
+                foreach (var order in book.Orders)
+                    if (Rank(order) == rank) display.Add(order);
+                // Offres verrouillées : la plus proche en premier.
+                if (rank == 3) display.Sort(start, display.Count - start, Comparer<OrderDefinition>.Create((a, b) => a.requiredReputation.CompareTo(b.requiredReputation)));
+            }
+        }
+
         void FillRow(ListRowView row, OrderDefinition order)
         {
             var state = orders.Book.StateOf(order);
             bool locked = orders.Book.IsLocked(order, orders.BoardReputation);
             string stars = new string('★', order.difficulty) + new string('☆', Mathf.Max(0, 4 - order.difficulty));
-            string details = $"{order.clientName} · {order.rug.displayName} · {stars} · {WalletManager.Format(order.baseReward)}\n{DescribeObjectives(order)}";
+            string kind = MissionKey.IsGenerated(order.id) ? "Mission" : "Contrat";
+            string details = $"{kind} · {order.clientName} · {order.rug.displayName} · {stars} · {WalletManager.Format(order.baseReward)}\n{DescribeObjectives(order)}";
 
             string status, action = null;
             Color statusColor, background = RowColor;
@@ -195,11 +234,11 @@ namespace RugWash.UI
                                (preview.Accepted ? $"paiement estimé {WalletManager.Format(preview.Reward)}" : "le client refuserait le tapis en l'état");
         }
 
+        /// <summary>Accepte la commande de la ligne <paramref name="index"/> (ordre d'affichage).</summary>
         public void Accept(int index)
         {
-            var list = orders.Book.Orders;
-            if (index < 0 || index >= list.Count) return;
-            var result = orders.TryStart(list[index]);
+            if (index < 0 || index >= display.Count) return;
+            var result = orders.TryStart(display[index]);
             messageLabel.text = OrderManager.StartResultMessage(result);
             if (result == OrderStartResult.Started || result == OrderStartResult.Requested) Close();
             else Refresh();

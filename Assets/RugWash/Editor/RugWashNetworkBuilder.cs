@@ -149,14 +149,14 @@ namespace RugWash.Editor
             var handRight = Part("Hand", foreRight, handMesh, c["Glove"], new Vector3(0f, 0f, 0.34f));
 
             // Les huit outils, mêmes modèles détaillés que la vue à la première personne, portés devant les yeux.
-            var definitions = new[] { c.Vacuum, c.Soap, c.Brush, c.Rinse, c.Extractor, c.FoamCannon, c.Broom, c.DetailBrush };
+            var definitions = new[] { c.Vacuum, c.Soap, c.Brush, c.Rinse, c.Extractor, c.FoamCannon, c.Broom, c.DetailBrush, c.Bucket };
             var models = new[]
             {
                 RugWashToolModels.Vacuum(view, meshes, c), RugWashToolModels.Soap(view, meshes, c), RugWashToolModels.Brush(view, meshes, c),
                 RugWashToolModels.Rinse(view, meshes, c), RugWashToolModels.Extractor(view, meshes, c), RugWashToolModels.FoamCannon(view, meshes, c),
-                RugWashToolModels.Broom(view, meshes, c), RugWashToolModels.DetailBrush(view, meshes, c),
+                RugWashToolModels.Broom(view, meshes, c), RugWashToolModels.DetailBrush(view, meshes, c), RugWashToolModels.Bucket(view, meshes, c),
             };
-            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2 };
+            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2, 1 };
             foreach (var model in models) DisableShadows(model.Root.gameObject);
 
             var labelGo = new GameObject("Name");
@@ -224,7 +224,7 @@ namespace RugWash.Editor
             {
                 Clip(RugWashAudioGenerator.VacuumLoop), Clip(RugWashAudioGenerator.SoapLoop), Clip(RugWashAudioGenerator.BrushLoop),
                 Clip(RugWashAudioGenerator.RinseLoop), Clip(RugWashAudioGenerator.ExtractorLoop), Clip(RugWashAudioGenerator.FoamCannonLoop),
-                Clip(RugWashAudioGenerator.BroomLoop), Clip(RugWashAudioGenerator.BrushLoop),
+                Clip(RugWashAudioGenerator.BroomLoop), Clip(RugWashAudioGenerator.BrushLoop), Clip(RugWashAudioGenerator.RinseLoop),
             });
             foreach (var model in models) model.Root.gameObject.SetActive(false);
             DisableShadows(labelGo);

@@ -137,7 +137,7 @@ namespace RugWash.UI
         void OnScanned(DirtScanResult result) => ShowToast(DirtScan.Describe(result));
 
         void OnLockedToolRequested(CleaningToolBase tool) =>
-            ShowToast($"{tool.Definition.displayName} : à acheter au meuble « Matériel & boutique »");
+            ShowToast($"{tool.Definition.displayName} : à acheter sur l'ordinateur (Boutique)");
 
         /// <summary>
         /// Indicateur permanent de l'aire de lavage (zone de nettoyage) : propreté, recontamination du tapis au-delà du seuil
@@ -179,7 +179,7 @@ namespace RugWash.UI
             pulse = 1f;
             gainFlash = 1f;
             string deliver = input != null ? input.Label("Interact") : "E";
-            ShowToast($"Tapis terminé : plus aucune saleté ! Séchez-le si besoin puis livrez-le au comptoir ({deliver})");
+            ShowToast($"Tapis terminé : plus aucune saleté ! Séchez-le si besoin puis livrez-le sur l'ordinateur ({deliver})");
         }
 
         /// <summary>Produits spécialisés : message au changement de produit et à l'épuisement.</summary>
@@ -277,10 +277,10 @@ namespace RugWash.UI
             string interact = input != null ? input.Label("Interact") : "E";
             bool finished = rug != null && rug.IsFinished;
             orderLabel.text = order == null
-                ? $"Aucune commande — comptoir de réception ({interact})"
+                ? $"Aucune commande — missions sur l'ordinateur ({interact})"
                 : $"{order.title} · " + (finished ? "tapis terminé" : $"objectif {order.objectives.targetCleanliness * 100f:0} %") +
                   $" · {OrderEvaluator.FormatTime(orders.ElapsedSeconds)}\n" +
-                  $"Livrer au comptoir de réception ({interact})";
+                  $"Livrer sur l'ordinateur, application Missions ({interact})";
         }
 
         void OnDestroy()
@@ -415,7 +415,7 @@ namespace RugWash.UI
             {
                 lastCleanPercent = percent;
                 cleanlinessLabel.text = loadingMessage != null ? "Synchronisation avec l'hôte…"
-                    : !hasRug ? "Aucun tapis — acceptez une commande au comptoir"
+                    : !hasRug ? "Aucun tapis — acceptez une mission sur l'ordinateur"
                     : rug.IsFinished ? "Propreté du tapis : 100 % — terminé" : $"Propreté du tapis : {percent} %";
             }
 
@@ -477,7 +477,7 @@ namespace RugWash.UI
             if (input.Scheme == InputScheme.Gamepad)
                 return $"{input.Label("Use")} : {verb}   ·   {input.Label("ToolPrevious")} / {input.Label("ToolNext")} : outils   ·   " +
                        common + $"{input.Label("Pause")} : pause";
-            return $"Clic gauche : {verb}   ·   1-8 / molette : outils   ·   " + common + "Échap : pause";
+            return $"Clic gauche : {verb}   ·   1-9 / molette : outils   ·   " + common + "Échap : pause";
         }
     }
 }

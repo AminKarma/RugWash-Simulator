@@ -67,6 +67,8 @@ namespace RugWash.Network
         readonly NetworkVariable<int> boardReputation = new NetworkVariable<int>();
         readonly NetworkVariable<FixedString512Bytes> completedOrders = new NetworkVariable<FixedString512Bytes>();
         readonly NetworkVariable<FixedString64Bytes> activeOrder = new NetworkVariable<FixedString64Bytes>();
+        /// <summary>Missions générées proposées sur le tableau de l'hôte (identifiants : les invités les régénèrent à l'identique).</summary>
+        readonly NetworkVariable<FixedString128Bytes> missionOffers = new NetworkVariable<FixedString128Bytes>();
         readonly NetworkVariable<float> elapsed = new NetworkVariable<float>();
         readonly NetworkVariable<RobotNetState> robotState = new NetworkVariable<RobotNetState>();
 
@@ -159,6 +161,7 @@ namespace RugWash.Network
                     game.Orders.Remote = null;
                     game.Shop.Remote = null;
                     game.Robot.Remote = null;
+                    game.Detergent.Remote = null;
                     game.Orders.SetBoardReputation(-1);
                     game.GameState.Synchronizing = false;
                     game.Hud.SetLoading(null);
@@ -220,6 +223,9 @@ namespace RugWash.Network
             var active = game.Orders.ActiveOrder;
             activeOrder.Value = new FixedString64Bytes(active != null ? Truncate(active.id, 60) : string.Empty);
             completedOrders.Value = new FixedString512Bytes(Truncate(string.Join(",", game.Orders.Book.CompletedIds()), 500));
+            var offers = new List<string>();
+            foreach (var offer in game.Orders.Missions.Offers) offers.Add(offer.Id);
+            missionOffers.Value = new FixedString128Bytes(Truncate(string.Join(",", offers), 120));
             elapsed.Value = game.Orders.ElapsedSeconds;
         }
 
@@ -342,7 +348,7 @@ namespace RugWash.Network
                 Debug.LogWarning($"[RugWash] Carrière illisible reçue du client {sender} : carrière vierge.");
                 announced = new PlayerCareer();
             }
-            careers[sender] = CareerRules.Sanitize(announced, game.Upgrades.Catalog, game.Products.Book.Catalog);
+            careers[sender] = CareerRules.Sanitize(announced, game.Upgrades.Catalog, game.Products.Book.Catalog, game.Detergent.MaxStock);
             // Réponse seulement à un invité synchronisé (sinon à la fin de sa synchronisation, OnClientSynchronized).
             if (syncedClients.Contains(sender)) SendCareer(sender, persist: false);
         }
@@ -423,7 +429,8 @@ namespace RugWash.Network
             // sans rien payer eux-mêmes.
             if (game.Rug.Grid == null) return;
             var summary = game.Rug.Grid.ComputeSummary();
-            var order = game.Orders.Book.Find(activeOrder.Value.ToString()) ?? FindLastCompleted();
+            // La commande livrée vient du résultat : une mission générée a déjà quitté le tableau (remplacée).
+            var order = result.Order != null ? result.Order : game.Orders.Book.Find(activeOrder.Value.ToString()) ?? FindLastCompleted();
             if (order == null) return;
             DeliveredRpc(new FixedString64Bytes(order.id), summary.Cleanliness01, summary.CleanCellRatio01, summary.AverageMoisture01,
                 summary.AverageFoam01, summary.AverageResidue01, summary.AverageWear01, summary.RemainingDirt, summary.InitialDirt,
@@ -460,17 +467,20 @@ namespace RugWash.Network
             game.Orders.Remote = this;
             game.Shop.Remote = this;
             game.Robot.Remote = this;
+            game.Detergent.Remote = this;
             // La carrière affichée et sauvegardée reste celle de ce joueur (jamais celle de l'hôte).
             game.SaveSystem.GuestCareerMode = true;
 
             boardReputation.OnValueChanged += (_, value) => game.Orders.SetBoardReputation(value);
             completedOrders.OnValueChanged += (_, value) => game.Orders.ApplyRemoteCompleted(Split(value.ToString()));
+            missionOffers.OnValueChanged += (_, value) => game.Orders.ApplyRemoteOffers(Split(value.ToString()));
             activeOrder.OnValueChanged += (_, value) => ApplyActiveOrder(value.ToString());
             elapsed.OnValueChanged += (_, value) => game.Orders.ApplyRemoteElapsed(value);
             robotState.OnValueChanged += (_, value) => ApplyRobot(value);
 
             game.Orders.SetBoardReputation(boardReputation.Value);
             game.Orders.ApplyRemoteCompleted(Split(completedOrders.Value.ToString()));
+            game.Orders.ApplyRemoteOffers(Split(missionOffers.Value.ToString()));
             ApplyActiveOrder(activeOrder.Value.ToString());
             ApplyRobot(robotState.Value);
 
@@ -494,7 +504,7 @@ namespace RugWash.Network
         /// <summary>Carrière de ce joueur, lue dans ses propres systèmes (chargés depuis SA sauvegarde).</summary>
         PlayerCareer CaptureLocalCareer()
         {
-            var career = new PlayerCareer { Money = game.Wallet.Balance, Reputation = game.Reputation.Points };
+            var career = new PlayerCareer { Money = game.Wallet.Balance, Reputation = game.Reputation.Points, DetergentStock = game.Detergent.Stock };
             career.Upgrades.UnionWith(game.Upgrades.OwnedIds);
             foreach (var entry in game.Products.Snapshot()) career.Products[entry.Key] = entry.Value;
             career.ActiveProduct = game.Products.Book.Active != null ? game.Products.Book.Active.id : string.Empty;
@@ -506,6 +516,7 @@ namespace RugWash.Network
         {
             game.Wallet.Wallet.Restore(career.Money);
             game.Reputation.Restore(career.Reputation);
+            game.Detergent.Restore(career.DetergentStock);
             game.Upgrades.Restore(career.Upgrades);
             var entries = new List<KeyValuePair<string, float>>();
             foreach (var pair in career.Products) entries.Add(pair);
@@ -577,7 +588,7 @@ namespace RugWash.Network
                 return;
             }
             if (orders.ActiveOrder != null && orders.ActiveOrder.id == id) return;
-            var order = orders.Book.Find(id);
+            var order = orders.Resolve(id);
             if (order != null) orders.ApplyRemoteStart(order, elapsed.Value);
         }
 
@@ -610,7 +621,7 @@ namespace RugWash.Network
                 Debug.LogError($"[RugWash] Tapis « {identity.DefinitionId} » inconnu de ce poste (version différente ?).");
                 return false;
             }
-            var order = string.IsNullOrEmpty(identity.OrderId) ? null : game.Orders.Book.Find(identity.OrderId);
+            var order = string.IsNullOrEmpty(identity.OrderId) ? null : game.Orders.Resolve(identity.OrderId);
             if (order != null) surface.LoadRug(definition, order.dirt, order.dirtSeed);
             else surface.LoadRug(definition);
             return true;
@@ -659,6 +670,44 @@ namespace RugWash.Network
         public void RequestUpgrade(string upgradeId) => UpgradeRpc(new FixedString64Bytes(upgradeId ?? string.Empty));
         public void RequestProduct(string productId) => ProductRpc(new FixedString64Bytes(productId ?? string.Empty));
         public void RequestRobotToggle() => RobotToggleRpc();
+        public void RequestDetergentCan() => DetergentCanRpc();
+        public void RequestDetergentRefill(float liters) => DetergentRefillRpc(liters);
+
+        [Rpc(SendTo.Server)]
+        void DetergentCanRpc(RpcParams rpcParams = default)
+        {
+            ulong sender = rpcParams.Receive.SenderClientId;
+            if (!careers.TryGetValue(sender, out var career))
+            {
+                ShopResultRpc("Progression en cours de synchronisation", false, RpcTarget.Single(sender, RpcTargetUse.Temp));
+                return;
+            }
+            var supply = game.Detergent;
+            var result = CareerRules.TryBuyDetergentCan(career, supply.CanPrice, supply.CanLiters, supply.MaxStock);
+            ShopResultRpc(result == ProductPurchaseResult.Purchased ? $"Bidon de détergent acheté : +{supply.CanLiters:0} L" : ShopRules.Describe(result),
+                result == ProductPurchaseResult.Purchased, RpcTarget.Single(sender, RpcTargetUse.Temp));
+            if (result == ProductPurchaseResult.Purchased) SendCareer(sender, persist: true);
+        }
+
+        /// <summary>Remplissage au poste par un invité : prélevé sur SON stock (jamais plus que la réserve ne peut contenir).</summary>
+        [Rpc(SendTo.Server)]
+        void DetergentRefillRpc(float liters, RpcParams rpcParams = default)
+        {
+            ulong sender = rpcParams.Receive.SenderClientId;
+            if (!careers.TryGetValue(sender, out var career)) return;
+            float granted = CareerRules.TakeDetergent(career, Mathf.Clamp(liters, 0f, MaxReserveLiters));
+            DetergentGrantedRpc(granted, RpcTarget.Single(sender, RpcTargetUse.Temp));
+            SendCareer(sender, persist: false);
+        }
+
+        /// <summary>Borne d'un remplissage (réserve maximale du catalogue d'améliorations).</summary>
+        const float MaxReserveLiters = 12f;
+
+        [Rpc(SendTo.SpecifiedInParams)]
+        void DetergentGrantedRpc(float liters, RpcParams rpcParams)
+        {
+            game.Hud.ShowToast(Player.ResourceStation.ApplyGrantedDetergent(game.ToolController.Equipment.Soap, liters));
+        }
 
         [Rpc(SendTo.Server)]
         void StartOrderRpc(FixedString64Bytes orderId, RpcParams rpcParams = default)
@@ -752,7 +801,7 @@ namespace RugWash.Network
         void DeliveredRpc(FixedString64Bytes orderId, float cleanliness, float cleanCells, float moisture, float foam, float residue, float wear,
             float remaining, float initial, float elapsedSeconds)
         {
-            var order = game.Orders.Book.Find(orderId.ToString());
+            var order = game.Orders.Resolve(orderId.ToString());
             if (order == null) return;
             var summary = new RugCleaningSummary(cleanliness, cleanCells, moisture, foam, residue, wear, remaining, initial);
             game.Orders.ApplyRemoteDelivery(order, summary, elapsedSeconds);

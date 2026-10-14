@@ -58,13 +58,18 @@ namespace RugWash.Tests
             }
         }
 
-        IEnumerator AcceptFirstOrderThroughBoard()
+        IEnumerator AcceptFirstOrderThroughBoard() => AcceptThroughBoard(null);
+
+        /// <summary>Accepte une commande avec le bouton de sa ligne (la première ligne affichée si aucune n'est précisée).</summary>
+        IEnumerator AcceptThroughBoard(Orders.OrderDefinition order)
         {
             Assert.IsTrue(game.OrderBoard.Open(), "Le tableau doit s'ouvrir en jeu.");
             yield return null;
             Assert.AreEqual(GameState.Workshop, game.GameState.State);
-            Assert.IsTrue(game.OrderBoard.Rows[0].ActionButton.interactable);
-            game.OrderBoard.Rows[0].ActionButton.onClick.Invoke();
+            var row = order != null ? game.OrderBoard.RowOf(order) : game.OrderBoard.Rows[0];
+            Assert.IsNotNull(row, "La commande est affichée sur le tableau.");
+            Assert.IsTrue(row.ActionButton.interactable);
+            row.ActionButton.onClick.Invoke();
             yield return null;
         }
 
@@ -72,9 +77,12 @@ namespace RugWash.Tests
         public IEnumerator FullOrder_AcceptCleanDeliver_PaysOnce_AndReturnsToWorkshop()
         {
             int balanceBefore = game.Wallet.Balance;
-            yield return AcceptFirstOrderThroughBoard();
+            // Contrat du catalogue : une fois livré, il reste « Terminé » (les missions générées, elles, sont remplacées).
+            var contract = game.Orders.Book.Find("order_salon");
+            yield return AcceptThroughBoard(contract);
 
             var order = game.Orders.ActiveOrder;
+            Assert.AreSame(contract, order);
             Assert.IsNotNull(order, "Le bouton « Accepter » doit démarrer la commande.");
             Assert.AreEqual(GameState.ActiveOrder, game.GameState.State);
             Assert.AreEqual(order.rug, game.Rug.Definition, "Le tapis de la commande doit être chargé.");
@@ -118,9 +126,10 @@ namespace RugWash.Tests
 
             Assert.IsTrue(game.OrderBoard.Open());
             yield return null;
-            Assert.IsFalse(game.OrderBoard.Rows[0].ActionButton.gameObject.activeSelf,
+            Assert.IsFalse(game.OrderBoard.RowOf(order).ActionButton.gameObject.activeSelf,
                 "Une commande terminée ne propose plus « Accepter ».");
-            game.OrderBoard.Rows[1].ActionButton.onClick.Invoke();
+            Assert.AreNotSame(order, game.OrderBoard.DisplayedOrders[0], "Les commandes terminées passent en bas du tableau.");
+            game.OrderBoard.Rows[0].ActionButton.onClick.Invoke();
             yield return null;
             Assert.IsNotNull(game.Orders.ActiveOrder, "Une nouvelle commande peut être lancée après la précédente.");
         }
@@ -170,7 +179,7 @@ namespace RugWash.Tests
             for (int i = 0; i < orders.Count; i++)
                 if (orders[i].requiredReputation > game.Reputation.Points) { lockedIndex = i; break; }
             Assert.GreaterOrEqual(lockedIndex, 0, "Le catalogue doit contenir des commandes verrouillées au départ.");
-            Assert.IsFalse(game.OrderBoard.Rows[lockedIndex].ActionButton.gameObject.activeSelf);
+            Assert.IsFalse(game.OrderBoard.RowOf(orders[lockedIndex]).ActionButton.gameObject.activeSelf);
             Assert.AreEqual(OrderStartResult.ReputationTooLow, game.Orders.TryStart(orders[lockedIndex]));
             game.OrderBoard.Close();
         }
@@ -191,7 +200,7 @@ namespace RugWash.Tests
             StringAssert.Contains("Fonds insuffisants", game.ShopUI.LastMessage);
 
             game.Wallet.Wallet.Add(1000);
-            game.ShopUI.Rows[waterIndex].ActionButton.onClick.Invoke();
+            game.ShopUI.RowOf(game.Upgrades.Catalog[waterIndex]).ActionButton.onClick.Invoke();
             yield return null;
             Assert.AreEqual(waterBefore + 20f, equipment.Water.Capacity, 1e-4f, "Le réservoir doit réellement grandir.");
             Assert.AreEqual(1000 - game.Upgrades.Catalog[waterIndex].price, game.Wallet.Balance);

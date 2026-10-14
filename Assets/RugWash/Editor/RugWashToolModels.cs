@@ -194,7 +194,7 @@ namespace RugWash.Editor
                 {
                     new Vector2(0f, -0.2f), new Vector2(0.038f, -0.2f), new Vector2(0.044f, -0.19f), new Vector2(0.044f, -0.06f),
                     new Vector2(0.036f, -0.03f), new Vector2(0.016f, -0.012f), new Vector2(0.016f, 0f),
-                }, 24, capTop: false)), c["GreenPlastic"], new Vector3(0f, -0.04f, 0.02f), Quaternion.identity);
+                }, 24, capTop: false)), c["LiquidBottle"], new Vector3(0f, -0.04f, 0.02f), Quaternion.identity);
             Part("Label", root, store.Add("Tool_SoapLabel", () => Lathe(new[] { new Vector2(0.0445f, -0.16f), new Vector2(0.0445f, -0.09f) }, 24, false, false)),
                 c["WhitePlastic"], new Vector3(0f, -0.04f, 0.02f), Quaternion.identity);
             Part("Cap", root, store.Add("Tool_SoapCap", () => Cylinder(0.02f, 0.02f, 18)), c["WhitePlastic"], new Vector3(0f, -0.03f, 0.02f), Quaternion.identity);
@@ -283,7 +283,7 @@ namespace RugWash.Editor
                 {
                     new Vector2(0f, -0.17f), new Vector2(0.042f, -0.17f), new Vector2(0.048f, -0.155f), new Vector2(0.048f, -0.04f),
                     new Vector2(0.03f, -0.015f), new Vector2(0.018f, 0f),
-                }, 24, capTop: false)), c["FoamCanister"], new Vector3(0f, -0.04f, 0.13f), Quaternion.identity);
+                }, 24, capTop: false)), c["LiquidCanister"], new Vector3(0f, -0.04f, 0.13f), Quaternion.identity);
             Part("Canister_Ring", root, store.Add("Tool_CannonRing", () => Cylinder(0.026f, 0.02f, 18)), c["DarkMetal"],
                 new Vector3(0f, -0.045f, 0.13f), Quaternion.identity);
             Part("Lance", root, StraightTube(store, "Tool_CannonLance", 0.012f, 0.2f), c["Steel"], new Vector3(0f, 0.01f, 0.15f), AlongZ);
@@ -341,6 +341,34 @@ namespace RugWash.Editor
             var tip = Tip(head, new Vector3(0f, -0.05f, 0.05f));
             var right = Glove(root, store, c, "Glove_R", new Vector3(0f, 0.004f, -0.16f), Vector3.forward, new Vector3(0.2f, -0.55f, -0.8f), left: false);
             return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right };
+        }
+
+        // ------------------------------------------------------------------ Seau d'eau (kit de départ)
+
+        public static Model Bucket(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            // Pivot = la main, sur l'anse : le seau pend dessous et bascule vers l'avant pour verser.
+            var root = Root(camera, "Bucket", new Vector3(0.24f, -0.27f, 0.46f), new Vector3(4f, -10f, 0f));
+            Part("Body", root, store.Add("Tool_BucketBody", () => Lathe(new[]
+            {
+                new Vector2(0f, -0.36f), new Vector2(0.1f, -0.36f), new Vector2(0.105f, -0.35f), new Vector2(0.13f, -0.13f), new Vector2(0.134f, -0.12f),
+            }, 28, capTop: false)), c["BluePlastic"], Vector3.zero, Quaternion.identity);
+            var rim = new List<Vector3>();
+            for (int i = 0; i <= 28; i++)
+            {
+                float a = i / 28f * Mathf.PI * 2f;
+                rim.Add(new Vector3(Mathf.Cos(a) * 0.134f, -0.12f, Mathf.Sin(a) * 0.134f));
+            }
+            Part("Rim", root, store.Add("Tool_BucketRim", () => Tube(rim, 0.007f, 8)), c["DarkMetal"], Vector3.zero, Quaternion.identity);
+            Part("Handle", root, store.Add("Tool_BucketHandle", () => Tube(Smooth(new[]
+                {
+                    new Vector3(-0.134f, -0.12f, 0f), new Vector3(-0.1f, -0.03f, 0f), new Vector3(0f, 0f, 0f), new Vector3(0.1f, -0.03f, 0f),
+                    new Vector3(0.134f, -0.12f, 0f),
+                }, 8), 0.005f, 8)), c["Steel"], Vector3.zero, Quaternion.identity);
+            Part("Water", root, store.Add("Tool_BucketWater", () => Cylinder(0.126f, 0.004f, 28)), c["Glass"], new Vector3(0f, -0.17f, 0f), Quaternion.identity);
+            var right = Glove(root, store, c, "Glove_R", new Vector3(0f, 0.005f, 0f), Vector3.right, new Vector3(0.25f, 0.55f, -0.8f), left: false);
+            // Point de versement : le bord avant du seau.
+            return new Model { Root = root, Tip = Tip(root, new Vector3(0f, -0.12f, 0.136f)), RightHand = right };
         }
 
         /// <summary>Vue à la première personne : couche « Player », sans ombres, sans collisions.</summary>

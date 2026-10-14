@@ -233,6 +233,24 @@ Diagnostic et mesures : `VALIDATION.md` § 14.
 | Mesure du jeu compilé après optimisation | **Non exécutée** | Benchmark arrêté à la demande du joueur (PC utilisé pour jouer) ; mesures de référence avant optimisation consignées |
 | Correctif : version de protocole réellement appliquée à l'asset réseau (restée « rugwash-coop-1 » au jalon 1) | Corrigé | Le constructeur impose `NetworkContent.CurrentProtocol` (`rugwash-coop-3`) |
 
+## Update v0.1.2 — Jalon 3 (ordinateur et économie)
+
+Décisions : `AUDIT_V012.md` § 5. Résultats d'exécution : `VALIDATION.md` § 15.
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 2.1 Ordinateur de l'atelier : exactement deux icônes cliquables (Missions / Commandes, Boutique) avec résumé tiré des données du jeu ; seul accès aux commandes et aux achats (boutique retirée du meuble à outils) ; souris, clavier, manette, B / Échap | Testé (PlayMode) | `Computer_HasExactlyTwoIcons_…`, `Gamepad_MovesLooksSelectsCleansAndTakesAnOrder` (A → ordinateur → A sur Missions → A accepte) |
+| 2.1 Boutique : liste défilante, outils à acheter en tête ; tableau trié (en cours, missions, contrats, verrouillées, terminées) | Testé (PlayMode) | `NewGame_StartsWith…` (outils en tête, achat de l'aspirateur), `FullOrder_…`, `LockedOrders_…` |
+| 2.2 Missions générées sans fin : trois offres (deux accessibles, une à viser), remplacement à la livraison, paliers de réputation, difficulté et récompense croissantes, aucune mission impossible, pas de doublon immédiat | Testé (EditMode + PlayMode) | `EconomyV012Tests` (12 tests missions), `Missions_AreOfferedFirst_ReplacedOnDelivery_…` |
+| 2.2 Déterminisme et sauvegarde : graine, numéro, offres ; mêmes missions après un redémarrage | Testé (EditMode + PlayMode) | `Board_RestoresSavedOffers_Identically`, `Missions_…_AndIdenticalAfterRestart` |
+| 2.2 En ligne : offres de l'hôte régénérées chez l'invité depuis leurs identifiants | **Préparé, non exécuté** (deux processus) | Vérification « Missions du tableau identiques chez l'hôte et l'invité » ajoutée à `-Step multiplayer` ; non lancée pendant que le joueur utilisait le PC |
+| 2.3 Actualités du menu principal : annonces locales versionnées, chargement asynchrone, données invalides tolérées, présentées comme locales | Testé (EditMode + PlayMode) | `News_…` (3 tests), `MainMenu_ShowsLocalNews_WithoutBlocking` |
+| 2.4 Kit de départ : brosse, détergent, seau d'eau (nouvel outil) ; autres outils à acheter ; migration v1 → v2 qui conserve les outils d'une partie commencée | Testé (EditMode + PlayMode) | `NewGame_StartsWithBrushDetergentAndBucketOnly`, `Migration_V1…` (2), `VersionZero_IsMigrated` |
+| 3.1 Détergent consommable : réserve de 4 L, bidon de 40 L = stock consommé progressivement (remplissage partiel), achat, prix, stock, sauvegarde | Testé (EditMode + PlayMode) | `Detergent_ReserveRefillsFromStock_…`, `DetergentCan_RespectsFundsAndStorage` |
+| 3.1 Niveau de liquide visible (shader, valeur envoyée seulement quand elle change), réserve vide bloquée avec raison et son de refus | Testé (PlayMode) | `EmptyReserve_PlaysTheDenySound_AndTheLiquidLevelFollowsTheReserve` |
+| 3.1 En ligne : achat de bidon et remplissage validés par l'hôte sur la carrière du joueur | Implémenté (format de carrière v2 testé en EditMode, stock de détergent compris) ; **deux processus non exécutés** | `CareerCodec_RoundTrips_…`, RPC `DetergentCanRpc` / `DetergentRefillRpc` |
+| Banc d'essai du jeu compilé adapté au kit de départ | **Non exécuté** (ouvre une fenêtre du jeu) | `BuildBenchmark` : vérifie le kit puis débloque les outils mesurés |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: up_rinse
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
   id: up_rinse
-  displayName: "Buse haute pression"
+  displayName: Buse haute pression
   description: "\xC9vacue la salet\xE9 30 % plus vite."
   price: 240
   effect: 4
   value: 1.3
   targetToolId: rinse
-  prerequisite: {fileID: 0}
+  prerequisite: {fileID: 11400000, guid: b1b9223c829f0ed4abb16794374be465, type: 2}

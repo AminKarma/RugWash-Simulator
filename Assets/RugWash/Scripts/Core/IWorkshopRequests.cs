@@ -12,5 +12,9 @@ namespace RugWash.Core
         void RequestUpgrade(string upgradeId);
         void RequestProduct(string productId);
         void RequestRobotToggle();
+        /// <summary>Achat d'un bidon de détergent (payé et stocké dans la carrière de ce joueur).</summary>
+        void RequestDetergentCan();
+        /// <summary>Remplissage de la réserve au poste détergent : prélèvement sur le stock de ce joueur.</summary>
+        void RequestDetergentRefill(float liters);
     }
 }

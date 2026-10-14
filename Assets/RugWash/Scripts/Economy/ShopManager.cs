@@ -31,6 +31,34 @@ namespace RugWash.Economy
 
         public void NotifyRemoteResult(string message, bool success) => RemoteResultReceived?.Invoke(message, success);
         public event Action<ProductDefinition, ProductPurchaseResult> ProductPurchaseAttempted;
+        /// <summary>Achat d'un bidon de détergent tenté (résultat).</summary>
+        public event Action<ProductPurchaseResult> DetergentPurchaseAttempted;
+
+        [Tooltip("Stock de détergent en bidons du joueur (optionnel).")]
+        [SerializeField] DetergentSupply detergent;
+        public DetergentSupply Detergent => detergent;
+
+        public ProductPurchaseResult CheckDetergentCan() =>
+            detergent == null ? ProductPurchaseResult.Unknown
+            : DetergentRules.CheckCan(detergent.Stock, detergent.CanLiters, detergent.MaxStock, detergent.CanPrice, wallet.Balance);
+
+        /// <summary>Achète un bidon de détergent de 40 L : débit puis ajout au stock, ou refus sans rien modifier.</summary>
+        public ProductPurchaseResult TryBuyDetergentCan()
+        {
+            var result = CheckDetergentCan();
+            if (Remote != null && result == ProductPurchaseResult.Purchased)
+            {
+                Remote.RequestDetergentCan();
+                return ProductPurchaseResult.Requested;
+            }
+            if (result == ProductPurchaseResult.Purchased)
+            {
+                if (!wallet.Wallet.TrySpend(detergent.CanPrice) || !detergent.AddCan()) result = ProductPurchaseResult.InsufficientFunds;
+                else if (audioManager != null) audioManager.PlayInterface(audioManager.ConfirmClip);
+            }
+            DetergentPurchaseAttempted?.Invoke(result);
+            return result;
+        }
 
         public bool IsConfigured(out string missing)
         {

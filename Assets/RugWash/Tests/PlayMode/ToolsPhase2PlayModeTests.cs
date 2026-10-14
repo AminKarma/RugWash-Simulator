@@ -61,9 +61,9 @@ namespace RugWash.Tests
         }
 
         [Test]
-        public void EightTools_AreAvailable_OnSlots1To8()
+        public void NineTools_AreAvailable_OnSlots1To9()
         {
-            Assert.AreEqual(8, tools.Tools.Count);
+            Assert.AreEqual(9, tools.Tools.Count);
             Assert.IsInstanceOf<VacuumTool>(tools.Tools[0]);
             Assert.IsInstanceOf<SoapSprayerTool>(tools.Tools[1]);
             Assert.IsInstanceOf<BrushTool>(tools.Tools[2]);
@@ -72,7 +72,9 @@ namespace RugWash.Tests
             Assert.IsInstanceOf<FoamCannonTool>(tools.Tools[5]);
             Assert.IsInstanceOf<BroomTool>(tools.Tools[6]);
             Assert.IsInstanceOf<BrushTool>(tools.Tools[7]);
-            for (int i = 0; i < 8; i++) Assert.AreEqual(i + 1, tools.Tools[i].Definition.slot);
+            Assert.IsInstanceOf<WaterRinseTool>(tools.Tools[8], "Seau d'eau (kit de départ, v0.1.2).");
+            Assert.AreEqual("bucket", tools.Tools[8].Definition.id);
+            for (int i = 0; i < 9; i++) Assert.AreEqual(i + 1, tools.Tools[i].Definition.slot);
         }
 
         [UnityTest]

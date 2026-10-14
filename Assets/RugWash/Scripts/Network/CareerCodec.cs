@@ -9,7 +9,7 @@ namespace RugWash.Network
     /// </summary>
     public static class CareerCodec
     {
-        public const byte Version = 1;
+        public const byte Version = 2;
         public const int MaxEntries = 64;
 
         public static byte[] Encode(PlayerCareer career)
@@ -40,6 +40,7 @@ namespace RugWash.Network
                 writer.Float(pair.Value);
             }
             writer.String(career.ActiveProduct ?? string.Empty);
+            writer.Float(Math.Max(0f, career.DetergentStock));
         }
 
         public static PlayerCareer Decode(byte[] data)
@@ -70,6 +71,7 @@ namespace RugWash.Network
                 career.Products[id] = liters;
             }
             career.ActiveProduct = reader.String();
+            career.DetergentStock = reader.Float();
             return career;
         }
     }

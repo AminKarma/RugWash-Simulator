@@ -59,10 +59,28 @@ namespace RugWash.Orders
             return OrderStartResult.Started;
         }
 
+        /// <summary>Ajoute une commande proposée en cours de partie (mission générée) ; sans effet si elle est déjà connue.</summary>
+        public bool Add(OrderDefinition order)
+        {
+            if (order == null || states.ContainsKey(order.id)) return false;
+            orders.Add(order);
+            states[order.id] = OrderState.Available;
+            return true;
+        }
+
+        /// <summary>Retire une commande qui n'est plus proposée (mission livrée ou remplacée) ; jamais la commande active.</summary>
+        public bool Remove(OrderDefinition order)
+        {
+            if (order == null || order == Active || !orders.Remove(order)) return false;
+            states.Remove(order.id);
+            return true;
+        }
+
         /// <summary>Multijoueur (invité) : reproduit la commande démarrée par l'hôte, sans contrôle local.</summary>
         public void ForceActive(OrderDefinition order)
         {
             if (order == null) return;
+            Add(order);
             if (Active != null && Active != order) states[Active.id] = OrderState.Available;
             Active = order;
             states[order.id] = OrderState.Active;

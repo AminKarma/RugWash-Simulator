@@ -4,7 +4,7 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 jalon 1** (game feel, scan, nouveaux
+> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 jalons 1 à 3** (game feel, scan, nouveaux
 > outils, aire de lavage, robot aspirateur, tapis de soie, nouvelles salissures, produits spécialisés, RugDex, manette,
 > **coopératif jusqu'à 4 joueurs** — réseau local testé, Steam implémenté mais pas encore testé en réel, voir § Multijoueur).
 > v0.1.2 jalon 1 : outils posés sur le point visé (manche télescopique), modèles détaillés chez les autres joueurs,
@@ -12,6 +12,9 @@ et voit le motif d'origine réapparaître progressivement.
 > (25 % / 40 %), tapis terminé sous 1 % — audit et décisions : [AUDIT_V012.md](Assets/RugWash/Documentation/AUDIT_V012.md).
 > v0.1.2 jalon 2 : plus d'à-coups quand la mousse couvre le tapis (simulation lente répartie), mousse au repos ~15× moins
 > coûteuse en réseau, budget des effets réglable, session prolongée sans fuite (`VALIDATION.md` § 14).
+> v0.1.2 jalon 3 : ordinateur de l'atelier (icônes Missions et Boutique, seul accès aux achats et aux commandes), missions
+> générées sans fin selon la réputation, actualités locales au menu, kit de départ (brosse, détergent, seau d'eau) et
+> détergent consommable (réserve de 4 L, bidons de 40 L) — `VALIDATION.md` § 15.
 > Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
@@ -177,11 +180,14 @@ partir de ces valeurs (`ProductTable.Describe`) : il n'annonce rien que le code 
 
 ## 4 ter. Commandes, économie et boutique
 
-1. **Comptoir de réception** (coin avant droit, E) : liste des commandes avec client, tapis, difficulté (★),
-   récompense, objectifs et état (*Disponible*, *En cours*, *Terminée*, *Verrouillée* par la réputation).
-   « Accepter » charge le tapis de la commande (saleté propre à la commande) et lance le chronomètre.
-2. Nettoyer, puis revenir au comptoir : « Livrer la commande » (une estimation de la note est affichée en direct)
-   ou « Abandonner ». La pause propose aussi « Recommencer la commande » et « Abandonner la commande ».
+1. **Ordinateur de l'atelier** (bureau du coin avant droit, E) : un bureau avec exactement deux icônes,
+   **Missions / Commandes** et **Boutique** (souris, clavier ou manette ; B / Échap pour fermer). C'est le seul accès aux
+   commandes et aux achats. **Missions** : liste avec client, tapis, difficulté (★), récompense, objectifs et état
+   (*Disponible*, *En cours*, *Terminée*, *Verrouillée* par la réputation), dans l'ordre : commande en cours, missions,
+   contrats, offres verrouillées, contrats terminés. « Accepter » charge le tapis (saleté propre à la commande) et lance
+   le chronomètre.
+2. Nettoyer, puis revenir à l'ordinateur → Missions : « Livrer la commande » (une estimation de la note est affichée en
+   direct) ou « Abandonner ». La pause propose aussi « Recommencer la commande » et « Abandonner la commande ».
 3. **Évaluation** (`OrderEvaluator`, règles centralisées et testées) — uniquement sur les données de la grille :
    - saleté retirée / objectif (poids 70 %) ; résidus de produit et humidité (15 % chacun) **seulement si la
      commande les exige** ; bonus de rapidité (+15 % de la récompense de base) si la note est au moins B ;
@@ -191,16 +197,36 @@ partir de ces valeurs (`ProductTable.Describe`) : il n'annonce rien que le code 
 4. **Une récompense n'est versée qu'une fois** : une commande terminée ne peut être ni relivrée ni refaite.
 5. **Écran de résultats** : note, critères mesurés (✔/✘), paiement, réputation, images avant/après,
    « Retour à l'atelier » ou « Choisir une autre commande ».
-6. **Boutique** (meuble « Matériel & boutique », E) : 9 améliorations avec prix et **effet réel**
-   (valeur actuelle → après achat) : réservoirs d'eau / détergent / cuve, buse économe (−30 % de produit),
-   puissance aspirateur, brosse, lance, extracteur. Achat refusé (solde inchangé) si fonds insuffisants ou
-   amélioration précédente manquante.
+6. **Boutique** (ordinateur → Boutique, liste défilante) : d'abord les **outils à acheter** (aspirateur, balai, lance,
+   extracteur, canon à mousse, brosse de détail), puis les améliorations avec prix et **effet réel** (valeur actuelle →
+   après achat) : réservoirs d'eau / détergent / cuve, buse économe (−30 % de produit), puissance des outils, largeurs.
+   Une amélioration d'outil demande l'outil. Achat refusé (solde inchangé) si fonds insuffisants ou prérequis manquant.
 
-   Onglet **Produits** : produits spécialisés (prix par flacon, stock actuel / maximum ; achat refusé si fonds
-   insuffisants ou si un flacon entier ne tient plus dans le stock).
+   Onglet **Produits** : **bidon de détergent de 40 L** (45 €, stock entreposé jusqu'à 160 L), puis les produits
+   spécialisés (prix par flacon, stock actuel / maximum ; achat refusé si fonds insuffisants ou si le contenant ne tient
+   plus dans le stock).
 7. **Nouvelles commandes** (jalon 3) : pension canine (poils, amas, boissons), atelier de couture (peluches, débris,
    graisse accrochée, résidus ≤ 15 %), bureau de chantier (boue sèche, amas, terre, résidus ≤ 20 %), grand salon
    (tapis de soie, voir ci-dessus). Le tableau est une liste défilante (molette, barre à droite).
+8. **Kit de départ** (v0.1.2) : une nouvelle partie commence avec une **brosse**, du **détergent** (réserve de 4 L + 12 L
+   en stock) et un **seau d'eau** (touche 9 : rince de près, sans lance). Les autres outils s'achètent. Une sauvegarde
+   d'avant la v0.1.2 où la partie avait commencé garde tous ses outils et reçoit un bidon de 40 L.
+9. **Détergent consommable** : la réserve emportée (4 L, 6 L avec l'amélioration) se vide réellement (pulvérisateur, canon
+   à mousse). Le **poste détergent** la remplit à partir du stock en bidons (remplissage partiel si le stock ne suffit
+   pas) ; un bidon de 40 L est un stock de 40 litres consommé progressivement (≈ 10 remplissages de 4 L). Le niveau se voit
+   dans le contenant de l'outil (shader de niveau de liquide) et s'affiche « 2,4 / 4 L · stock 12 L ». Réserve vide :
+   l'outil ne pulvérise pas, la raison s'affiche et un son de refus est joué. En ligne, achats et remplissages sont validés
+   par l'hôte sur la carrière du joueur concerné.
+10. **Missions générées sans fin** : en plus des 10 contrats du catalogue, le tableau propose toujours **trois missions**
+    (deux accessibles, une du palier suivant « à viser »). Chaque mission livrée est remplacée par la suivante. Les paliers
+    de réputation s'ouvrent progressivement (0, 3, 8, 15, 24, 35…) : tapis plus précieux, plus de salissures, objectifs plus
+    stricts (propreté, résidus, séchage seulement si l'extracteur est acheté, usure des fibres sur la soie) et meilleure
+    récompense. La génération est déterministe (graine de la partie + numéro) : les offres affichées sont identiques après un
+    redémarrage (une mission en cours au moment de quitter revient, inchangée, comme disponible) ; en ligne, les invités
+    régénèrent les offres de l'hôte à l'identique.
+11. **Actualités** (menu principal, à droite) : annonces **locales**, livrées avec le jeu dans
+    `Assets/RugWash/Resources/RugWashNews.json` (format versionné : titre, date, version, texte) — aucune connexion n'est
+    faite ni simulée. Fichier absent ou invalide : le menu reste utilisable et affiche « Aucune actualité pour le moment ».
 
 ## 4 sexies. RugDex
 
@@ -222,13 +248,13 @@ difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste
 ## 4 quinquies. Aire de lavage (zone de nettoyage) et robot aspirateur
 
 - **Pas de tapis d'entraînement** (v0.1.2) : l'atelier démarre sans tapis ; un tapis n'apparaît qu'en acceptant une
-  commande au comptoir et repart à la livraison ou à l'abandon.
+  commande sur l'ordinateur et repart à la livraison ou à l'abandon.
 - **Plan de travail de l'aire de lavage** — la **seule zone de nettoyage** de la salle : ce qui ruisselle du tapis s'y dépose
   réellement, autour du tapis et du côté où l'on travaille — eau sale et mousse évacuées par le rinçage, débris chassés par
   le balai. Il se nettoie avec les mêmes outils (lance, balai qui pousse l'eau et la boue, extracteur) ; l'eau claire sèche
   seule. Le HUD affiche en permanence « Aire de lavage : x % propre ».
 - **Seuils** (convention : saleté = part de la surface souillée, propreté = 1 − saleté) : sous **25 % de propreté**, aucune
-  nouvelle commande ne démarre (le comptoir et le HUD expliquent pourquoi) ; au-delà de **40 % de saleté**, le tapis posé
+  nouvelle commande ne démarre (l'application Missions et le HUD expliquent pourquoi) ; au-delà de **40 % de saleté**, le tapis posé
   dessus se salit (bordure recontaminée à la pose, puis en continu tant que l'aire reste trop sale).
 - **Tapis terminé** : quand il reste moins de 1 % de la saleté initiale, le reliquat est retiré — propreté 100 %,
   « Tapis terminé », objectif atteint ; séchage et résidus restent notés à la livraison.
@@ -270,7 +296,7 @@ test, limites) : [Assets/RugWash/Documentation/MULTIPLAYER.md](Assets/RugWash/Do
 
 ## 4 bis. Audio
 
-Les 33 sons (outils et **contact avec le tapis** propres à chaque outil, prise en main, interface, remplissage,
+Les 34 sons (outils et **contact avec le tapis** propres à chaque outil, prise en main, interface, refus, remplissage,
 vidange, éclat de zone propre, scan, paliers, objectif, paiement, ambiance, pas, robot aspirateur) sont **générés par synthèse**
 (`RugWashAudioGenerator`) dans `Assets/RugWash/Audio/Generated/tmp_*.wav` : aucune licence tierce. Ce sont des
 **substituts temporaires** clairement préfixés `tmp_`, à remplacer en changeant le clip assigné.
@@ -431,7 +457,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel : 170 tests EditMode et 100 tests PlayMode, tous réussis, et 32 / 32 vérifications multijoueur (scénario du jalon 1) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel : 189 tests EditMode et 106 tests PlayMode, tous réussis (v0.1.2 jalon 3), et 32 / 32 vérifications multijoueur (scénario du jalon 1 ; scénario mis à jour pour le jalon 3 non encore exécuté) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

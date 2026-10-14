@@ -3,8 +3,9 @@ using UnityEngine;
 namespace RugWash.Cleaning
 {
     /// <summary>
-    /// Lance de rinçage : consomme de l'eau en continu pendant l'utilisation (même hors du tapis),
-    /// évacue la saleté détachée et la mousse, et mouille les fibres.
+    /// Outil de rinçage : consomme de l'eau en continu pendant l'utilisation (même hors du tapis), évacue la saleté
+    /// détachée et la mousse, et mouille les fibres. Deux outils l'utilisent : le seau d'eau du kit de départ (versé de
+    /// près, moins puissant) et la lance de rinçage haute pression (à acheter).
     /// </summary>
     public sealed class WaterRinseTool : CleaningToolBase
     {
@@ -13,6 +14,8 @@ namespace RugWash.Cleaning
         [SerializeField] ParticleSystem splashParticles;
         [SerializeField] float jetRate = 260f;
         [SerializeField] float splashRate = 140f;
+        [Tooltip("Seau : le modèle s'incline pour verser au lieu de reculer comme une lance.")]
+        [SerializeField] bool pourMotion;
 
         float removedPerSecond;
         float recoil;
@@ -80,6 +83,14 @@ namespace RugWash.Cleaning
         protected override void AnimateViewModel(Transform model, Vector3 restPosition, Quaternion restRotation, float deltaTime)
         {
             if (model == null) return;
+            if (pourMotion)
+            {
+                recoil = Mathf.MoveTowards(recoil, IsUsing ? 1f : 0f, deltaTime * 4f);
+                float slosh = IsUsing ? Mathf.Sin(Time.time * 9f) * 0.004f : 0f;
+                model.localPosition = restPosition + new Vector3(0f, 0.03f * recoil + slosh, 0.02f * recoil);
+                model.localRotation = restRotation * Quaternion.Euler(38f * recoil, 0f, 0f);
+                return;
+            }
             recoil = Mathf.MoveTowards(recoil, IsUsing ? 1f : 0f, deltaTime * 10f);
             float jitter = IsUsing ? (Mathf.PerlinNoise(Time.time * 25f, 0f) - 0.5f) * 0.006f : 0f;
             model.localPosition = restPosition + new Vector3(jitter, jitter, -0.015f * recoil);

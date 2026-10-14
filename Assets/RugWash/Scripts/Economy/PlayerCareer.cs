@@ -18,16 +18,30 @@ namespace RugWash.Economy
         public readonly HashSet<string> Upgrades = new HashSet<string>();
         public readonly Dictionary<string, float> Products = new Dictionary<string, float>();
         public string ActiveProduct = string.Empty;
+        /// <summary>Stock de détergent en bidons (litres).</summary>
+        public float DetergentStock;
 
         public PlayerCareer Clone()
         {
-            var copy = new PlayerCareer { Money = Money, Reputation = Reputation, ActiveProduct = ActiveProduct };
+            var copy = new PlayerCareer { Money = Money, Reputation = Reputation, ActiveProduct = ActiveProduct, DetergentStock = DetergentStock };
             copy.Upgrades.UnionWith(Upgrades);
             foreach (var pair in Products) copy.Products[pair.Key] = pair.Value;
             return copy;
         }
 
         public float StockOf(string productId) => productId != null && Products.TryGetValue(productId, out float liters) ? liters : 0f;
+    }
+
+    /// <summary>Règles pures du détergent en bidons (testées en EditMode).</summary>
+    public static class DetergentRules
+    {
+        /// <summary>Un bidon tient dans le stock et est payable.</summary>
+        public static ProductPurchaseResult CheckCan(float stock, float canLiters, float maxStock, int price, int money)
+        {
+            if (stock + canLiters > maxStock + 1e-4f) return ProductPurchaseResult.StockFull;
+            if (money < price) return ProductPurchaseResult.InsufficientFunds;
+            return ProductPurchaseResult.Purchased;
+        }
     }
 
     /// <summary>Règles pures appliquées par l'autorité (hôte) à la carrière d'un joueur (testées en EditMode).</summary>
@@ -39,11 +53,13 @@ namespace RugWash.Economy
         /// Carrière annoncée par un invité à son arrivée (lue dans SA sauvegarde) : bornée et filtrée sur le catalogue de
         /// l'hôte (identifiants inconnus ignorés, stocks ramenés à la capacité). Pendant la partie, seul l'hôte la modifie.
         /// </summary>
-        public static PlayerCareer Sanitize(PlayerCareer raw, IReadOnlyList<UpgradeDefinition> upgrades, IReadOnlyList<ProductDefinition> products)
+        public static PlayerCareer Sanitize(PlayerCareer raw, IReadOnlyList<UpgradeDefinition> upgrades, IReadOnlyList<ProductDefinition> products,
+            float maxDetergent = 160f)
         {
             var clean = new PlayerCareer();
             if (raw == null) return clean;
             clean.Money = Mathf.Clamp(raw.Money, 0, Save.SaveValidator.MaxMoney);
+            clean.DetergentStock = float.IsNaN(raw.DetergentStock) ? 0f : Mathf.Clamp(raw.DetergentStock, 0f, maxDetergent);
             clean.Reputation = Mathf.Clamp(raw.Reputation, 0, MaxReputation);
             if (upgrades != null)
                 foreach (var upgrade in upgrades)
@@ -80,6 +96,26 @@ namespace RugWash.Economy
             career.Money = wallet.Balance;
             career.Products[product.id] = Mathf.Min(product.maxStock, career.StockOf(product.id) + product.packLiters);
             return ProductPurchaseResult.Purchased;
+        }
+
+        /// <summary>Achat d'un bidon de détergent avec l'argent de cette carrière (mêmes règles que la boutique).</summary>
+        public static ProductPurchaseResult TryBuyDetergentCan(PlayerCareer career, int price, float canLiters, float maxStock)
+        {
+            if (career == null) return ProductPurchaseResult.Unknown;
+            var result = DetergentRules.CheckCan(career.DetergentStock, canLiters, maxStock, price, career.Money);
+            if (result != ProductPurchaseResult.Purchased) return result;
+            career.Money -= price;
+            career.DetergentStock += canLiters;
+            return result;
+        }
+
+        /// <summary>Remplissage de la réserve : prélève jusqu'à <paramref name="liters"/> sur le stock ; retourne la quantité accordée.</summary>
+        public static float TakeDetergent(PlayerCareer career, float liters)
+        {
+            if (career == null || float.IsNaN(liters) || liters <= 0f) return 0f;
+            float taken = Mathf.Min(liters, career.DetergentStock);
+            career.DetergentStock -= taken;
+            return taken;
         }
 
         /// <summary>Retire du stock ce que le joueur a réellement pulvérisé ; retourne la quantité prélevée.</summary>

@@ -30,6 +30,10 @@ namespace RugWash.Save
         [SerializeField] WorkshopStateService workshop;
         [SerializeField] Player.ProductInventory products;
         [SerializeField] RugDex.RugDexService rugDex;
+        [Tooltip("Réservoirs du joueur (réserve de détergent sauvegardée).")]
+        [SerializeField] Player.PlayerEquipment equipment;
+        [Tooltip("Stock de détergent en bidons.")]
+        [SerializeField] Player.DetergentSupply detergent;
 
         SaveFileStore store;
         bool applied;
@@ -80,7 +84,13 @@ namespace RugWash.Save
             {
                 shop.PurchaseAttempted += OnPurchaseAttempted;
                 shop.ProductPurchaseAttempted += OnProductPurchaseAttempted;
+                shop.DetergentPurchaseAttempted += OnDetergentPurchaseAttempted;
             }
+        }
+
+        void OnDetergentPurchaseAttempted(ProductPurchaseResult result)
+        {
+            if (result == ProductPurchaseResult.Purchased) SaveNow("achat de détergent");
         }
 
         void OnProductPurchaseAttempted(Cleaning.ProductDefinition product, ProductPurchaseResult result)
@@ -96,6 +106,7 @@ namespace RugWash.Save
             {
                 shop.PurchaseAttempted -= OnPurchaseAttempted;
                 shop.ProductPurchaseAttempted -= OnProductPurchaseAttempted;
+                shop.DetergentPurchaseAttempted -= OnDetergentPurchaseAttempted;
             }
         }
 
@@ -123,7 +134,19 @@ namespace RugWash.Save
                 wallet.Wallet.Restore(Current.money);
                 reputation.Restore(Current.reputation);
                 upgrades.Restore(Current.upgrades);
-                if (!GuestCareerMode) orders.Book.MarkCompleted(Current.completedOrders);
+                if (!GuestCareerMode)
+                {
+                    orders.Book.MarkCompleted(Current.completedOrders);
+                    // Après la réputation et les outils : les nouvelles offres en dépendent ; les offres sauvegardées reviennent telles quelles.
+                    orders.RestoreMissions(Current.missionSeed, Current.missionSequence, Current.missionOffers, Current.lastMission);
+                }
+            }
+            // Détergent : stock en bidons et réserve emportée (après les améliorations, qui fixent la capacité de la réserve).
+            if (detergent != null) detergent.Restore(Current.detergentStock);
+            if (equipment != null && Current.soapReserve >= 0f)
+            {
+                equipment.Soap.Empty();
+                equipment.Soap.Add(Current.soapReserve);
             }
             applied = true;
         }
@@ -147,12 +170,22 @@ namespace RugWash.Save
                 Current.activeProduct = products.Active != null ? products.Active.id : string.Empty;
             }
             if (rugDex != null) Current.rugDex = rugDex.Book.Snapshot();
+            if (detergent != null) Current.detergentStock = detergent.Stock;
+            if (equipment != null) Current.soapReserve = equipment.Soap.Amount;
             if (!HasGameSystems) return;
             Current.money = wallet.Balance;
             Current.reputation = reputation.Points;
             Current.upgrades = new System.Collections.Generic.List<string>(upgrades.OwnedIds);
             // Invité : ses commandes livrées sont ajoutées à sa liste (OnOrderFinished), le tableau de l'hôte n'est pas copié.
-            if (!GuestCareerMode) Current.completedOrders = new System.Collections.Generic.List<string>(orders.Book.CompletedIds());
+            if (GuestCareerMode) return;
+            Current.completedOrders = new System.Collections.Generic.List<string>(orders.Book.CompletedIds());
+            Current.completedOrders.RemoveAll(Orders.MissionKey.IsGenerated);
+            if (!orders.Missions.IsInitialized) return;
+            Current.missionSeed = orders.Missions.Seed;
+            Current.missionSequence = orders.Missions.Sequence;
+            Current.lastMission = orders.Missions.LastCompleted;
+            Current.missionOffers = new System.Collections.Generic.List<string>();
+            foreach (var offer in orders.Missions.Offers) Current.missionOffers.Add(offer.Id);
         }
 
         public bool SaveNow(string reason)
@@ -195,7 +228,8 @@ namespace RugWash.Save
                 Current.ordersDelivered++;
                 Current.totalEarned += result.Reward;
                 // Invité : la commande de session livrée entre dans SON historique de carrière.
-                if (GuestCareerMode && result.Order != null && !Current.completedOrders.Contains(result.Order.id))
+                if (GuestCareerMode && result.Order != null && !Orders.MissionKey.IsGenerated(result.Order.id)
+                    && !Current.completedOrders.Contains(result.Order.id))
                     Current.completedOrders.Add(result.Order.id);
             }
             SaveNow("commande livrée");

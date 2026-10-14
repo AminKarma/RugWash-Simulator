@@ -24,6 +24,9 @@ namespace RugWash.Player
         [SerializeField] List<CleaningToolBase> tools = new List<CleaningToolBase>();
         [SerializeField] LayerMask aimMask = ~0;
         [SerializeField] float maxAimDistance = 6f;
+        [Tooltip("Son de refus quand l'outil ne peut pas agir (réserve vide…), optionnel.")]
+        [SerializeField] Audio.AudioManager audioManager;
+        bool wantedUse;
 
         readonly Dictionary<Collider, RugCleaningController> rugCache = new Dictionary<Collider, RugCleaningController>();
         int activeIndex = -1;
@@ -122,6 +125,10 @@ namespace RugWash.Player
             CurrentAim = aim;
             bool wantsUse = input.UseHeld || AutomationUseOverride;
             tool.Tick(wantsUse, aim, Time.deltaTime);
+            // Appui sur « utiliser » sans effet possible (réserve vide…) : son de refus ; la raison s'affiche dans le HUD.
+            if (wantsUse && !wantedUse && !tool.IsUsing && tool.IsUnlocked && tool.GetBlockReason() != null && audioManager != null)
+                audioManager.PlayInterface(audioManager.DenyClip, 0.8f);
+            wantedUse = wantsUse;
 
             if (aim.HasRug)
             {

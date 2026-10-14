@@ -319,3 +319,36 @@ collision ni instanciation ; un jet émis juste devant la caméra pouvait toutef
 **Non exécuté** : benchmark du jeu compilé après optimisation et scénario à deux processus avec la nouvelle phase
 « mousse au repos » (ils ouvrent des fenêtres du jeu ; à lancer quand le PC est libre :
 `Tools/RugWash-CI.ps1 -Step build`, puis `-Step benchmark` et `-Step multiplayer`).
+
+## 15. Update v0.1.2 — jalon 3 (ordinateur et économie)
+
+Exécutions réelles du 14/10/2026, même machine, en mode batch uniquement (le PC servait à jouer : aucune fenêtre du jeu
+n'a été ouverte). Décisions : `AUDIT_V012.md` § 5.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation (scripts, contenu, scènes) | ✅ 0 erreur, 0 avertissement |
+| Tests EditMode | ✅ **189 / 189** (170 + 19 `EconomyV012Tests` : paliers, clés et génération déterministe des missions, aucune mission impossible, offres sans doublon immédiat, restauration à l'identique, baisse de réputation, actualités (lecture, données invalides, fichier livré), migration v1 → v2, sauvegarde v2 assainie, bidons de détergent ; format de carrière vérifié avec le stock de détergent ; 4 tests existants adaptés : sauvegardes v1 désormais migrées, canon à mousse à acheter, outils conservés par la migration v0) |
+| Tests PlayMode | ✅ **106 / 106** (100 + 6 `EconomyV012PlayModeTests` : kit de départ et achat d'un outil, détergent (remplissage depuis le stock, partiel, refus, achat d'un bidon, sauvegarde, redémarrage), niveau de liquide et son de refus, ordinateur à deux icônes seul accès, missions remplacées et identiques après redémarrage, actualités du menu ; tests existants adaptés : ordinateur à la manette, tableau et boutique triés, 9 outils, profil vierge pour « Nouvelle partie ») |
+| Build Windows, jeu compilé (solo, deux processus) | **Non exécutés** : ils ouvrent des fenêtres du jeu |
+
+**Défauts trouvés et corrigés pendant la validation**
+
+- Tableau des missions : après la livraison d'une mission accessible, la règle prévue pour une baisse de réputation
+  retirait aussi l'offre « à viser » (deux missions générées au lieu d'une). Règle corrigée : au plus une offre
+  verrouillée ; les autres sont remplacées (test `Board_ReplacesDeliveredMission_…`).
+- Niveau de liquide : à fréquence d'image élevée, le lissage s'arrêtait dès que le pas d'une image passait sous le seuil,
+  et le niveau restait figé loin de la réserve réelle (0,30 affiché pour 0,25). L'écart est maintenant mesuré à la cible.
+- Boutique : titre long (« Lance de rinçage haute pression ») passant par-dessus sa description ; l'amélioration
+  « Bidon de détergent 6 L » (réserve) renommée « Réserve de détergent 6 L » pour ne pas être confondue avec le bidon de 40 L.
+- Affiche « Les 5 étapes » : elle commençait par « Aspirer », impossible avec le kit de départ ; devenue
+  « Savonner, brosser, rincer, sécher, livrer (PC) ».
+
+**Vérifications visuelles** (captures `Logs/ci/screens`) : `39_computer` (deux icônes distinctes, résumés réels),
+`37_shop` (outils à acheter en tête, liste défilante), `09_order_board` (missions en tête, contrats, offres verrouillées),
+`12_main_menu` (actualités locales), `18_back_wall` (affiche).
+
+**Non exécuté** (à lancer quand le PC est libre : `Tools/RugWash-CI.ps1 -Step build`, puis `-Step benchmark` et
+`-Step multiplayer`) : scénario à deux processus avec la nouvelle vérification « missions du tableau identiques chez
+l'hôte et l'invité » et les demandes de détergent de l'invité (achat de bidon, remplissage) ; benchmark du jeu compilé
+adapté au kit de départ. Steam en réel : inchangé (non testé).

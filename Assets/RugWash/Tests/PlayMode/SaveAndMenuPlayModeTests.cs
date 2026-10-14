@@ -21,7 +21,7 @@ namespace RugWash.Tests
     public class SaveAndMenuPlayModeTests
     {
         [SetUp]
-        public void Sandbox() => TestSaveSandbox.Reset();
+        public void Sandbox() => TestSaveSandbox.Reset(legacyTools: false);
 
         [UnityTearDown]
         public IEnumerator Cleanup()

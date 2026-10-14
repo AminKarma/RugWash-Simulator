@@ -23,6 +23,7 @@ namespace RugWash.Editor
         public const string FoamCannonToolPath = RugWashPaths.ToolDefinitions + "/Tool_FoamCannon.asset";
         public const string BroomToolPath = RugWashPaths.ToolDefinitions + "/Tool_Broom.asset";
         public const string DetailBrushToolPath = RugWashPaths.ToolDefinitions + "/Tool_DetailBrush.asset";
+        public const string BucketToolPath = RugWashPaths.ToolDefinitions + "/Tool_Bucket.asset";
         public const string WorkSurfacePath = RugWashPaths.RugDefinitions + "/Surface_WorkSurface.asset";
         public const string FloorSurfacePath = RugWashPaths.RugDefinitions + "/Surface_Floor.asset";
         public const string TuningPath = RugWashPaths.Root + "/ScriptableObjects/CleaningTuning.asset";
@@ -41,6 +42,8 @@ namespace RugWash.Editor
             public ToolDefinition Rinse;
             public ToolDefinition Vacuum, Soap, Extractor;
             public ToolDefinition FoamCannon, Broom, DetailBrush;
+            /// <summary>Seau d'eau (kit de départ, v0.1.2).</summary>
+            public ToolDefinition Bucket;
             public RugDefinition Oriental, Classic, Shag, Luxury;
             public ProductLibrary ProductLibrary;
             public RugCatalog Catalog;
@@ -94,11 +97,19 @@ namespace RugWash.Editor
                 DetailBrush = EnsureTool(DetailBrushToolPath, "detail_brush", "Brosse de détail", 8,
                     "Petite brosse dure : bien plus efficace sur la graisse et les taches incrustées, sur une petite zone.",
                     range: 2.1f, radius: 0.07f, hardness: 4f, power: 0.9f, wetting: 0f, ToolResource.None, 0f),
+                Bucket = EnsureTool(BucketToolPath, "bucket", "Seau d'eau", 9,
+                    "Le rinçage du kit de départ : on verse l'eau de près pour évacuer la saleté détachée et la mousse. " +
+                    "Moins puissant et moins précis que la lance haute pression. Se remplit au poste d'eau.",
+                    range: 1.9f, radius: 0.3f, hardness: 1.6f, power: 0.5f, wetting: 1f, ToolResource.Water, 2f),
             };
             EnsureToolBehaviour(content.FoamCannon, aspect: 2.6f);
             EnsureToolBehaviour(content.Broom, aspect: 2.2f, runoffDirt: 0.9f, dry: true);
             EnsureToolBehaviour(content.DetailBrush, requiresUnlock: true);
             EnsureToolBehaviour(content.Rinse, runoffDirt: 0.6f, runoffFoam: 0.7f, runoffWater: 0.35f);
+            EnsureToolBehaviour(content.Bucket, runoffDirt: 0.7f, runoffFoam: 0.8f, runoffWater: 0.5f);
+            // v0.1.2 : kit de départ = brosse, détergent, seau d'eau. Les autres outils s'achètent (boutique de l'ordinateur).
+            foreach (var paid in new[] { content.Vacuum, content.Rinse, content.Extractor, content.FoamCannon, content.Broom })
+                EnsureToolBehaviour(paid, requiresUnlock: true);
             // Vibrations à la manette (jalon 4) : grondement (basse fréquence) et bourdonnement (haute fréquence).
             EnsureToolRumble(content.Vacuum, 0.08f, 0.16f);
             EnsureToolRumble(content.Soap, 0f, 0.06f);
@@ -108,6 +119,7 @@ namespace RugWash.Editor
             EnsureToolRumble(content.FoamCannon, 0.2f, 0.1f);
             EnsureToolRumble(content.Broom, 0.12f, 0.05f);
             EnsureToolRumble(content.DetailBrush, 0.12f, 0.18f);
+            EnsureToolRumble(content.Bucket, 0.06f, 0.02f);
             content.Tuning = LoadOrCreate<CleaningTuning>(TuningPath, out _);
 
             EnsureMaterials(content);
@@ -278,12 +290,28 @@ namespace RugWash.Editor
 
         static void EnsureUpgrades(Content c)
         {
+            // v0.1.2 : achat des outils hors kit de départ (identifiants repris par la migration des sauvegardes v1).
+            var vacuumTool = EnsureUpgrade("up_tool_vacuum", "Aspirateur", "Retire la poussière, les poils et les débris secs.",
+                150, UpgradeEffect.UnlockTool, 1f, "vacuum", null);
+            var broomTool = EnsureUpgrade("up_tool_broom", "Balai", "Chasse poils et débris ; pousse l'eau et la boue de l'aire vers le caniveau.",
+                110, UpgradeEffect.UnlockTool, 1f, "broom", null);
+            var rinseTool = EnsureUpgrade("up_tool_rinse", "Lance de rinçage haute pression", "Rince de plus loin et bien plus vite que le seau.",
+                220, UpgradeEffect.UnlockTool, 1f, "rinse", null);
+            var extractorTool = EnsureUpgrade("up_tool_extractor", "Extracteur", "Aspire l'eau des fibres : indispensable pour rendre un tapis sec.",
+                320, UpgradeEffect.UnlockTool, 1f, "extractor", null);
+            var foamTool = EnsureUpgrade("up_tool_foam", "Canon à mousse", "Couvre une grande zone de mousse épaisse (consomme du détergent).",
+                380, UpgradeEffect.UnlockTool, 1f, "foam_cannon", null);
+            toolUnlocks = new System.Collections.Generic.Dictionary<string, UpgradeDefinition>
+            {
+                ["vacuum"] = vacuumTool, ["broom"] = broomTool, ["rinse"] = rinseTool, ["extractor"] = extractorTool, ["foam_cannon"] = foamTool,
+            };
+
             var water1 = EnsureUpgrade("up_water_1", "Réservoir d'eau 60 L", "Rincez plus longtemps entre deux remplissages.",
                 150, UpgradeEffect.WaterCapacity, 20f, null, null);
             c.Upgrades.Add(water1);
             c.Upgrades.Add(EnsureUpgrade("up_water_2", "Réservoir d'eau 80 L", "Le plus grand réservoir du catalogue.",
                 300, UpgradeEffect.WaterCapacity, 20f, null, water1));
-            c.Upgrades.Add(EnsureUpgrade("up_soap_capacity", "Bidon de détergent 6 L", "Plus de produit embarqué.",
+            c.Upgrades.Add(EnsureUpgrade("up_soap_capacity", "Réserve de détergent 6 L", "Plus de produit embarqué.",
                 120, UpgradeEffect.SoapCapacity, 2f, null, null));
             c.Upgrades.Add(EnsureUpgrade("up_soap_eco", "Buse économe", "La même mousse avec 30 % de produit en moins.",
                 180, UpgradeEffect.ToolConsumption, 0.7f, "soap", null));
@@ -303,13 +331,29 @@ namespace RugWash.Editor
                 90, UpgradeEffect.ToolRadius, 1.35f, "broom", null));
             c.Upgrades.Add(EnsureUpgrade("up_foam_wide", "Buse à mousse large", "Le canon à mousse couvre une zone 30 % plus large.",
                 120, UpgradeEffect.ToolRadius, 1.3f, "foam_cannon", null));
+            // En fin de catalogue : l'ordre (et les indices) des améliorations existantes reste inchangé ; c'est la boutique
+            // (ShopUI) qui affiche les outils à acheter en premier.
+            c.Upgrades.AddRange(new[] { vacuumTool, broomTool, rinseTool, extractorTool, foamTool });
         }
+
+        static System.Collections.Generic.Dictionary<string, UpgradeDefinition> toolUnlocks;
 
         static UpgradeDefinition EnsureUpgrade(string id, string name, string description, int price, UpgradeEffect effect, float value,
             string toolId, UpgradeDefinition prerequisite)
         {
             var upgrade = LoadOrCreate<UpgradeDefinition>($"{RugWashPaths.UpgradeDefinitions}/{id}.asset", out bool created);
-            if (!created) return upgrade;
+            // Les améliorations d'un outil à acheter exigent l'outil (aussi pour un asset existant).
+            if (effect != UpgradeEffect.UnlockTool && prerequisite == null && toolUnlocks != null && toolId != null
+                && toolUnlocks.TryGetValue(toolId, out var unlock)) prerequisite = unlock;
+            if (!created)
+            {
+                if (upgrade.prerequisite != prerequisite && prerequisite != null)
+                {
+                    upgrade.prerequisite = prerequisite;
+                    EditorUtility.SetDirty(upgrade);
+                }
+                return upgrade;
+            }
             upgrade.id = id;
             upgrade.displayName = name;
             upgrade.description = description;
@@ -616,6 +660,9 @@ namespace RugWash.Editor
             content.Materials["RobotDark"] = EnsureLit("M_RobotDark", new Color(0.07f, 0.075f, 0.08f), 0.5f);
             content.Materials["RobotLed"] = EnsureEmissive("M_RobotLed", Color.white, 2f);
             content.Materials["FoamCanister"] = EnsureLit("M_FoamCanister", new Color(0.82f, 0.9f, 0.95f), 0.85f);
+            // Contenants à niveau de liquide visible (réserve de détergent, v0.1.2) : hauteurs en espace objet des maillages.
+            content.Materials["LiquidBottle"] = EnsureLiquid("M_LiquidBottle", new Color(0.8f, 0.9f, 0.82f, 0.35f), new Color(0.2f, 0.62f, 0.32f, 0.94f), -0.195f, -0.035f);
+            content.Materials["LiquidCanister"] = EnsureLiquid("M_LiquidCanister", new Color(0.84f, 0.92f, 0.97f, 0.3f), new Color(0.93f, 0.97f, 1f, 0.92f), -0.165f, -0.045f);
             content.Materials["Hazard"] = EnsureLit("M_Hazard", Color.white, 0.3f, Tex(RugWashTextureGenerator.Hazard), null, tiling: 2f);
             content.Materials["Paper"] = EnsureLit("M_Paper", Color.white, 0.05f, Tex(RugWashTextureGenerator.Paper), null, tiling: 1f);
             content.Materials["ClockFace"] = EnsureLit("M_ClockFace", Color.white, 0.3f, Tex(RugWashTextureGenerator.ClockFace), null, tiling: 1f);
@@ -657,6 +704,18 @@ namespace RugWash.Editor
             content.Materials["LampPanel"] = EnsureEmissive("M_LampPanel", new Color(1f, 0.95f, 0.85f), 4f);
             content.Materials["Window"] = EnsureEmissive("M_Window", new Color(0.55f, 0.7f, 0.88f), 0.75f);
             content.Materials["ScreenGlow"] = EnsureEmissive("M_ScreenGlow", new Color(0.35f, 0.75f, 0.85f), 1.2f);
+        }
+
+        static Material EnsureLiquid(string name, Color empty, Color liquid, float minY, float maxY)
+        {
+            var material = EnsureMaterial(name, "RugWash/Liquid Container", out _);
+            material.SetColor("_EmptyColor", empty);
+            material.SetColor("_LiquidColor", liquid);
+            material.SetFloat("_MinY", minY);
+            material.SetFloat("_MaxY", maxY);
+            material.SetFloat("_Fill", 1f);
+            EditorUtility.SetDirty(material);
+            return material;
         }
 
         static Material EnsureMaterial(string name, string shaderName, out bool created)

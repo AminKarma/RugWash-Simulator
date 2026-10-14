@@ -204,7 +204,7 @@ namespace RugWash.Editor
                 Prop("Hook", root, Cyl(m, 0.008f, 0.06f), c["Chrome"], new Vector3(x, 1.95f, 0.2f), new Vector3(90f, 0f, 0f));
             Prop("Bucket_A", root, Bucket(m), c["RedPlastic"], new Vector3(-0.7f, 0.94f, -0.05f));
             Prop("Bucket_B", root, Bucket(m), c["BluePlastic"], new Vector3(0.75f, 0.94f, -0.05f), new Vector3(0f, 40f, 0f));
-            RugWashSceneBuilder.CreateSign(parent, "Sign_Tools", "MATÉRIEL & BOUTIQUE", new Vector3(3.6f, 2.45f, HalfZ - 0.04f), Quaternion.identity, m, c);
+            RugWashSceneBuilder.CreateSign(parent, "Sign_Tools", "MATÉRIEL", new Vector3(3.6f, 2.45f, HalfZ - 0.04f), Quaternion.identity, m, c);
             return root.gameObject;
         }
 
@@ -238,7 +238,7 @@ namespace RugWash.Editor
                 new Vector2(0f, 0f), new Vector2(0.17f, 0f), new Vector2(0.2f, 0.55f), new Vector2(0.21f, 0.56f), new Vector2(0.19f, 0.56f),
                 new Vector2(0.18f, 0.54f), new Vector2(0.15f, 0.02f), new Vector2(0f, 0.02f),
             }, 24, false, false)), c["DarkMetal"], new Vector3(5.6f, 0f, -2.9f), collider: true);
-            RugWashSceneBuilder.CreateSign(parent, "Sign_Orders", "RÉCEPTION DES COMMANDES", new Vector3(4.3f, 2.45f, -HalfZ + 0.04f), Quaternion.Euler(0f, 180f, 0f), m, c);
+            RugWashSceneBuilder.CreateSign(parent, "Sign_Orders", "BUREAU · ORDINATEUR", new Vector3(4.3f, 2.45f, -HalfZ + 0.04f), Quaternion.Euler(0f, 180f, 0f), m, c);
             return root.gameObject;
         }
 
@@ -334,11 +334,12 @@ namespace RugWash.Editor
 
         public static void WallDetails(Transform parent, RugWashContentBuilder.Content c, MeshStore m)
         {
-            // Affiche pédagogique : la séquence de nettoyage, lisible depuis l'aire de lavage.
+            // Affiche pédagogique : la séquence de nettoyage, lisible depuis l'aire de lavage. v0.1.2 : faisable avec le kit de
+            // départ (détergent, brosse, seau) ; aspirateur et extracteur s'achètent ensuite pour aller plus vite et sécher.
             var poster = Group("Poster_Steps", parent, new Vector3(-1.75f, 1.9f, HalfZ - 0.02f));
             Prop("Paper", poster, Rounded(m, new Vector3(0.95f, 1.25f, 0.008f), 0.004f), c["Paper"], new Vector3(0f, 0f, -0.006f));
             Text3D(poster, "LES 5 ÉTAPES", new Vector3(0f, 0.5f, -0.012f), 0.016f, new Color(0.12f, 0.14f, 0.18f));
-            string[] steps = { "1  ASPIRER", "2  SAVONNER", "3  BROSSER", "4  RINCER", "5  EXTRAIRE" };
+            string[] steps = { "1  SAVONNER", "2  BROSSER", "3  RINCER", "4  SÉCHER", "5  LIVRER (PC)" };
             string[] colors = { "StepBlue", "StepGreen", "StepOrange", "StepCyan", "StepPurple" };
             for (int i = 0; i < steps.Length; i++)
             {

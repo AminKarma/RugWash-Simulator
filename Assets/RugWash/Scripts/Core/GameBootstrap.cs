@@ -65,6 +65,8 @@ namespace RugWash.Core
         [SerializeField] InspectionPanelUI inspection;
         [SerializeField] OrderBoardUI orderBoard;
         [SerializeField] ShopUI shopUI;
+        [Tooltip("Ordinateur de l'atelier : seul accès aux missions et à la boutique.")]
+        [SerializeField] ComputerUI computer;
         [SerializeField] ResultsUI results;
         [SerializeField] SettingsUI settingsUI;
         [SerializeField] DebugOverlay debugOverlay;
@@ -73,6 +75,8 @@ namespace RugWash.Core
 
         public GameStateManager GameState => gameState;
         public PlayerToolController ToolController => toolController;
+        /// <summary>Stock de détergent en bidons du joueur local.</summary>
+        public DetergentSupply Detergent => toolController.Equipment.Detergent;
         public FirstPersonController PlayerController => playerController;
         public RugCleaningController Rug => rug;
         public InspectionPanelUI Inspection => inspection;
@@ -83,6 +87,7 @@ namespace RugWash.Core
         public ShopManager Shop => shop;
         public OrderBoardUI OrderBoard => orderBoard;
         public ShopUI ShopUI => shopUI;
+        public ComputerUI Computer => computer;
         public ResultsUI Results => results;
         public SettingsUI SettingsUI => settingsUI;
         public SaveManager SaveSystem => saveManager;
@@ -148,6 +153,7 @@ namespace RugWash.Core
             Require(inspection, nameof(inspection));
             Require(orderBoard, nameof(orderBoard));
             Require(shopUI, nameof(shopUI));
+            Require(computer, nameof(computer));
             Require(results, nameof(results));
             Require(debugOverlay, nameof(debugOverlay));
             if (availableRugs.Count == 0 || availableRugs.Contains(null)) problems.Add(nameof(availableRugs));
@@ -176,6 +182,7 @@ namespace RugWash.Core
             if (inspection != null && !inspection.IsConfigured(out detail)) problems.Add($"inspection.{detail}");
             if (orderBoard != null && !orderBoard.IsConfigured(out detail)) problems.Add($"orderBoard.{detail}");
             if (shopUI != null && !shopUI.IsConfigured(out detail)) problems.Add($"shopUI.{detail}");
+            if (computer != null && !computer.IsConfigured(out detail)) problems.Add($"computer.{detail}");
             if (results != null && !results.IsConfigured(out detail)) problems.Add($"results.{detail}");
             if (settingsUI != null && !settingsUI.IsConfigured(out detail)) problems.Add($"settingsUI.{detail}");
             if (saveManager != null && !saveManager.IsConfigured(out detail)) problems.Add($"saveManager.{detail}");
@@ -197,7 +204,7 @@ namespace RugWash.Core
                 return;
             }
             // Ordre = priorité de fermeture par Échap (les paramètres s'ouvrent par-dessus la pause).
-            modalPanels = new IModalPanel[] { settingsUI, rugDexUI, inspection, orderBoard, shopUI };
+            modalPanels = new IModalPanel[] { settingsUI, rugDexUI, inspection, orderBoard, shopUI, computer };
             IsReady = true;
         }
 
@@ -228,6 +235,7 @@ namespace RugWash.Core
             inspection.Bind(gameState, rug, snapshots);
             orderBoard.Bind(gameState, orders, wallet);
             shopUI.Bind(gameState, shop);
+            computer.Bind(gameState, orderBoard, shopUI, orders, wallet, toolController.Equipment.Detergent);
             results.Bind(gameState, orders, snapshots, orderBoard);
             debugOverlay.Bind(gameState, rug, toolController, input);
             rumble.Bind(orders, progressFeedback, dirtScanner);
@@ -235,6 +243,7 @@ namespace RugWash.Core
             audioManager.RegisterButtons(inspection);
             audioManager.RegisterButtons(orderBoard);
             audioManager.RegisterButtons(shopUI);
+            audioManager.RegisterButtons(computer);
             audioManager.RegisterButtons(results);
             audioManager.RegisterButtons(settingsUI);
             audioManager.RegisterButtons(rugDexUI);
@@ -263,7 +272,7 @@ namespace RugWash.Core
         void OnObjectiveReached(OrderDefinition order)
         {
             // Tapis terminé d'un coup (moins de 1 % restant) : le HUD affiche déjà « Tapis terminé ».
-            if (!rug.IsFinished) hud.ShowToast("Objectif de propreté atteint — livrez la commande au comptoir");
+            if (!rug.IsFinished) hud.ShowToast("Objectif de propreté atteint — livrez la commande sur l'ordinateur");
             audioManager.PlayInterface(audioManager.ObjectiveClip);
         }
 

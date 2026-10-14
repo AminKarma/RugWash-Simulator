@@ -15,6 +15,8 @@ namespace RugWash.Player
         [SerializeField] ProductInventory productInventory;
         [Tooltip("Libellés des touches dans les indications des outils (optionnel).")]
         [SerializeField] PlayerInputReader input;
+        [Tooltip("Stock de détergent en bidons (remplit la réserve au poste détergent).")]
+        [SerializeField] DetergentSupply detergent;
 
         public ResourceTank Water => water;
         public ResourceTank Soap => soap;
@@ -22,6 +24,8 @@ namespace RugWash.Player
         public ProductInventory Inventory => productInventory;
         public IProductSupply Products => productInventory;
         public IInputPrompts Prompts => input;
+        public DetergentSupply Detergent => detergent;
+        public float DetergentStock => detergent != null ? detergent.Stock : -1f;
 
         public ResourceTank Get(ToolResource resource)
         {

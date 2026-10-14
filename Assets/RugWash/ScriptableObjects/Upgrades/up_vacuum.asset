@@ -19,4 +19,4 @@ MonoBehaviour:
   effect: 4
   value: 1.4
   targetToolId: vacuum
-  prerequisite: {fileID: 0}
+  prerequisite: {fileID: 11400000, guid: dd161e1d6b53abc418c1d02acaa7e099, type: 2}
