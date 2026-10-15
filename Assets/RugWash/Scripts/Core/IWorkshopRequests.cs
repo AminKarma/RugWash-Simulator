@@ -18,5 +18,7 @@ namespace RugWash.Core
         void RequestDetergentRefill(float liters);
         /// <summary>Machine de l'atelier de l'hôte (allumer, lancer un cycle).</summary>
         void RequestMachine(string machineId);
+        /// <summary>Farce (v0.1.2) : validée et appliquée par l'hôte, qui répond au demandeur.</summary>
+        void RequestPrank(Pranks.PrankRequest request);
     }
 }

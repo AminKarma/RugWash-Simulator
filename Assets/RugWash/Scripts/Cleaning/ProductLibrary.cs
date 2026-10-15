@@ -125,6 +125,8 @@ namespace RugWash.Cleaning
                 case DirtType.DriedMud: return "Boue sèche";
                 case DirtType.PetHair: return "Poils d'animaux";
                 case DirtType.Lint: return "Peluches et fibres";
+                case DirtType.Urine: return "Pipi (farce)";
+                case DirtType.FakeBlood: return "Faux sang (farce)";
                 default: return "Aucune";
             }
         }

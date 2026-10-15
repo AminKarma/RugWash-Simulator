@@ -26,6 +26,8 @@ namespace RugWash.Economy
         WorkshopEquipment,
         /// <summary>Palier de décor de l'atelier (valeur = numéro du palier, du cagibi au penthouse) : purement visuel.</summary>
         WorkshopTier,
+        /// <summary>Gadget de farce entre coéquipiers (v0.1.2), identifié par <see cref="UpgradeDefinition.targetToolId"/>.</summary>
+        PrankGadget,
     }
 
     /// <summary>Amélioration achetable. Prix et valeurs modifiables dans l'Inspector.</summary>
@@ -48,5 +50,7 @@ namespace RugWash.Economy
 
         /// <summary>Article de l'onglet « Atelier » (machines, robot, décor) plutôt que du matériel tenu en main.</summary>
         public bool IsWorkshopItem => effect == UpgradeEffect.WorkshopEquipment || effect == UpgradeEffect.WorkshopTier;
+        /// <summary>Article de l'onglet « Farces » (gadgets de sabotage humoristique).</summary>
+        public bool IsPrankItem => effect == UpgradeEffect.PrankGadget;
     }
 }

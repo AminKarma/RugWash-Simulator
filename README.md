@@ -4,7 +4,7 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 jalons 1 à 5** (game feel, scan, nouveaux
+> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 jalons 1 à 6** (game feel, scan, nouveaux
 > outils, aire de lavage, robot aspirateur, tapis de soie, nouvelles salissures, produits spécialisés, RugDex, manette,
 > **coopératif jusqu'à 4 joueurs** — réseau local testé, Steam implémenté mais pas encore testé en réel, voir § Multijoueur).
 > v0.1.2 jalon 1 : outils posés sur le point visé (manche télescopique), modèles détaillés chez les autres joueurs,
@@ -20,6 +20,8 @@ et voit le motif d'origine réapparaître progressivement.
 > v0.1.2 jalon 5 : machines d'atelier fonctionnelles (dépoussiérage, séchage, pré-mouillage), atelier qui évolue du cagibi
 > au penthouse avec vue sur Los Angeles, personnalisation du personnage (menu « Personnage »), chute avec ragdoll, musique
 > de fond — `VALIDATION.md` § 17.
+> v0.1.2 jalon 6 : farces entre coéquipiers (pipi, batte, fusil-jouet à faux sang de théâtre), chères, avec recharges et
+> garde-fous, salissures nettoyables, validées par l'hôte en ligne — `VALIDATION.md` § 18.
 > Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
@@ -71,6 +73,8 @@ fenêtre des touches) suivent le dernier périphérique utilisé, le curseur est
 | Outil suivant / précédent | Molette, ou 1–9 et 0 (rangée du haut ou pavé numérique) ; le 11ᵉ outil (monobrosse) à la molette | RB / LB · R1 / L1 (les outils pas encore achetés sont sautés) |
 | Interagir (postes, caniveau, ordinateur, robot aspirateur ou sa base, machines de l'atelier) | E | A · Croix |
 | Scanner la saleté (surligne les zones encore sales, puis recharge) | R | Y · Triangle |
+| Gadget de farce suivant / ranger (gadgets achetés, v0.1.2) | G | Croix haut |
+| Se relever plus vite après une chute | E (Interagir) | A · Croix |
 | Changer de produit spécialisé (produits en stock, puis détergent standard) | T | X · Carré |
 | Inspecter le tapis (avant/après) | F | Vue · Partager |
 | Pause | Échap | Menu · Options |
@@ -89,7 +93,7 @@ par-dessus) et les listes défilent jusqu'à l'élément sélectionné.
   outils (0 % = désactivé), **vitesse de la caméra au stick** (30–360 °/s), **zone morte des sticks** (2–50 %),
   **vibrations** (intensité, 0 = désactivées) ;
 - **Touches** : reconfiguration **clavier** (avancer, reculer, gauche, droite, courir, interagir, scanner, changer de produit,
-  inspecter ; Échap annule) et **manette** (courir, interagir, scanner, produit, inspecter, utiliser l'outil, outil
+  inspecter, gadget de farce ; Échap annule) et **manette** (courir, interagir, scanner, produit, inspecter, utiliser l'outil, outil
   suivant / précédent ; Menu annule — les sticks, Menu et B restent fixes). Une touche déjà utilisée est signalée.
   « Touches et boutons par défaut » rétablit tout.
 
@@ -309,6 +313,26 @@ difficulté, récompense, réputation requise, objectifs ; l'ajouter à la liste
 - **Musique** : boucles douces au menu et dans l'atelier, fondu entre les deux, atténuée en pause, toujours plus basse
   que les sons du jeu (curseur « Musique » dans les paramètres).
 
+## 4 nonies. Farces entre coéquipiers (v0.1.2 jalon 6)
+
+Des farces de dessin animé, à acheter dans l'onglet **Farces** de la boutique (réputation requise), nettement plus chères
+que les outils. **G** (croix haut) sort le gadget suivant, puis range ; une touche d'outil revient aux outils ; clic
+gauche (RT) : une farce par appui. Le HUD affiche le gadget, sa recharge et son coût.
+
+| Gadget | Prix | Sur le tapis visé | Sur un coéquipier | Recharge |
+|---|---|---|---|---|
+| Soda géant (pipi) | 1 500 €, réputation 5 | Auréole jaune et humide | Gouttes sur sa vue (6 s, fondu, jamais opaques) | 45 s |
+| Batte de baseball | 4 000 €, réputation 12 | Petite tache de faux sang | Chute comique d'1,4 s (relevé immédiat avec E), puis 15 s de protection | 20 s |
+| Fusil de farces et attrapes (jouet, embout orange) | 6 500 €, réputation 20, **60 € par tir** | Neuf éclaboussures de faux sang de théâtre | Aucun effet (ne vise jamais un joueur) | 12 s |
+
+- Les taches (*Pipi (farce)*, *Faux sang (farce)*) sont de vraies salissures : détergent + brosse les détachent, le
+  rinçage les évacue (l'aspirateur n'y fait rien).
+- Garde-fous : 3 s entre deux farces quelconques, portée limitée, plafond de saleté ajoutée par tapis (15 % de sa saleté
+  initiale), tapis terminé épargné, joueur à terre ou récemment visé protégé. Aucune farce ne touche à l'argent, aux achats
+  ni à la réputation d'un autre joueur. Réglages : `ScriptableObjects/PrankTuning.asset`.
+- En ligne, l'hôte valide chaque farce (carrière de l'auteur, position de sa silhouette chez l'hôte) ; la tache arrive par
+  la réplication du tapis, les gouttes ou la chute seulement chez le joueur visé.
+
 ## 4 septies. Multijoueur coopératif
 
 Jusqu'à 4 joueurs dans le même atelier, sur les mêmes tapis. Détails (architecture, configuration Steam, procédure de
@@ -499,7 +523,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel : 207 tests EditMode et 119 / 119 tests PlayMode réussis (v0.1.2 jalon 5), et 32 / 32 vérifications multijoueur (scénario du jalon 1 ; scénario mis à jour pour les jalons 3 à 5 non encore exécuté) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel : 216 tests EditMode et 127 / 127 tests PlayMode réussis (v0.1.2 jalon 6), et 32 / 32 vérifications multijoueur (scénario du jalon 1 ; scénario mis à jour pour les jalons 3 à 6 non encore exécuté) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

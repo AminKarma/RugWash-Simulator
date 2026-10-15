@@ -29,6 +29,7 @@ namespace RugWash.Editor
         public const string WorkSurfacePath = RugWashPaths.RugDefinitions + "/Surface_WorkSurface.asset";
         public const string FloorSurfacePath = RugWashPaths.RugDefinitions + "/Surface_Floor.asset";
         public const string TuningPath = RugWashPaths.Root + "/ScriptableObjects/CleaningTuning.asset";
+        public const string PrankTuningPath = RugWashPaths.Root + "/ScriptableObjects/PrankTuning.asset";
         public const string OrientalRugPath = RugWashPaths.RugDefinitions + "/Rug_Oriental.asset";
         public const string ClassicRugPath = RugWashPaths.RugDefinitions + "/Rug_Classic.asset";
         public const string ShagRugPath = RugWashPaths.RugDefinitions + "/Rug_Shag.asset";
@@ -54,6 +55,8 @@ namespace RugWash.Editor
             /// <summary>Plan de travail de l'aire de lavage et sol de l'atelier (surfaces nettoyables).</summary>
             public RugDefinition WorkSurface, Floor;
             public CleaningTuning Tuning;
+            /// <summary>Farces entre coéquipiers (v0.1.2) : réglages centralisés.</summary>
+            public RugWash.Pranks.PrankTuning Pranks;
             /// <summary>Multijoueur : réglages et préfabriqués réseau.</summary>
             public RugWash.Network.NetworkContent Network;
             public readonly List<OrderDefinition> Orders = new List<OrderDefinition>();
@@ -138,6 +141,7 @@ namespace RugWash.Editor
             EnsureToolRumble(content.DetailBrush, 0.12f, 0.18f);
             EnsureToolRumble(content.Bucket, 0.06f, 0.02f);
             content.Tuning = LoadOrCreate<CleaningTuning>(TuningPath, out _);
+            content.Pranks = LoadOrCreate<RugWash.Pranks.PrankTuning>(PrankTuningPath, out _);
 
             EnsureMaterials(content);
             content.Oriental = EnsureRug(OrientalRugPath, "oriental", "Tapis oriental à médaillon", RugPileType.Oriental,
@@ -391,6 +395,16 @@ namespace RugWash.Editor
                 "Aspire seul la poussière, les poils et les débris secs de l'aire de lavage (pas l'eau ni les taches) ; contourne " +
                 "le tapis et les joueurs, rentre se recharger. E sur le robot ou sa base pour le lancer ou l'arrêter.",
                 650, UpgradeEffect.WorkshopEquipment, 1f, UpgradeManager.RobotMachineId, null));
+            // v0.1.2 jalon 6 : gadgets de farce (onglet Farces), nettement plus chers que les outils de nettoyage (90 à 650 €).
+            c.Upgrades.Add(Reputation(EnsureUpgrade("up_prank_pee", "Soda géant (farce : pipi)",
+                "Auréole jaune et humide sur le tapis visé (détergent, brosse, rinçage), ou gouttes sur la vue d'un coéquipier. Recharge 45 s.",
+                1500, UpgradeEffect.PrankGadget, 1f, "pee", null), 5));
+            c.Upgrades.Add(Reputation(EnsureUpgrade("up_prank_bat", "Batte de baseball (farce)",
+                "Chute comique d'un coéquipier (relevé immédiat avec E, puis 15 s de protection) ou petite tache de faux sang. Recharge 20 s.",
+                4000, UpgradeEffect.PrankGadget, 1f, "bat", null), 12));
+            c.Upgrades.Add(Reputation(EnsureUpgrade("up_prank_blaster", "Fusil à pompe de farces et attrapes",
+                "Jouet à embout orange : éclaboussures de faux sang de théâtre sur le tapis, nettoyables. Jamais sur un joueur. 60 € par tir.",
+                6500, UpgradeEffect.PrankGadget, 1f, "blaster", null), 20));
         }
 
         static System.Collections.Generic.Dictionary<string, UpgradeDefinition> toolUnlocks;
@@ -447,6 +461,7 @@ namespace RugWash.Editor
                 { DirtType.Embedded, DirtTypeNames.Default(DirtType.Embedded) }, { DirtType.DustClumps, DirtTypeNames.Default(DirtType.DustClumps) },
                 { DirtType.DriedMud, DirtTypeNames.Default(DirtType.DriedMud) }, { DirtType.PetHair, DirtTypeNames.Default(DirtType.PetHair) },
                 { DirtType.Lint, DirtTypeNames.Default(DirtType.Lint) },
+                { DirtType.Urine, DirtTypeNames.Default(DirtType.Urine) }, { DirtType.FakeBlood, DirtTypeNames.Default(DirtType.FakeBlood) },
             };
             // Anciens noms (avant le jalon 3) : remplacés s'ils n'ont pas été modifiés à la main.
             var legacyNames = new HashSet<string> { "Poussière", "Boue", "Boisson", "Graisse", "Poils et débris", "Tache incrustée" };

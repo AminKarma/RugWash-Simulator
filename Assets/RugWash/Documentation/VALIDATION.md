@@ -417,3 +417,37 @@ en marche, rampe au plafond), `72_character` (fenêtre « Personnage », aperçu
 `-Step multiplayer`) : scénario à deux processus (machines et décor de l'hôte vus par un invité, activation demandée par
 un invité, apparence et chute répliquées, protocole `rugwash-coop-6`) et benchmark du jeu compilé. Le scénario automatique
 à deux processus ne couvre pas encore les éléments du jalon 5. Steam en réel : inchangé (non testé).
+
+## 18. Update v0.1.2 — jalon 6 (farces entre coéquipiers)
+
+Exécutions réelles des 14 et 15/10/2026, en mode batch uniquement (aucune fenêtre du jeu). Compilation vérifiée hors
+éditeur (SDK .NET), puis chaîne `compile`, `bootstrap`, `scene`, `test`, `playmode` sur le code final.
+Décisions : `AUDIT_V012.md` § 8.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation, contenu, scènes (batch Unity) | ✅ 0 erreur |
+| Tests EditMode | ✅ **216 / 216** (207 + 9 `PrankV012Tests` : salissures de farce nettoyables, tache plafonnée par cellule, conditions d'usage, portée et plafond par tapis, motif des éclaboussures, visée d'une silhouette, gouttes à l'écran, réglages et protections, relevé rapide, onglet et emplacements des gadgets) |
+| Tests PlayMode | ✅ **127 / 127** (119 + 8 `PrankV012PlayModeTests` : achat et sélection, pipi sur le tapis puis nettoyage, fusil-jouet (coût, recharge, jamais sur un joueur), autorité et garde-fous, chute et relevé rapide, gouttes à l'écran, farce d'un invité appliquée à l'hôte dans une vraie session locale, captures ; test existant adapté : onglets de la boutique) |
+| Build Windows, jeu compilé (solo, deux processus) | **Non exécutés** : ils ouvrent des fenêtres du jeu |
+
+**Défauts trouvés et corrigés pendant la validation** (captures)
+
+- Gouttes à l'écran trop denses et trop opaques (la vue était couverte) : moins de gouttes, plus petites, centre dégagé,
+  intensité 55 %, voile plus léger.
+- Bouffée du fusil-jouet émise dans toutes les directions, en grosses boules devant la caméra : petite, brève, dans l'axe
+  du tir.
+- Jet de pipi trop épais : gouttes affinées.
+- Descriptions de l'onglet Farces trop longues pour leurs lignes : raccourcies.
+- Test : sur un tapis neuf (propreté 0 %), une farce ne peut pas faire baisser le pourcentage ; le test mesure la saleté
+  réellement ajoutée.
+
+**Vérifications visuelles** (captures `Logs/ci/screens`) : `73_bat` (batte en main), `73b_blaster` et `73c_blaster_shot`
+(fusil-jouet bleu et blanc à embout orange, éclaboussures rouges stylisées), `74_pee_stream` (jet en arc, auréole jaune),
+`74b_prank_stains` (taches sur le tapis), `75_screen_splash` (gouttes surtout vers les bords), `76_shop_pranks` (onglet
+Farces).
+
+**Non exécuté** (à lancer quand le PC est libre : `Tools/RugWash-CI.ps1 -Step build`, puis `-Step benchmark` et
+`-Step multiplayer`) : farces entre deux processus (demande d'un invité, gouttes et chute chez un invité, effets vus par
+les autres, protocole `rugwash-coop-7`) ; le scénario automatique à deux processus ne couvre pas encore les farces.
+Steam en réel : inchangé (non testé).

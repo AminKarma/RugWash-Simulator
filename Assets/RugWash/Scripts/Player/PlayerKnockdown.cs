@@ -26,6 +26,8 @@ namespace RugWash.Player
         [SerializeField] CameraMotion cameraMotion;
         [SerializeField] PlayerToolController tools;
         [SerializeField] PlayerInteractor interactor;
+        [Tooltip("Entrées : « Interagir » relève le joueur plus tôt (optionnel).")]
+        [SerializeField] PlayerInputReader input;
 
         [Header("Chute")]
         [Tooltip("Élan maximal transmis au corps (m/s) : pas de projection excessive.")]
@@ -37,6 +39,8 @@ namespace RugWash.Player
         [Tooltip("Hauteur des yeux une fois à terre.")]
         [SerializeField, Range(0.15f, 1f)] float groundEyeHeight = 0.32f;
         [SerializeField, Range(0f, 90f)] float groundRoll = 70f;
+        [Tooltip("À terre depuis au moins ce délai, « Interagir » relève le joueur aussitôt (s).")]
+        [SerializeField, Range(0.2f, 3f)] float quickRecoverAfter = 0.5f;
 
         [Header("Glissade sur la mousse")]
         [SerializeField] bool slipOnFoam = true;
@@ -57,6 +61,20 @@ namespace RugWash.Player
         public event Action<Vector3, float> KnockedDown;
         public event Action Recovered;
         public event Action<string> Message;
+
+        /// <summary>Rappel affiché à la chute : comment se relever plus vite.</summary>
+        public string QuickRecoverHint => input != null ? $"{input.Label("Interact")} pour vous relever" : "relevé dans un instant";
+
+        /// <summary>Règle du relevé rapide (pure) : à terre (chute finie) depuis assez longtemps.</summary>
+        public static bool CanQuickRecover(bool onGround, float secondsDown, float minimum) => onGround && secondsDown >= minimum;
+
+        /// <summary>Relève le joueur plus tôt (« Interagir ») ; faux si c'est trop tôt.</summary>
+        public bool TryQuickRecover()
+        {
+            if (!CanQuickRecover(phase == Phase.Down, timer + fallSeconds, quickRecoverAfter)) return false;
+            Next(Phase.GettingUp);
+            return true;
+        }
 
         void Start()
         {
@@ -122,6 +140,7 @@ namespace RugWash.Player
                     timer += dt;
                     FallAmount = 1f;
                     if (timer >= duration) Next(Phase.GettingUp);
+                    else if (input != null && input.InteractPressed) TryQuickRecover();
                     break;
                 case Phase.GettingUp:
                     timer += dt;

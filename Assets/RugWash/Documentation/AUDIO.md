@@ -66,6 +66,11 @@ par l'initialisation automatique).
 | `tmp_ui_deny` | Refus : appui sur « utiliser » sans effet possible (réserve de détergent vide…) — deux bips graves descendants (v0.1.2) | Interface | `AudioManager.uiDeny` (joué par `PlayerToolController`) |
 | `tmp_workshop_ambient_loop` | Ambiance de l'atelier | Effets | `AmbientAudio.loop` |
 | `tmp_footstep_1..3` | Pas (selon la distance parcourue) | Effets | `FootstepAudio.steps` |
+| `tmp_prank_stream` | Jet de la farce « pipi » : filet d'eau ondulant, 1,25 s (v0.1.2) | Effets | `PrankEffects.streamClip` |
+| `tmp_bat_swing` | Élan de la batte (souffle qui monte et retombe) (v0.1.2) | Effets | `PrankEffects.swingClip` |
+| `tmp_bat_bonk` | « Bonk » de dessin animé quand la batte atteint un joueur (v0.1.2) | Effets | `PrankEffects.bonkClip` |
+| `tmp_blaster_shot` | Tir du fusil-jouet : « pop », ressort, clac de la pompe (v0.1.2) | Effets | `PrankEffects.shotClip` |
+| `tmp_prank_splat` | « Splat » des éclaboussures de faux sang (v0.1.2) | Effets | `PrankEffects.splatClip` |
 | `tmp_music_menu_loop` | Musique du menu : nappe douce et arpège lent, 30 s en boucle (v0.1.2) | Musique | `MainMenuController.menuMusic` |
 | `tmp_music_workshop_loop` | Musique de l'atelier : rythme léger, basse et nappe, 24 s en boucle (v0.1.2) | Musique | `GameBootstrap.workshopMusic` |
 | `tmp_blower_loop` | Souffle du ventilateur de séchage (son 3D) (v0.1.2) | Effets | Machine « blower » → `loopSource` |

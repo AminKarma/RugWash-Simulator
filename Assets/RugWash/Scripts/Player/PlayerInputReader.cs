@@ -47,6 +47,8 @@ namespace RugWash.Player
             Button(gameplay, "Interact", "<Keyboard>/e", "<Gamepad>/buttonSouth");
             Button(gameplay, "Scan", "<Keyboard>/r", "<Gamepad>/buttonNorth");
             Button(gameplay, "Product", "<Keyboard>/t", "<Gamepad>/buttonWest");
+            // Gadgets de farce (v0.1.2) : sortir / changer de gadget.
+            Button(gameplay, "Gadget", "<Keyboard>/g", "<Gamepad>/dpad/up");
             Button(gameplay, "ToolScroll", "<Mouse>/scroll/y", null, InputActionType.Value, "Axis");
             for (int i = 1; i <= ToolSlotCount; i++)
             {
@@ -94,7 +96,7 @@ namespace RugWash.Player
 
         InputActionAsset asset;
         InputActionMap gameplay;
-        InputAction move, look, sprint, use, interact, scan, product, toolScroll, pause, inspect, debugOverlay;
+        InputAction move, look, sprint, use, interact, scan, product, gadget, toolScroll, pause, inspect, debugOverlay;
         InputAction moveStick, lookStick, toolNext, toolPrevious, back;
         readonly InputAction[] toolSlots = new InputAction[RugWashInputActions.ToolSlotCount];
         bool sprintLatched;
@@ -121,6 +123,7 @@ namespace RugWash.Player
             interact = gameplay.FindAction("Interact", true);
             scan = gameplay.FindAction("Scan", true);
             product = gameplay.FindAction("Product", true);
+            gadget = gameplay.FindAction("Gadget", true);
             toolScroll = gameplay.FindAction("ToolScroll", true);
             moveStick = gameplay.FindAction("MoveStick", true);
             lookStick = gameplay.FindAction("LookStick", true);
@@ -180,6 +183,10 @@ namespace RugWash.Player
         public bool InteractPressed => GameplayEnabled && interact.WasPressedThisFrame();
         public bool ScanPressed => GameplayEnabled && scan.WasPressedThisFrame();
         public bool ProductPressed => GameplayEnabled && product.WasPressedThisFrame();
+        /// <summary>Gadget de farce suivant (ou retour aux outils après le dernier).</summary>
+        public bool GadgetPressed => GameplayEnabled && gadget.WasPressedThisFrame();
+        /// <summary>« Utiliser » vient d'être pressé (gadgets : une action par appui).</summary>
+        public bool UsePressed => GameplayEnabled && use.WasPressedThisFrame();
         public bool PausePressed => pause != null && pause.WasPressedThisFrame();
         /// <summary>Retour (manette) : ferme la fenêtre ouverte ou reprend la partie ; Échap passe par <see cref="PausePressed"/>.</summary>
         public bool BackPressed => back != null && back.WasPressedThisFrame();

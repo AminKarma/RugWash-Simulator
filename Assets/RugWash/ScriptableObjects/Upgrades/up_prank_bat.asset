@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d333a16da8f21469968da14f880b1f, type: 3}
+  m_Name: up_prank_bat
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
+  id: up_prank_bat
+  displayName: Batte de baseball (farce)
+  description: "Chute comique d'un co\xE9quipier (relev\xE9 imm\xE9diat avec E, puis
+    15 s de protection) ou petite tache de faux sang. Recharge 20 s."
+  price: 4000
+  effect: 11
+  value: 1
+  targetToolId: bat
+  prerequisite: {fileID: 0}
+  requiredReputation: 12

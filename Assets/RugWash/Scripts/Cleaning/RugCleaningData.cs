@@ -103,6 +103,8 @@ namespace RugWash.Cleaning
                 case DirtType.Grease: return 0.25f;
                 case DirtType.Drink: return 0.15f;
                 case DirtType.DriedMud: return 0.2f;
+                case DirtType.FakeBlood: return 0.1f;
+                case DirtType.Urine: return 0.05f;
                 default: return 0f;
             }
         }
@@ -129,6 +131,8 @@ namespace RugWash.Cleaning
                 case DirtType.DriedMud: return new DirtResponse(0.10f, 0.90f, 0.50f, 0.60f, 0.05f, 0.20f);
                 case DirtType.PetHair: return new DirtResponse(0.45f, 0.90f, 0.40f, 0.40f, 0.15f, 1.30f);
                 case DirtType.Lint: return new DirtResponse(1.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.80f);
+                case DirtType.Urine: return new DirtResponse(0.00f, 0.10f, 0.80f, 1.10f, 0.60f, 0.00f);
+                case DirtType.FakeBlood: return new DirtResponse(0.00f, 0.05f, 0.55f, 0.95f, 0.30f, 0.00f);
                 default: return new DirtResponse(0f, 0f, 0f, 0f, 0f);
             }
         }
@@ -148,6 +152,8 @@ namespace RugWash.Cleaning
                 case DirtType.DriedMud: return new Color(0.47f, 0.37f, 0.25f);
                 case DirtType.PetHair: return new Color(0.58f, 0.47f, 0.36f);
                 case DirtType.Lint: return new Color(0.78f, 0.76f, 0.73f);
+                case DirtType.Urine: return new Color(0.80f, 0.68f, 0.16f);
+                case DirtType.FakeBlood: return new Color(0.66f, 0.04f, 0.10f);
                 default: return new Color(0.35f, 0.27f, 0.18f);
             }
         }

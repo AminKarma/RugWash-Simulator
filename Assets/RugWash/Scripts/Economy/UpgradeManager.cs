@@ -47,6 +47,8 @@ namespace RugWash.Economy
         void Start() => ApplyAll();
 
         public bool IsOwned(UpgradeDefinition upgrade) => upgrade != null && owned.Contains(upgrade.id);
+        /// <summary>Gadget de farce acheté (identifiant de l'amélioration qui le débloque).</summary>
+        public bool OwnsGadget(string upgradeId) => !string.IsNullOrEmpty(upgradeId) && owned.Contains(upgradeId);
 
         /// <summary>Vrai si l'identifiant correspond à une amélioration du catalogue.</summary>
         public bool IsKnown(string id) => id != null && catalog.Exists(u => u != null && u.id == id);
@@ -134,6 +136,8 @@ namespace RugWash.Economy
                         : $"Machine de l'atelier{Requirement(upgrade)}";
                 case UpgradeEffect.WorkshopTier:
                     return $"Décor de l'atelier : palier {Mathf.RoundToInt(upgrade.value)} / {MaxWorkshopTier} (actuel : {stats.WorkshopTier}){Requirement(upgrade)}";
+                case UpgradeEffect.PrankGadget:
+                    return $"Farce (touche G) · aucun dégât{Requirement(upgrade)}";
                 default:
                     return string.Empty;
             }

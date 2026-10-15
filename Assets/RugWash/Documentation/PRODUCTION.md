@@ -286,6 +286,22 @@ Décisions : `AUDIT_V012.md` § 7. Résultats d'exécution : `VALIDATION.md` § 
 | Tests Unity (batch) | Testé | EditMode 207 / 207, PlayMode 119 / 119 (`VALIDATION.md` § 17) |
 | Jeu compilé (build, benchmark, deux processus) | **Non exécuté** (ouvre des fenêtres du jeu) | — |
 
+## Update v0.1.2 — Jalon 6 (farces entre coéquipiers)
+
+Décisions : `AUDIT_V012.md` § 8. Résultats d'exécution : `VALIDATION.md` § 18.
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 4.1 Pipi sur un tapis : tache jaune humide, vraie salissure nettoyable (détergent, brosse, rinçage) | Testé (EditMode + PlayMode, captures) | `PrankStain_…`, `Pee_OnTheRug_…`, captures `74_pee_stream`, `74b_prank_stains` |
+| 4.1 Pipi sur un joueur : gouttes à l'écran, partielles, durée limitée, fondu, effacées (fin de partie) ; validées par l'hôte | Testé (EditMode + PlayMode, capture) | `ScreenSplash_…`, `Splash_OnTheLocalScreen_…`, `Host_AppliesAGuestsPrank…`, capture `75_screen_splash` |
+| 4.2 Fusil à pompe en **version jouet** (embout orange, faux sang de théâtre stylisé, jamais sur un joueur), coût par tir, recharge | Testé (PlayMode, captures) | `Blaster_SplattersStylizedFakeBlood_…`, captures `73b_blaster`, `73c_blaster_shot` |
+| 4.3 Batte : petite tache de faux sang sur un tapis ; chute comique d'un joueur (ragdoll du jalon 5), relevé rapide, protection, jamais un joueur à terre | Testé (EditMode + PlayMode, capture) | `QuickRecover_…`, `Bat_KnocksTheLocalPlayerDown_…`, `Authority_…`, capture `73_bat` |
+| 4.5 Prix élevés (≥ 2 × l'outil le plus cher), réputation, réglages centralisés (`PrankTuning`), recharges, délai global, plafond par tapis, tapis terminé épargné, progression des autres intacte | Testé (EditMode + PlayMode) | `Tuning_Protects_…`, `CheckUse_…`, `Range_Cap_…`, `Gadgets_MustBeBought_…`, `Authority_…` |
+| Interface : onglet Farces, gadget / recharge / coût au HUD, touche G reconfigurable, manette (croix haut, RT, A) | Testé (PlayMode, capture) | `Gadgets_MustBeBought_…`, capture `76_shop_pranks` |
+| Réseau : demande de l'invité validée par l'hôte (carrière, position chez l'hôte), effets diffusés, gouttes / chute au seul joueur visé, protocole `rugwash-coop-7` | Testé côté hôte (session locale en PlayMode) ; **deux processus non exécutés** | `Host_AppliesAGuestsPrankToTheHostPlayer_…` |
+| Tests Unity (batch) | Testé | EditMode 216, PlayMode 127 / 127 (`VALIDATION.md` § 18) |
+| Jeu compilé (build, benchmark, deux processus) | **Non exécuté** (ouvre des fenêtres du jeu) | — |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

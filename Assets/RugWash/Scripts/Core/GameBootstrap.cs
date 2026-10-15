@@ -50,6 +50,9 @@ namespace RugWash.Core
         [Tooltip("Décor de l'atelier par paliers (v0.1.2).")]
         [SerializeField] Workshop.WorkshopDecor decor;
         [SerializeField] WorkshopStateService workshopState;
+        [Tooltip("Farces entre coéquipiers (v0.1.2) : autorité et gadgets du joueur local.")]
+        [SerializeField] Pranks.PrankService pranks;
+        [SerializeField] Pranks.PrankGadgetController gadgets;
         [SerializeField] RugDex.RugDexService rugDex;
         [SerializeField] RugDex.RugDexUI rugDexUI;
         [SerializeField] ProductInventory productInventory;
@@ -105,6 +108,10 @@ namespace RugWash.Core
         public Workshop.RobotVacuum Robot => robot;
         public IReadOnlyList<Workshop.WorkshopMachine> Machines => machines;
         public Workshop.WorkshopDecor Decor => decor;
+        /// <summary>Autorité des farces (solo, hôte).</summary>
+        public Pranks.PrankService Pranks => pranks;
+        /// <summary>Gadgets de farce du joueur local.</summary>
+        public Pranks.PrankGadgetController Gadgets => gadgets;
 
         /// <summary>
         /// Invité en ligne : l'atelier affiché (décor, machines, robot) est celui de l'hôte et arrive par le réseau ;
@@ -162,6 +169,8 @@ namespace RugWash.Core
             Require(workSurface, nameof(workSurface));
             Require(robot, nameof(robot));
             Require(workshopState, nameof(workshopState));
+            Require(pranks, nameof(pranks));
+            Require(gadgets, nameof(gadgets));
             Require(rugDex, nameof(rugDex));
             Require(rugDexUI, nameof(rugDexUI));
             Require(productInventory, nameof(productInventory));
@@ -194,6 +203,8 @@ namespace RugWash.Core
             if (workSurface != null && !workSurface.IsConfigured(out detail)) problems.Add($"workSurface.{detail}");
             if (robot != null && !robot.IsConfigured(out detail)) problems.Add($"robot.{detail}");
             if (workshopState != null && !workshopState.IsConfigured(out detail)) problems.Add($"workshopState.{detail}");
+            if (pranks != null && !pranks.IsConfigured(out detail)) problems.Add($"pranks.{detail}");
+            if (gadgets != null && !gadgets.IsConfigured(out detail)) problems.Add($"gadgets.{detail}");
             if (rugDex != null && !rugDex.IsConfigured(out detail)) problems.Add($"rugDex.{detail}");
             if (rugDexUI != null && !rugDexUI.IsConfigured(out detail)) problems.Add($"rugDexUI.{detail}");
             if (productInventory != null && !productInventory.IsConfigured(out detail)) problems.Add($"productInventory.{detail}");
@@ -254,6 +265,8 @@ namespace RugWash.Core
                 if (machine != null) machine.Message += hud.ShowToast;
             knockdown = toolController.GetComponent<PlayerKnockdown>();
             if (knockdown != null) knockdown.Message += hud.ShowToast;
+            gadgets.Message += hud.ShowToast;
+            hud.BindGadgets(gadgets);
             orderBoard.SetWorkSurface(workSurface);
             hud.BindProducts(productInventory.Book);
             rugDexUI.Bind(rugDex.Catalog, rugDex.Book, orders.Book.Orders, dirtLibrary, gameState);
@@ -330,6 +343,7 @@ namespace RugWash.Core
                 foreach (var machine in machines)
                     if (machine != null) machine.Message -= hud.ShowToast;
             if (rugDex != null) rugDex.NewRugDiscovered -= OnNewRugDiscovered;
+            if (gadgets != null && hud != null) gadgets.Message -= hud.ShowToast;
             if (session != null) session.SoloExitRequested -= OnSoloExitRequested;
             if (gameState == null) return;
             gameState.StateChanged -= OnGameStateChanged;

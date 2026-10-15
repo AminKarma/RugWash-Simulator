@@ -91,6 +91,7 @@ namespace RugWash.Network
         readonly NetworkVariable<bool> knockedDown = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<Vector3> knockImpulse = new NetworkVariable<Vector3>(Vector3.zero, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         PlayerKnockdown localKnockdown;
+        Pranks.PrankGadgetController localGadgets;
 
         string initialName = string.Empty;
         FirstPersonController localPlayer;
@@ -158,6 +159,7 @@ namespace RugWash.Network
             {
                 localPlayer = FindAnyObjectByType<FirstPersonController>();
                 localTools = FindAnyObjectByType<PlayerToolController>();
+                localGadgets = FindAnyObjectByType<Pranks.PrankGadgetController>();
                 if (visuals != null) visuals.SetActive(false);
                 localKnockdown = FindAnyObjectByType<PlayerKnockdown>();
                 if (localKnockdown != null)
@@ -212,12 +214,16 @@ namespace RugWash.Network
         /// <summary>Tests (hors réseau) : fait chuter ou relève la silhouette.</summary>
         public void PreviewKnockdown(bool down, Vector3 impulse)
         {
+            hasPreviewDown = down;
             if (ragdoll == null) return;
             if (down) ragdoll.Begin(impulse);
             else ragdoll.End();
         }
 
         public AvatarRagdoll Ragdoll => ragdoll;
+        /// <summary>Ce joueur est à terre (chute, coup de batte).</summary>
+        public bool IsKnockedDown => hasPreviewDown || knockedDown.Value;
+        bool hasPreviewDown;
 
         void ApplyLook(int packed)
         {
@@ -252,9 +258,12 @@ namespace RugWash.Network
             sbyte value = (sbyte)Mathf.Clamp(Mathf.RoundToInt(localPlayer.Pitch), -89, 89);
             if (headPitch.Value != value) headPitch.Value = value;
             var tool = localTools != null ? localTools.ActiveTool : null;
-            byte slot = tool != null ? (byte)Mathf.Clamp(tool.Definition.slot, 0, 255) : (byte)0;
+            var gadget = localGadgets != null ? localGadgets.Equipped : Pranks.PrankGadget.None;
+            // Gadget de farce en main : emplacement dédié (modèle de la batte ou du fusil, main libre pour le pipi).
+            byte slot = gadget != Pranks.PrankGadget.None ? Pranks.PrankTuning.AvatarSlot(gadget)
+                : tool != null ? (byte)Mathf.Clamp(tool.Definition.slot, 0, 255) : (byte)0;
             if (toolSlot.Value != slot) toolSlot.Value = slot;
-            bool active = tool != null && tool.IsUsing;
+            bool active = gadget == Pranks.PrankGadget.None && tool != null && tool.IsUsing;
             if (usingTool.Value != active) usingTool.Value = active;
         }
 

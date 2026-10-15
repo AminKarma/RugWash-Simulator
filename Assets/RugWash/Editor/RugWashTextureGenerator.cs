@@ -32,6 +32,7 @@ namespace RugWash.Editor
         public const string BrickAlbedo = RugWashPaths.GeneratedTextures + "/Brick_Albedo.png";
         public const string Skyline = RugWashPaths.GeneratedTextures + "/Skyline_LosAngeles.png";
         public const string WallStain = RugWashPaths.GeneratedTextures + "/Wall_Stain.png";
+        public const string ScreenDroplets = RugWashPaths.GeneratedTextures + "/Screen_Droplets.png";
 
         enum Kind { Color, Linear, Normal, Sprite }
 
@@ -61,6 +62,7 @@ namespace RugWash.Editor
             Generate(BrickAlbedo, 512, 512, force, Kind.Color, true, BrickPixel);
             Generate(Skyline, 2048, 256, force, Kind.Color, false, SkylinePixel);
             Generate(WallStain, 256, 256, force, Kind.Color, false, WallStainPixel);
+            Generate(ScreenDroplets, 512, 512, force, Kind.Color, false, ScreenDropletPixel);
         }
 
         // ------------------------------------------------------------------ Décor de l'atelier
@@ -100,6 +102,52 @@ namespace RugWash.Editor
             var edge = new Color(0.5f, 0.41f, 0.28f);
             var color = Color.Lerp(inner, edge, ring) * grain;
             color.a = alpha;
+            return color;
+        }
+
+        static Vector4[] screenDroplets;
+
+        /// <summary>
+        /// Gouttes sur l'écran (farce) : grosses gouttes jaunes de dessin animé, plus nombreuses et plus grosses vers les
+        /// bords, centre presque dégagé ; reflet clair et bord plus soutenu. Transparente ailleurs.
+        /// </summary>
+        static Color ScreenDropletPixel(float u, float v)
+        {
+            if (screenDroplets == null)
+            {
+                var random = new System.Random(4242);
+                var list = new System.Collections.Generic.List<Vector4>();
+                while (list.Count < 70)
+                {
+                    float x = (float)random.NextDouble(), y = (float)random.NextDouble();
+                    // Centre de l'écran presque dégagé : on voit toujours ce que l'on vise.
+                    float edge = Mathf.Clamp01((new Vector2(x - 0.5f, y - 0.5f).magnitude - 0.24f) / 0.4f);
+                    if (random.NextDouble() > 0.03 + 0.97 * edge) continue;
+                    float radius = Mathf.Lerp(0.01f, 0.034f, (float)random.NextDouble()) * (0.6f + 0.6f * edge);
+                    list.Add(new Vector4(x, y, radius, 1f + (float)random.NextDouble() * 1.2f));
+                }
+                screenDroplets = list.ToArray();
+            }
+            float alpha = 0f, highlight = 0f, rim = 0f;
+            foreach (var drop in screenDroplets)
+            {
+                float dx = u - drop.x, dy = v - drop.y;
+                // Coulure : la goutte s'étire vers le bas.
+                if (dy < 0f) dy /= drop.w;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy) / drop.z;
+                if (distance >= 1f) continue;
+                float body = Mathf.Clamp01((1f - distance) * 6f);
+                if (body > alpha)
+                {
+                    alpha = body;
+                    rim = Smooth(0.7f, 1f, distance);
+                    float hx = dx / drop.z + 0.35f, hy = dy / drop.z - 0.35f;
+                    highlight = Mathf.Clamp01(1f - Mathf.Sqrt(hx * hx + hy * hy) / 0.28f);
+                }
+            }
+            var color = Color.Lerp(new Color(1f, 0.9f, 0.38f), new Color(0.85f, 0.65f, 0.12f), rim);
+            color = Color.Lerp(color, Color.white, highlight * 0.85f);
+            color.a = alpha * (0.5f + 0.4f * rim + 0.1f * highlight);
             return color;
         }
 

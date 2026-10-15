@@ -143,6 +143,37 @@ namespace RugWash.Cleaning
     }
 
     /// <summary>
+    /// Tache de farce (v0.1.2) : pipi ou faux sang déposé sur le tapis visé. Ajoute une vraie tache (fixée, de ce type)
+    /// et, pour le pipi, de l'humidité ; plafonnée par cellule pour qu'aucune zone ne devienne impossible à nettoyer.
+    /// Statistique de sortie : quantité réellement ajoutée (plafond des farces par commande).
+    /// </summary>
+    public struct PrankStainOperation : ICellOperation
+    {
+        public DirtType Type;
+        public float Amount;
+        /// <summary>Humidité visée (0 = aucune) : les fibres sont mouillées au moins jusque-là.</summary>
+        public float Moisture;
+        /// <summary>Tache maximale d'une cellule après la farce.</summary>
+        public float CellCap;
+        public float Added;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            if (Type == DirtType.None || weight <= 0f) return;
+            float cap = CellCap > 0f ? CellCap : 1f;
+            float amount = Mathf.Min(Amount * weight, Mathf.Max(0f, cap - cell.Stain));
+            if (amount > 0f)
+            {
+                if (amount > cell.Stain * 0.5f || cell.StainType == DirtType.None) cell.StainType = Type;
+                cell.Stain += amount;
+                Added += amount;
+            }
+            float wet = Moisture * weight;
+            if (wet > cell.Moisture) cell.Moisture = Mathf.Min(1f, wet);
+        }
+    }
+
+    /// <summary>
     /// Aspiration : retire la poussière et les débris secs selon leur réponse à l'aspiration.
     /// Aspire aussi la saleté déjà détachée, mais seulement sur fibres sèches (l'humidité la colle).
     /// N'agit pas sur la saleté incrustée.

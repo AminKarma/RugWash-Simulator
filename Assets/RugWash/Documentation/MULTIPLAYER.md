@@ -29,6 +29,7 @@ des opérations et reçoivent l'état. Les effets visuels et sonores sont produi
 | Livraison payée | Récompense et réputation complètes pour **chaque joueur présent**, chacun dans sa carrière | Reçoit sa récompense (aucun paiement local) |
 | Robot aspirateur (limité à l'aire de lavage) | Simulé chez l'hôte | Suit la position et l'état reçus ; E envoie la demande |
 | Machines et décor de l'atelier (v0.1.2 jalon 5) | Ceux de **son** atelier (ses achats) : publie le palier de décor, les machines possédées et celles en marche ; décide démarrage, fin de cycle et « un cycle par commande » | Affiche le décor et les machines de l'hôte (jamais les siens) ; E envoie la demande ; reproduit l'effet d'une machine en marche, corrigé par la réplication lente |
+| Farces (v0.1.2 jalon 6) | Valide tout (achat dans la carrière de l'invité, recharge, coût débité sur sa carrière, portée depuis la position de sa silhouette chez l'hôte, cible, protection des victimes, plafond par tapis, tapis terminé) ; applique la tache (réplication des cellules) ; envoie gouttes ou chute au seul joueur visé ; diffuse l'effet aux autres postes | Envoie gadget, cible et point visé ; joue ses effets à la validation (refus expliqué sinon) ; reçoit gouttes ou chute (valeurs bornées) ; rejoue jet, tir et sons des autres |
 | Apparence et chute (v0.1.2 jalon 5) | — | Chaque joueur publie son apparence (une valeur compacte : tenue, casquette, gants) et son état « à terre » avec l'élan reçu ; les autres postes simulent le ragdoll de sa silhouette (aucun os transmis) |
 | Joueurs | Fait apparaître une silhouette par joueur | Chaque joueur garde sa caméra, ses entrées, ses réservoirs (eau, détergent, cuve) |
 | Arrivée | Envoie les instantanés des surfaces et la carrière validée | « Synchronisation » (contrôles coupés, HUD en chargement, aucune valeur provisoire) jusqu'à réception de tout |
@@ -130,7 +131,8 @@ partie »). Après une perte de connexion, le menu affiche la raison et propose 
   Les missions générées tiennent compte des outils de l'**hôte** (un objectif de séchage n'est proposé que s'il possède
   l'extracteur) ; une mission livrée en ligne compte dans les statistiques de chaque joueur mais n'est pas ajoutée à
   l'historique des contrats.
-- Protocole `rugwash-coop-6` (v0.1.2 jalon 5 : état de l'atelier — palier de décor, machines possédées et en marche —,
+- Protocole `rugwash-coop-7` (v0.1.2 jalon 6 : demandes de farce, réponse au demandeur, effets diffusés, gouttes et chute
+  envoyées au joueur visé ; jalon 5 : état de l'atelier — palier de décor, machines possédées et en marche —,
   demande d'activation d'une machine, apparence et chute des joueurs ; jalon 4 : raclette, accessoire anti-poils, robot
   acheté ou non) : les versions précédentes sont refusées avec un message clair.
 - Raclette d'un invité : il prédit le transport et envoie à l'hôte le ramassage (réglage seulement) puis le dépôt devant la

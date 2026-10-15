@@ -43,6 +43,30 @@ namespace RugWash.Player
         /// <summary>Joueur à terre (chute) : aucun outil utilisable.</summary>
         public bool Locked { get; set; }
 
+        bool suspended;
+        /// <summary>
+        /// Gadget de farce en main (v0.1.2) : l'outil est rangé (modèle caché) et inutilisable. Une touche d'outil ou la
+        /// molette demande le retour aux outils (<see cref="ResumeRequested"/>).
+        /// </summary>
+        public bool Suspended
+        {
+            get => suspended;
+            set
+            {
+                if (suspended == value) return;
+                suspended = value;
+                if (value)
+                {
+                    ActiveTool?.Unequip();
+                    if (targetIndicator != null) targetIndicator.Hide();
+                }
+                else ActiveTool?.Equip();
+            }
+        }
+
+        /// <summary>Le joueur a choisi un outil pendant qu'un gadget est en main.</summary>
+        public event Action ResumeRequested;
+
         public event Action<CleaningToolBase> ActiveToolChanged;
         /// <summary>Le joueur a demandé un outil pas encore acheté.</summary>
         public event Action<CleaningToolBase> LockedToolRequested;
@@ -113,6 +137,14 @@ namespace RugWash.Player
         {
             var tool = ActiveTool;
             if (tool == null) return;
+
+            if (Suspended && gameState.IsGameplayActive && !Locked && (input.ToolSlotPressedThisFrame() > 0 || input.ToolScrollStep != 0))
+                ResumeRequested?.Invoke();
+            if (Suspended)
+            {
+                if (movement != null) movement.SpeedMultiplier = 1f;
+                return;
+            }
 
             if (!gameState.IsGameplayActive || Locked)
             {
@@ -188,7 +220,7 @@ namespace RugWash.Player
             if (index < 0 || index >= tools.Count || index == activeIndex) return;
             ActiveTool?.Unequip();
             activeIndex = index;
-            ActiveTool.Equip();
+            if (!Suspended) ActiveTool.Equip();
             ActiveToolChanged?.Invoke(ActiveTool);
         }
 

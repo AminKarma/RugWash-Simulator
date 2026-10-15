@@ -51,6 +51,12 @@ namespace RugWash.Editor
         public const string PlateLoop = Folder + "/tmp_plate_loop.wav";
         public const string MusicWorkshop = Folder + "/tmp_music_workshop_loop.wav";
         public const string RobotHumLoop = Folder + "/tmp_robot_hum_loop.wav";
+        // Farces (v0.1.2 jalon 6) : sons de dessin animé.
+        public const string PrankStream = Folder + "/tmp_prank_stream.wav";
+        public const string BatSwing = Folder + "/tmp_bat_swing.wav";
+        public const string BatBonk = Folder + "/tmp_bat_bonk.wav";
+        public const string BlasterShot = Folder + "/tmp_blaster_shot.wav";
+        public const string PrankSplat = Folder + "/tmp_prank_splat.wav";
         public const string RobotBump = Folder + "/tmp_robot_bump.wav";
         public const string RobotStart = Folder + "/tmp_robot_start.wav";
         public const string RobotStop = Folder + "/tmp_robot_stop.wav";
@@ -100,6 +106,11 @@ namespace RugWash.Editor
             Write(PlateLoop, force, true, 2f, PlateRattle);
             Write(MusicWorkshop, force, true, WorkshopLoopSeconds, WorkshopMusic);
             Write(RobotHumLoop, force, true, 2f, RobotHum);
+            Write(PrankStream, force, false, 1.25f, Trickle);
+            Write(BatSwing, force, false, 0.36f, Whoosh);
+            Write(BatBonk, force, false, 0.42f, Bonk);
+            Write(BlasterShot, force, false, 0.6f, ToyPop);
+            Write(PrankSplat, force, false, 0.32f, Splat);
             Write(RobotBump, force, false, 0.18f, RobotBumpThud);
             Write(RobotStart, force, false, 0.45f, (float t, float d, ref State s) => RobotBeeps(t, 660f, 880f));
             Write(RobotStop, force, false, 0.45f, (float t, float d, ref State s) => RobotBeeps(t, 880f, 587f));
@@ -471,6 +482,50 @@ namespace RugWash.Editor
             float motor = 0.12f * Sine(t, 180f) + 0.06f * Sine(t, 360f) + 0.03f * Sine(t, 1440f);
             float air = LowPass(ref s.Lp1, s.Noise(), 2600f) * 0.3f;
             return (motor + air) * (0.9f + 0.1f * Sine(t, 3f));
+        }
+
+        /// <summary>Filet d'eau qui tombe (farce) : bruit filtré ondulant, entrée et sortie douces.</summary>
+        static float Trickle(float t, float d, ref State s)
+        {
+            float envelope = Mathf.Clamp01(t * 12f) * Mathf.Clamp01((d - t) * 6f);
+            float wobble = 0.6f + 0.4f * Mathf.Sin(t * 37f) * Mathf.Sin(t * 11f + 1f);
+            float water = LowPass(ref s.Lp1, s.Noise(), 1400f + 700f * wobble) - LowPass(ref s.Lp2, s.Noise(), 300f) * 0.5f;
+            return water * envelope * 0.7f;
+        }
+
+        /// <summary>Élan de la batte : souffle dont la hauteur monte puis retombe.</summary>
+        static float Whoosh(float t, float d, ref State s)
+        {
+            float x = t / d;
+            float envelope = Mathf.Sin(Mathf.Clamp01(x) * Mathf.PI);
+            float cutoff = 400f + 2600f * Mathf.Sin(Mathf.Clamp01(x) * Mathf.PI);
+            return HighPass(ref s, LowPass(ref s.Lp1, s.Noise(), cutoff), 180f) * envelope * envelope * 1.4f;
+        }
+
+        /// <summary>« Bonk » de dessin animé : note qui chute vite, petit claquement de bois.</summary>
+        static float Bonk(float t, float d, ref State s)
+        {
+            float pitch = 620f * Mathf.Exp(-t * 7f) + 180f;
+            float tone = Mathf.Sin(2f * Mathf.PI * pitch * t) * Mathf.Exp(-t * 9f);
+            float knock = LowPass(ref s.Lp1, s.Noise(), 2500f) * Mathf.Exp(-t * 80f);
+            return tone * 0.6f + knock * 0.6f;
+        }
+
+        /// <summary>Tir du fusil-jouet : « pop » d'air comprimé, ressort qui vibre, clac de la pompe.</summary>
+        static float ToyPop(float t, float d, ref State s)
+        {
+            float pop = LowPass(ref s.Lp1, s.Noise(), 1800f) * Mathf.Exp(-t * 45f) + Sine(t, 140f) * Mathf.Exp(-t * 30f) * 0.6f;
+            float spring = t > 0.04f ? Mathf.Sin(2f * Mathf.PI * (520f + 60f * Mathf.Sin(t * 90f)) * t) * Mathf.Exp(-(t - 0.04f) * 14f) * 0.18f : 0f;
+            float pump = t > 0.38f ? LowPass(ref s.Lp2, s.Noise(), 3200f) * Mathf.Exp(-(t - 0.38f) * 60f) * 0.7f : 0f;
+            return pop * 0.9f + spring + pump;
+        }
+
+        /// <summary>« Splat » mouillé : bruit sourd très bref et petite goutte.</summary>
+        static float Splat(float t, float d, ref State s)
+        {
+            float body = LowPass(ref s.Lp1, s.Noise(), 900f) * Mathf.Exp(-t * 28f);
+            float drip = t > 0.12f ? Sine(t, 900f - 1200f * (t - 0.12f)) * Mathf.Exp(-(t - 0.12f) * 30f) * 0.25f : 0f;
+            return body * 1.1f + drip;
         }
 
         static float RobotBumpThud(float t, float d, ref State s)

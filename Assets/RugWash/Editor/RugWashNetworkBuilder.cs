@@ -84,8 +84,11 @@ namespace RugWash.Editor
                 RugWashToolModels.Rinse(view, meshes, c), RugWashToolModels.Extractor(view, meshes, c), RugWashToolModels.FoamCannon(view, meshes, c),
                 RugWashToolModels.Broom(view, meshes, c), RugWashToolModels.DetailBrush(view, meshes, c), RugWashToolModels.Bucket(view, meshes, c),
                 RugWashToolModels.Squeegee(view, meshes, c), RugWashToolModels.Rotary(view, meshes, c),
+                // Gadgets de farce (v0.1.2) : emplacements 12 (batte) et 13 (fusil-jouet) ; 14 (pipi) : main libre.
+                RugWashToolModels.Bat(view, meshes, c), RugWashToolModels.Blaster(view, meshes, c),
             };
-            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2, 1, 0, 2 };
+            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2, 1, 0, 2, 0, 0 };
+            var gadgetRanges = new[] { c.Pranks.bat.range, c.Pranks.blaster.range };
             foreach (var model in models) DisableShadows(model.Root.gameObject);
             var appearance = AddAppearance(visuals, c);
             // Ragdoll : le corps bascule, jambes et bras articulés ; avant-bras rattachés aux bras pendant la chute.
@@ -149,7 +152,7 @@ namespace RugWash.Editor
                 entry.FindPropertyRelative("head").objectReferenceValue = model.Head;
                 entry.FindPropertyRelative("shaft").objectReferenceValue = model.Shaft;
                 entry.FindPropertyRelative("shaftLength").floatValue = model.ShaftLength;
-                entry.FindPropertyRelative("range").floatValue = definitions[i].range;
+                entry.FindPropertyRelative("range").floatValue = i < definitions.Length ? definitions[i].range : gadgetRanges[i - definitions.Length];
                 entry.FindPropertyRelative("rightHand").objectReferenceValue = model.RightHand;
                 entry.FindPropertyRelative("leftHand").objectReferenceValue = model.LeftHand;
                 entry.FindPropertyRelative("effect").intValue = effects[i];

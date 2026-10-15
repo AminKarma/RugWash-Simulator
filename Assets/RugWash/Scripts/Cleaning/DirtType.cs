@@ -22,11 +22,18 @@ namespace RugWash.Cleaning
         PetHair = 10,
         /// <summary>Peluches et fibres en surface : très légères, l'aspirateur les enlève facilement.</summary>
         Lint = 11,
+        /// <summary>Farce « pipi » (v0.1.2) : auréole jaune et humide ; détergent, brossage et rinçage l'enlèvent.</summary>
+        Urine = 12,
+        /// <summary>Faux sang de théâtre (farces, v0.1.2) : éclaboussures stylisées rouge vif ; détergent et brossage humide.</summary>
+        FakeBlood = 13,
     }
 
     public static class DirtTypes
     {
-        public const int Count = 12;
+        public const int Count = 14;
+
+        /// <summary>Salissures créées par les farces entre joueurs (temporaires, nettoyables comme les autres).</summary>
+        public static bool IsPrank(DirtType type) => type == DirtType.Urine || type == DirtType.FakeBlood;
 
         /// <summary>Salissures sèches et non fixées : stockées dans le canal poussière d'une cellule.</summary>
         public static bool IsLooseDry(DirtType type) =>

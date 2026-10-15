@@ -431,6 +431,54 @@ namespace RugWash.Editor
             return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right, LeftHand = left };
         }
 
+        // ------------------------------------------------------------------ Gadgets de farce (v0.1.2 jalon 6)
+
+        /// <summary>Batte de baseball en bois, poignée scotchée : tenue droite, prête à frapper (rotation autour de la poignée).</summary>
+        public static Model Bat(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var root = Root(camera, "Bat", new Vector3(0.3f, -0.3f, 0.36f), new Vector3(-58f, -14f, -8f));
+            Part("Bat", root, store.Add("Prank_Bat", () => Lathe(new[]
+            {
+                new Vector2(0f, 0f), new Vector2(0.028f, 0f), new Vector2(0.03f, 0.012f), new Vector2(0.017f, 0.03f), new Vector2(0.015f, 0.06f),
+                new Vector2(0.016f, 0.3f), new Vector2(0.022f, 0.44f), new Vector2(0.031f, 0.58f), new Vector2(0.036f, 0.72f),
+                new Vector2(0.035f, 0.8f), new Vector2(0.027f, 0.825f), new Vector2(0f, 0.832f),
+            }, 22, capBottom: false, capTop: false)), c["Wood"], Vector3.zero, AlongZ);
+            Part("Tape", root, store.Add("Prank_BatTape", () => Lathe(new[] { new Vector2(0.0175f, 0.035f), new Vector2(0.0175f, 0.25f) }, 18)), c["Rubber"],
+                Vector3.zero, AlongZ);
+            var tip = Tip(root, new Vector3(0f, 0f, 0.78f));
+            var right = Glove(root, store, c, "Glove_R", new Vector3(0f, 0f, 0.09f), Vector3.forward, new Vector3(0.2f, -0.6f, -0.75f), left: false);
+            var left = Support(root, new Vector3(0f, 0f, 0.17f));
+            return new Model { Root = root, Tip = tip, RightHand = right, LeftHand = left };
+        }
+
+        /// <summary>
+        /// Fusil à pompe de farces et attrapes : plastique bleu et blanc, embout orange (jouet), pompe orange. Il ne tire que du
+        /// faux sang de théâtre sur les tapis ; « Muzzle » marque la bouche.
+        /// </summary>
+        public static Model Blaster(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var root = Root(camera, "Blaster", new Vector3(0.22f, -0.24f, 0.36f), new Vector3(2f, -5f, 0f));
+            Part("Receiver", root, store.Add("Prank_Receiver", () => RoundedBox(new Vector3(0.055f, 0.075f, 0.24f), 0.018f)), c["BluePlastic"],
+                new Vector3(0f, 0f, 0.05f), Quaternion.identity);
+            Part("Stock", root, store.Add("Prank_Stock", () => RoundedBox(new Vector3(0.045f, 0.085f, 0.17f), 0.02f)), c["BluePlastic"],
+                new Vector3(0f, -0.025f, -0.14f), Quaternion.Euler(-8f, 0f, 0f));
+            Part("Grip", root, store.Add("Prank_Grip", () => RoundedBox(new Vector3(0.035f, 0.09f, 0.045f), 0.012f)), c["Rubber"],
+                new Vector3(0f, -0.07f, -0.03f), Quaternion.Euler(-18f, 0f, 0f));
+            Part("Barrel", root, StraightTube(store, "Prank_Barrel", 0.019f, 0.34f), c["WhitePlastic"], new Vector3(0f, 0.012f, 0.16f), AlongZ);
+            Part("Tube", root, StraightTube(store, "Prank_Magazine", 0.014f, 0.26f), c["WhitePlastic"], new Vector3(0f, -0.022f, 0.16f), AlongZ);
+            Part("Pump", root, store.Add("Prank_Pump", () => RoundedBox(new Vector3(0.05f, 0.045f, 0.11f), 0.015f)), c["StepOrange"],
+                new Vector3(0f, -0.022f, 0.3f), Quaternion.identity);
+            Part("OrangeTip", root, store.Add("Prank_OrangeTip", () => Cylinder(0.024f, 0.04f, 18)), c["StepOrange"],
+                new Vector3(0f, 0.012f, 0.515f), AlongZ);
+            Part("Stripe", root, store.Add("Prank_Stripe", () => RoundedBox(new Vector3(0.057f, 0.016f, 0.16f), 0.006f)), c["SafetyYellow"],
+                new Vector3(0f, 0.02f, 0.05f), Quaternion.identity);
+            var tip = Tip(root, new Vector3(0f, 0.012f, 0.54f));
+            tip.name = "Muzzle";
+            var right = Glove(root, store, c, "Glove_R", new Vector3(0f, -0.07f, -0.03f), new Vector3(0f, 0.95f, -0.3f), new Vector3(0.25f, -0.55f, -0.8f), left: false);
+            var left = Support(root, new Vector3(0f, -0.04f, 0.3f));
+            return new Model { Root = root, Tip = tip, RightHand = right, LeftHand = left };
+        }
+
         /// <summary>Vue à la première personne : couche « Player », sans ombres, sans collisions.</summary>
         public static void Finish(Model model)
         {

@@ -75,7 +75,7 @@ namespace RugWash.Network
     /// toutes les surfaces et de sa carrière validée.</item>
     /// </list>
     /// </summary>
-    public sealed class NetworkWorkshop : NetworkBehaviour, IWorkshopRequests
+    public sealed partial class NetworkWorkshop : NetworkBehaviour, IWorkshopRequests
     {
         public const string OperationMessage = "rugwash.op";
         public const string SurfaceMessageName = "rugwash.surface";
@@ -169,6 +169,7 @@ namespace RugWash.Network
                 if (NetworkManager != null && NetworkManager.SceneManager != null) NetworkManager.SceneManager.OnSynchronizeComplete -= OnClientSynchronized;
                 if (NetworkManager != null) NetworkManager.OnClientDisconnectCallback -= OnClientLeft;
                 UnhookHostSystems();
+                TearDownPranks();
                 host?.Unregister();
             }
             else
@@ -186,6 +187,7 @@ namespace RugWash.Network
                     game.WorkshopFromHost = false;
                     foreach (var machine in game.Machines)
                         if (machine != null) machine.Remote = null;
+                    TearDownPranks();
                     game.Orders.SetBoardReputation(-1);
                     game.GameState.Synchronizing = false;
                     game.Hud.SetLoading(null);
@@ -209,6 +211,7 @@ namespace RugWash.Network
             NetworkManager.SceneManager.OnSynchronizeComplete += OnClientSynchronized;
             NetworkManager.OnClientDisconnectCallback += OnClientLeft;
             HookHostSystems();
+            SetUpHostPranks();
             boardReputation.Value = game.Reputation.Points;
             PushOrders();
             SpawnAvatar(NetworkManager.LocalClientId);
@@ -303,6 +306,7 @@ namespace RugWash.Network
             host?.Acks.Remove(clientId);
             careers.Remove(clientId);
             careerDirty.Remove(clientId);
+            if (game != null && game.Pranks != null) game.Pranks.Forget(clientId);
             ToastRpc($"{session?.NameOf(clientId) ?? "Un joueur"} a quitté l'atelier.");
         }
 
@@ -509,6 +513,7 @@ namespace RugWash.Network
                 if (machine != null) machine.Remote = this;
             workshopState.OnValueChanged += (_, value) => ApplyWorkshop(value);
             ApplyWorkshop(workshopState.Value);
+            SetUpGuestPranks();
 
             game.Orders.SetBoardReputation(boardReputation.Value);
             game.Orders.ApplyRemoteCompleted(Split(completedOrders.Value.ToString()));

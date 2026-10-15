@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0c323caf9e3d174792e3f51b035decd, type: 3}
+  m_Name: PrankTuning
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Pranks.PrankTuning
+  pee:
+    kind: 1
+    displayName: Pipi
+    upgradeId: up_prank_pee
+    range: 2.4
+    cooldownSeconds: 45
+    costPerUse: 0
+    affectsRug: 1
+    affectsPlayers: 1
+    stainType: 12
+    stainRadius: 0.26
+    stainAmount: 0.55
+    stainMoisture: 0.7
+    splats: 1
+    splatSpread: 0
+    useSeconds: 1.2
+  bat:
+    kind: 2
+    displayName: Batte de baseball
+    upgradeId: up_prank_bat
+    range: 2.2
+    cooldownSeconds: 20
+    costPerUse: 0
+    affectsRug: 1
+    affectsPlayers: 1
+    stainType: 13
+    stainRadius: 0.09
+    stainAmount: 0.6
+    stainMoisture: 0
+    splats: 1
+    splatSpread: 0
+    useSeconds: 0.4
+  blaster:
+    kind: 3
+    displayName: "Fusil \xE0 faux sang"
+    upgradeId: up_prank_blaster
+    range: 4.5
+    cooldownSeconds: 12
+    costPerUse: 60
+    affectsRug: 1
+    affectsPlayers: 0
+    stainType: 13
+    stainRadius: 0.07
+    stainAmount: 0.6
+    stainMoisture: 0
+    splats: 9
+    splatSpread: 0.35
+    useSeconds: 0.5
+  splashIntensity: 0.55
+  splashSeconds: 6
+  splashFadeSeconds: 2.5
+  splashProtectionSeconds: 20
+  knockSeconds: 1.4
+  knockImpulse: 3.5
+  knockProtectionSeconds: 15
+  globalCooldownSeconds: 3
+  rugCapFraction: 0.15
+  rugCapMinimum: 6
+  cellStainCap: 0.85
+  rangeTolerance: 0.75
+  playerHitRadius: 0.45

@@ -236,3 +236,46 @@ l'hôte, sauvegarde versionnée, générateurs procéduraux (maillages, textures
   externe. Un seul lecteur persistant (deux sources pour le fondu enchaîné de 1,5 s), gain maximal 0,45 (sous les sons de
   jeu), atténuée à 40 % en pause, curseur « Musique » dans les réglages (0 = muette).
 - Sauvegarde v4 (`character`, `musicVolume`), protocole `rugwash-coop-6`.
+
+## 8. Décisions du jalon 6 (farces entre coéquipiers)
+
+Audit : rien n'existait pour les farces. Réutilisés : catalogue d'améliorations et boutique de l'ordinateur (nouvel
+onglet **Farces**), opérations de grille (une tache de farce est une vraie salissure de la grille, répliquée comme les
+autres cellules), chute contrôlée et ragdoll du jalon 5, demandes invité → hôte et carrière de chaque invité tenue par
+l'hôte, générateurs procéduraux (modèles, sons, texture).
+
+- **Présentation** : farces de dessin animé, présentées comme telles dans la boutique et le HUD (« Farce · … »). Aucun
+  contenu explicite : le pipi est un jet de gouttes jaunes en arc qui part des hanches (aucune anatomie modélisée), le
+  « sang » est du **faux sang de théâtre** rouge cerise en taches rondes à bords nets.
+- **Fusil à pompe (4.2)** : réalisé en **version jouet** comme le permet la consigne : fusil de farces et attrapes en
+  plastique bleu et blanc, **embout orange**, qui ne projette que du faux sang de théâtre et **ne vise jamais un
+  joueur** (aucun effet, refus explicite). Pas de système de combat, pas de dégâts.
+- **Gadgets** (achetés pour la carrière du joueur, réputation requise, nettement plus chers que les outils : 90 à 650 €) :
+  - *Soda géant (pipi)* — 1 500 €, réputation 5, recharge 45 s. Tapis : auréole jaune et humide (rayon 0,26 m) ;
+    coéquipier : gouttes à l'écran.
+  - *Batte de baseball* — 4 000 €, réputation 12, recharge 20 s. Tapis : petite tache de faux sang (0,09 m) ;
+    coéquipier : chute comique de 1,4 s (ragdoll vu par les autres), relevé immédiat possible avec **Interagir** après
+    0,5 s, puis 15 s de protection.
+  - *Fusil de farces et attrapes* — 6 500 €, réputation 20, **60 € par tir**, recharge 12 s : neuf éclaboussures de
+    faux sang dispersées sur 0,35 m autour du point visé.
+- **Commandes** : **G** (croix haut) sort le gadget suivant parmi ceux achetés, puis range ; une touche d'outil ou la
+  molette revient aux outils ; clic gauche / RT : une farce par appui. Touche reconfigurable (« Gadget de farce »).
+- **Salissures** : deux nouveaux types, *Pipi (farce)* et *Faux sang (farce)*, fixés dans les fibres : l'aspirateur n'y
+  fait rien, détergent + brosse les détachent, le rinçage les évacue. Ils comptent dans la propreté et l'évaluation
+  comme toute saleté (la propreté de référence ne change pas : une farce fait baisser le pourcentage).
+- **Gouttes à l'écran** : opacité plafonnée à 85 % (65 % par défaut), gouttes surtout vers les bords, 6 s dont 2,5 s de
+  fondu ; une nouvelle salve ne s'empile pas ; effacées à la fin de la partie en ligne et par le jeu.
+- **Garde-fous (autorité : solo ou hôte)** : achat, recharge par gadget + 3 s entre deux farces quelconques, coût
+  débité par l'autorité, portée mesurée depuis la position du joueur **chez l'hôte** (tolérance 0,75 m), cible valide
+  (tapis de la commande, joueur connu et synchronisé, jamais soi-même), protection des victimes (20 s après des gouttes,
+  15 s après un coup, jamais un joueur à terre), **plafond par tapis** (15 % de sa saleté initiale, au moins 6 unités ;
+  au plus une farce au-delà), **tapis terminé épargné**, tache plafonnée par cellule (85 %). Aucune farce ne touche à
+  l'argent, aux achats ni à la réputation d'un autre joueur.
+- **Réseau** : l'invité envoie seulement gadget, cible et point visé ; l'hôte rejoue toutes les vérifications avec la
+  carrière qu'il tient pour cet invité et la position de sa silhouette ; il répond au demandeur (effets joués à la
+  validation) ; les taches arrivent par la réplication des cellules ; gouttes et chute ne sont envoyées qu'au joueur
+  visé (valeurs bornées à la réception) ; les autres postes rejouent jet, tir et sons localement (aucune particule
+  transmise). Silhouettes : batte ou fusil en main (emplacements 12 et 13), main libre pour le pipi. Protocole
+  `rugwash-coop-7`.
+- **Réglages centralisés** : `ScriptableObjects/PrankTuning.asset` (portée, recharge, coût par usage, taches, gouttes,
+  chute, protections, plafonds) ; prix et réputation dans les améliorations du catalogue (`up_prank_*`).

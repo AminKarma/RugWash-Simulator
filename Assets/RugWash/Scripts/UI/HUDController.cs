@@ -68,6 +68,8 @@ namespace RugWash.UI
         string loadingMessage;
         int lastCleanPercent = -1;
         string lastPrompt, lastStatus, lastBlock;
+        Pranks.PrankGadgetController gadgets;
+        Pranks.PrankGadget lastGadget;
         CleaningToolBase lastTool;
 
         public bool IsConfigured(out string missing)
@@ -122,6 +124,15 @@ namespace RugWash.UI
             reputation.Changed += OnReputationChanged;
             RefreshEconomy();
         }
+
+        /// <summary>Gadgets de farce (v0.1.2) : nom, recharge et coût à la place de l'outil quand un gadget est en main.</summary>
+        public void BindGadgets(Pranks.PrankGadgetController controller)
+        {
+            gadgets = controller;
+            RefreshAll(force: true);
+        }
+
+        Pranks.PrankGadget CurrentGadget => gadgets != null ? gadgets.Equipped : Pranks.PrankGadget.None;
 
         /// <summary>Scan de saleté et paliers de propreté.</summary>
         public void BindFeedback(DirtScanner dirtScanner, CleaningProgressFeedback cleaningProgress)
@@ -349,7 +360,8 @@ namespace RugWash.UI
             cleanlinessPanel.localScale = Vector3.one * (1f + 0.07f * Mathf.Sin(pulse * Mathf.PI));
 
             var tool = tools.ActiveTool;
-            float fraction = tool != null ? tool.GetResourceFraction() : -1f;
+            // Gadget en main : la jauge montre la recharge (pleine = prêt).
+            float fraction = CurrentGadget != Pranks.PrankGadget.None ? gadgets.ReadyFraction : tool != null ? tool.GetResourceFraction() : -1f;
             if (fraction >= 0f)
             {
                 displayedResource = tool != lastTool || displayedResource < 0f ? fraction : Mathf.Lerp(displayedResource, fraction, smoothing);
@@ -420,12 +432,24 @@ namespace RugWash.UI
             }
 
 
-            if (force || tool != lastTool)
+            var gadget = CurrentGadget;
+            if (force || tool != lastTool || gadget != lastGadget)
             {
                 lastTool = tool;
-                toolNameLabel.text = tool != null ? tool.Definition.displayName : "Aucun outil";
-                resourceBar.SetActive(tool != null && tool.GetResourceFraction() >= 0f);
-                hintLabel.text = BuildHint(tool);
+                lastGadget = gadget;
+                if (gadget != Pranks.PrankGadget.None)
+                {
+                    toolNameLabel.text = $"{gadgets.Name(gadget)} (farce)";
+                    resourceBar.SetActive(true);
+                    displayedResource = -1f;
+                    hintLabel.text = BuildGadgetHint();
+                }
+                else
+                {
+                    toolNameLabel.text = tool != null ? tool.Definition.displayName : "Aucun outil";
+                    resourceBar.SetActive(tool != null && tool.GetResourceFraction() >= 0f);
+                    hintLabel.text = BuildHint(tool);
+                }
             }
 
             if (scanner != null)
@@ -440,7 +464,7 @@ namespace RugWash.UI
                 }
             }
 
-            string status = tool?.GetStatusLine() ?? string.Empty;
+            string status = gadget != Pranks.PrankGadget.None ? gadgets.StatusLine : tool?.GetStatusLine() ?? string.Empty;
             if (force || status != lastStatus)
             {
                 lastStatus = status;
@@ -461,11 +485,21 @@ namespace RugWash.UI
             if (loadingMessage != null) return loadingMessage;
             if (interactor.Current != null)
                 return $"[{input.GetBindingLabel("Interact")}] {interactor.Current.GetPrompt(interactor)}";
+            if (CurrentGadget != Pranks.PrankGadget.None) return string.Empty;
             string block = tool?.GetBlockReason();
             if (block != null) return block;
             // « Trop loin » seulement en visant le tapis de la commande, ou en utilisant l'outil (le sol est aussi nettoyable).
             if (tool != null && tool.IsTargetOutOfRange && (tool.IsUsing || tools.CurrentAim.Rug == rug)) return "Trop loin — rapprochez-vous";
             return string.Empty;
+        }
+
+        /// <summary>Rappel des commandes avec un gadget de farce en main.</summary>
+        string BuildGadgetHint()
+        {
+            string use = input.Scheme == InputScheme.Gamepad ? input.Label("Use") : "Clic gauche";
+            string back = input.Scheme == InputScheme.Gamepad ? $"{input.Label("ToolPrevious")} / {input.Label("ToolNext")}" : "1-0 / molette";
+            return $"{use} : {gadgets.ActionVerb}   ·   {input.Label("Gadget")} : gadget suivant / ranger   ·   {back} : outils   ·   " +
+                   $"{input.Label("Interact")} : interagir";
         }
 
         /// <summary>Rappel des commandes, selon le périphérique actif (clavier/souris ou manette).</summary>
@@ -474,6 +508,7 @@ namespace RugWash.UI
             string verb = tool != null ? tool.ActionVerb : "utiliser";
             string common = $"{input.Label("Interact")} : interagir   ·   {input.Label("Scan")} : scanner   ·   {input.Label("Product")} : produit   ·   " +
                             $"{input.Label("Inspect")} : inspecter   ·   ";
+            if (gadgets != null && gadgets.HasAnyGadget) common += $"{input.Label("Gadget")} : farces   ·   ";
             if (input.Scheme == InputScheme.Gamepad)
                 return $"{input.Label("Use")} : {verb}   ·   {input.Label("ToolPrevious")} / {input.Label("ToolNext")} : outils   ·   " +
                        common + $"{input.Label("Pause")} : pause";

@@ -318,7 +318,11 @@ namespace RugWash.Tests
             game.ShopUI.ShowTab(ShopUI.Tab.Workshop);
             yield return null;
             foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) upgrades++;
-            Assert.AreEqual(game.Upgrades.Catalog.Count, upgrades, "Les onglets Matériel et Atelier listent toutes les améliorations.");
+            // Jalon 6 : les gadgets de farce ont aussi leur onglet.
+            game.ShopUI.ShowTab(ShopUI.Tab.Pranks);
+            yield return null;
+            foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) upgrades++;
+            Assert.AreEqual(game.Upgrades.Catalog.Count, upgrades, "Les onglets Matériel, Atelier et Farces listent toutes les améliorations.");
             game.ShopUI.Close();
         }
 
