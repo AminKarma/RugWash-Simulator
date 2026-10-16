@@ -83,7 +83,7 @@ namespace RugWash.Tests
         // ------------------------------------------------------------------ Raclette
 
         [UnityTest]
-        public IEnumerator Squeegee_PushesWaterAlongTheStroke_IntoTheDrain_AndNeverCleansARug()
+        public IEnumerator Squeegee_PushesWaterAlongTheStroke_IntoTheDrain_AndOnlyWipesWaterFromARug()
         {
             yield return LoadWorkshop(legacyTools: true);
             Grant("up_tool_squeegee");
@@ -116,17 +116,18 @@ namespace RugWash.Tests
             squeegee.Tick(false, default, dt);
             float bandAfter = WaterIn(pad, 0f, 0.42f);
             Assert.Less(bandAfter, bandBefore * 0.5f, "L'eau quitte la zone raclée…");
-            Assert.Greater(WaterIn(pad, 0.5f, 0.75f), bandBefore * 0.3f, "…et se retrouve devant la lame.");
-            Assert.AreEqual(totalBefore, pad.Grid.TotalMoisture, totalBefore * 0.08f, "Déplacée, pas effacée (hors séchage naturel).");
+            Assert.Greater(WaterIn(pad, 0.5f, 0.75f), bandBefore * 0.12f, "…et une partie se retrouve devant la lame…");
+            Assert.Less(pad.Grid.TotalMoisture, totalBefore * 0.95f, "…pendant qu'une partie est réellement essuyée (mission de corrections).");
+            Assert.Greater(pad.Grid.TotalMoisture, totalBefore * 0.15f, "Retrait progressif (selon la distance raclée), pas instantané.");
 
             for (float v = 0.2f; v <= 0.8f; v += 0.15f)
                 for (float u = 0.45f; u <= 0.99f; u += 0.004f)
                     squeegee.Tick(true, AimAt(pad, pad.UVToWorld(new Vector2(u, v))), dt);
             squeegee.Tick(false, default, dt);
-            Assert.Greater(squeegee.TotalDrained, 0.5f, "Ce qui arrive au caniveau est évacué.");
+            Assert.Greater(squeegee.TotalDrained, 0f, "Ce qui arrive au caniveau est évacué.");
             Assert.Less(pad.Grid.TotalMoisture, totalBefore * 0.6f, "L'aire de lavage est réellement asséchée.");
 
-            // Sur un tapis : aucun effet (les fibres ne se raclent pas).
+            // Sur un tapis : l'eau seulement (mission de corrections), jamais la saleté.
             TestRugs.LoadDefault(game);
             var wetRug = new DepositOperation { Water = 0.5f };
             game.Rug.Grid.ApplyAll(ref wetRug);
@@ -135,10 +136,10 @@ namespace RugWash.Tests
             for (float u = 0.2f; u <= 0.8f; u += 0.01f)
                 squeegee.Tick(true, AimAt(game.Rug, game.Rug.UVToWorld(new Vector2(u, 0.5f))), dt);
             Assert.IsTrue(squeegee.AimingAtRug);
-            StringAssert.Contains("sans effet sur un tapis", squeegee.GetStatusLine());
+            StringAssert.Contains("seulement l'eau", squeegee.GetStatusLine());
             squeegee.Tick(false, default, dt);
-            Assert.AreEqual(rugWater, game.Rug.Grid.TotalMoisture, 1e-3f);
-            Assert.AreEqual(rugDirt, game.Rug.Grid.TotalDirt, 1e-3f);
+            Assert.Less(game.Rug.Grid.TotalMoisture, rugWater * 0.9f, "L'eau du tapis est chassée.");
+            Assert.AreEqual(rugDirt, game.Rug.Grid.TotalDirt, 1e-3f, "La saleté du tapis n'est pas touchée.");
         }
 
         // ------------------------------------------------------------------ Monobrosse

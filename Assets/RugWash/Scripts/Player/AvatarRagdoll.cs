@@ -18,10 +18,14 @@ namespace RugWash.Player
         [SerializeField] List<Transform> limbs = new List<Transform>();
         [Tooltip("Avant-bras rattachés au bras correspondant pendant la chute (même ordre que les bras de « limbs »).")]
         [SerializeField] List<Transform> attached = new List<Transform>();
-        [SerializeField, Min(0f)] float maxSpeed = 6f;
-        [SerializeField, Min(0f)] float maxSpin = 6f;
+        [Tooltip("Vitesse maximale donnée au corps (m/s) : chute exagérée, jamais d'éjection hors de la salle.")]
+        [SerializeField, Min(0f)] float maxSpeed = 12f;
+        [SerializeField, Min(0f)] float maxSpin = 10f;
         [SerializeField, Range(0.1f, 1.5f)] float blendSeconds = 0.45f;
-        [SerializeField, Range(1f, 10f)] float maxSeconds = 6f;
+        [Tooltip("Durée maximale (le KO du fusil dure 5 s) : la silhouette se relève toujours.")]
+        [SerializeField, Range(1f, 10f)] float maxSeconds = 8f;
+        [Tooltip("Distance maximale au point de chute (m) : au-delà (collision manquée), retour immédiat à la pose.")]
+        [SerializeField, Min(1f)] float maxTravel = 12f;
 
         struct Saved
         {
@@ -39,6 +43,7 @@ namespace RugWash.Player
         Rigidbody bodyRigidbody;
         float timer, blend;
         bool active;
+        Vector3 startPosition;
 
         public bool IsActive => active;
         public bool IsBusy => active || blend > 0f;
@@ -91,6 +96,7 @@ namespace RugWash.Player
 
             impulse = Vector3.ClampMagnitude(impulse, maxSpeed);
             bodyRigidbody.linearVelocity = impulse;
+            startPosition = body.position;
             var horizontal = new Vector3(impulse.x, 0f, impulse.z);
             Vector3 axis = horizontal.sqrMagnitude > 1e-4f ? Vector3.Cross(Vector3.up, horizontal.normalized) : body.right;
             bodyRigidbody.angularVelocity = axis * Mathf.Min(maxSpin, 3f + impulse.magnitude * 0.5f);
@@ -145,7 +151,9 @@ namespace RugWash.Player
             if (active)
             {
                 timer += deltaTime;
-                if (timer >= maxSeconds) End();
+                // Garde-fous : durée bornée, et retour à la pose si le corps traverse le sol ou part trop loin.
+                bool lost = body != null && (body.position.y < startPosition.y - 1.5f || (body.position - startPosition).sqrMagnitude > maxTravel * maxTravel);
+                if (timer >= maxSeconds || lost) End();
                 return;
             }
             if (blend <= 0f) return;

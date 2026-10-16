@@ -18,33 +18,47 @@ namespace RugWash.Network
         Leaving,
     }
 
-    /// <summary>Données envoyées par un invité à la connexion : version du jeu et nom affiché.</summary>
+    /// <summary>
+    /// Données envoyées par un invité à la connexion : protocole (clé de compatibilité), nom affiché, version du jeu (pour
+    /// le message de refus) et identité stable du joueur (reconnexion : l'ancienne connexion du même joueur est fermée).
+    /// Les deux derniers champs sont facultatifs : une version plus ancienne qui ne les envoie pas est lue sans erreur.
+    /// </summary>
     public readonly struct ConnectionPayload
     {
         public readonly string Version;
         public readonly string DisplayName;
+        public readonly string GameVersion;
+        public readonly string PlayerKey;
 
-        public ConnectionPayload(string version, string displayName)
+        public ConnectionPayload(string version, string displayName, string gameVersion = null, string playerKey = null)
         {
             Version = version ?? string.Empty;
             DisplayName = displayName ?? string.Empty;
+            GameVersion = gameVersion ?? string.Empty;
+            PlayerKey = playerKey ?? string.Empty;
         }
 
         public byte[] Encode()
         {
-            var writer = new ByteWriter(64);
+            var writer = new ByteWriter(128);
             writer.String(Version);
             writer.String(DisplayName);
+            writer.String(GameVersion);
+            writer.String(PlayerKey);
             return writer.ToArray();
         }
 
         public static bool TryDecode(byte[] data, out ConnectionPayload payload)
         {
             payload = default;
+            if (data == null) return false;
             try
             {
                 var reader = new ByteReader(data);
-                payload = new ConnectionPayload(reader.String(), reader.String());
+                string version = reader.String(), name = reader.String();
+                string game = reader.Remaining > 0 ? reader.String() : string.Empty;
+                string key = reader.Remaining > 0 ? reader.String() : string.Empty;
+                payload = new ConnectionPayload(version, name, game, key);
                 return true;
             }
             catch (FormatException)
@@ -60,17 +74,25 @@ namespace RugWash.Network
         public const int MaxNameLength = 24;
 
         /// <summary>Accepte ou refuse un invité ; <paramref name="reason"/> est affiché chez lui en cas de refus.</summary>
-        public static bool Approve(byte[] payloadData, string expectedVersion, int connectedPlayers, int maxPlayers, out string displayName, out string reason)
+        public static bool Approve(byte[] payloadData, string expectedVersion, int connectedPlayers, int maxPlayers, out string displayName, out string reason) =>
+            Approve(payloadData, expectedVersion, null, connectedPlayers, maxPlayers, out displayName, out reason, out _);
+
+        /// <summary>
+        /// Admission d'un invité : même protocole que l'hôte (sinon refus avant tout chargement, avec les deux versions), place
+        /// libre. <paramref name="connectedPlayers"/> ne compte pas une ancienne connexion du même joueur qui sera fermée.
+        /// </summary>
+        public static bool Approve(byte[] payloadData, string expectedVersion, string hostGameVersion, int connectedPlayers, int maxPlayers,
+            out string displayName, out string reason, out ConnectionPayload payload)
         {
             displayName = string.Empty;
-            if (!ConnectionPayload.TryDecode(payloadData, out var payload))
+            if (!ConnectionPayload.TryDecode(payloadData, out payload))
             {
-                reason = "Données de connexion invalides.";
+                reason = "Données de connexion invalides (version du jeu trop différente de celle de l'hôte).";
                 return false;
             }
             if (!string.Equals(payload.Version, expectedVersion, StringComparison.Ordinal))
             {
-                reason = $"Version différente de celle de l'hôte ({payload.Version} ≠ {expectedVersion}).";
+                reason = VersionMismatch(payload.GameVersion, payload.Version, hostGameVersion, expectedVersion);
                 return false;
             }
             if (connectedPlayers >= maxPlayers)
@@ -81,6 +103,32 @@ namespace RugWash.Network
             displayName = CleanName(payload.DisplayName);
             reason = string.Empty;
             return true;
+        }
+
+        /// <summary>Message de refus pour des versions incompatibles : celle du joueur, celle de l'hôte, et quoi faire.</summary>
+        public static string VersionMismatch(string clientGame, string clientProtocol, string hostGame, string hostProtocol)
+        {
+            string Describe(string game, string protocol) =>
+                string.IsNullOrEmpty(game) ? $"protocole {protocol}" : $"{game} (protocole {protocol})";
+            return $"Versions incompatibles : votre jeu {Describe(clientGame, clientProtocol)}, partie de l'hôte {Describe(hostGame, hostProtocol)}. " +
+                   "Installez la même version que l'hôte pour jouer ensemble.";
+        }
+
+        /// <summary>
+        /// Reconnexion : une connexion encore ouverte du même joueur (même identité), à fermer avant d'accepter la nouvelle.
+        /// Sans identité, aucune éviction (impossible de savoir qui c'est).
+        /// </summary>
+        public static bool TryFindStaleConnection(IReadOnlyDictionary<ulong, string> keys, string playerKey, ulong newClientId, out ulong staleClientId)
+        {
+            staleClientId = 0;
+            if (string.IsNullOrEmpty(playerKey) || keys == null) return false;
+            foreach (var pair in keys)
+                if (pair.Key != newClientId && string.Equals(pair.Value, playerKey, StringComparison.Ordinal))
+                {
+                    staleClientId = pair.Key;
+                    return true;
+                }
+            return false;
         }
 
         /// <summary>Nom affiché sûr : caractères de contrôle retirés, longueur bornée, « Joueur » si vide.</summary>

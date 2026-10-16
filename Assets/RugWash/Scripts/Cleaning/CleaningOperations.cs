@@ -407,6 +407,10 @@ namespace RugWash.Cleaning
         public float Water;
         public float Foam;
         public float Mud;
+        /// <summary>Savon restant (résidus de produit) ramassé.</summary>
+        public float Residue;
+        /// <summary>Débris secs non fixés (poussière, poils, peluches) ramassés.</summary>
+        public float Debris;
         public float WeightSum;
 
         public void Apply(ref RugCell cell, float weight)
@@ -414,13 +418,38 @@ namespace RugWash.Cleaning
             float k = Mathf.Clamp01(Efficiency * weight);
             if (k <= 0f) return;
             WeightSum += weight;
-            float water = cell.Moisture * k, foam = cell.Foam * k, mud = cell.Loosened * k;
+            float water = cell.Moisture * k, foam = cell.Foam * k, mud = cell.Loosened * k, residue = cell.Residue * k, debris = cell.Dust * k;
             cell.Moisture -= water;
             cell.Foam -= foam;
             cell.Loosened -= mud;
+            cell.Residue -= residue;
+            cell.Dust -= debris;
             Water += water;
             Foam += foam;
             Mud += mud;
+            Residue += residue;
+            Debris += debris;
+        }
+
+        public float Total => Water + Foam + Mud + Residue + Debris;
+    }
+
+    /// <summary>
+    /// Raclette sur un tapis (mission de corrections) : la lame chasse seulement l'eau des fibres (part retirée par
+    /// application), sans toucher à la saleté, à la mousse, aux résidus ni à l'usure.
+    /// </summary>
+    public struct WipeWaterOperation : ICellOperation
+    {
+        public float Efficiency;
+        public float Removed;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            float k = Mathf.Clamp01(Efficiency * weight);
+            if (k <= 0f || cell.Moisture <= 0f) return;
+            float water = cell.Moisture * k;
+            cell.Moisture -= water;
+            Removed += water;
         }
     }
 
@@ -437,11 +466,14 @@ namespace RugWash.Cleaning
         public float Foam;
         public float Water;
 
-        /// <summary>Statistiques de sortie : ce qui n'a pas tenu dans des cellules déjà saturées (raclette : reporté plus loin).</summary>
-        public float WaterOverflow, FoamOverflow, MudOverflow;
+        /// <summary>Savon restant déposé (raclette).</summary>
+        public float Residue;
 
-        /// <summary>Saturation d'une cellule (au-delà, la grille écrête) : humidité et mousse 1, boue détachée 2.</summary>
-        public const float MaxWater = 1f, MaxFoam = 1f, MaxMud = 2f;
+        /// <summary>Statistiques de sortie : ce qui n'a pas tenu dans des cellules déjà saturées (raclette : reporté plus loin).</summary>
+        public float WaterOverflow, FoamOverflow, MudOverflow, ResidueOverflow;
+
+        /// <summary>Saturation d'une cellule (au-delà, la grille écrête) : humidité, mousse et résidus 1, boue détachée 2.</summary>
+        public const float MaxWater = 1f, MaxFoam = 1f, MaxMud = 2f, MaxResidue = 1f;
 
         public void Apply(ref RugCell cell, float weight)
         {
@@ -472,6 +504,13 @@ namespace RugWash.Cleaning
                 float put = Mathf.Min(amount, Mathf.Max(0f, MaxWater - cell.Moisture));
                 cell.Moisture += put;
                 WaterOverflow += amount - put;
+            }
+            if (Residue > 0f)
+            {
+                float amount = Residue * weight;
+                float put = Mathf.Min(amount, Mathf.Max(0f, MaxResidue - cell.Residue));
+                cell.Residue += put;
+                ResidueOverflow += amount - put;
             }
         }
     }

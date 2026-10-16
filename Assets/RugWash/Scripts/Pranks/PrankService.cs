@@ -15,8 +15,10 @@ namespace RugWash.Pranks
     public sealed class PrankService : MonoBehaviour
     {
         [SerializeField] PrankTuning tuning;
-        [Tooltip("Tapis de la commande (seule surface où les farces déposent une tache).")]
+        [Tooltip("Tapis de la commande (taches des farces visant le tapis).")]
         [SerializeField] RugCleaningController rug;
+        [Tooltip("Aire de lavage : taches de faux sang sous un joueur touché par le fusil (optionnel).")]
+        [SerializeField] RugCleaningController workSurface;
 
         readonly Dictionary<ulong, float[]> readyAt = new Dictionary<ulong, float[]>();
         readonly Dictionary<ulong, float> globalReadyAt = new Dictionary<ulong, float>();
@@ -90,8 +92,9 @@ namespace RugWash.Pranks
                 point = victimFeet + Vector3.up * PrankRules.BodyHeight;
                 if (!PrankRules.InRange(actor.Eye, point, gadget.range + 0.5f, tuning.rangeTolerance)) return PrankResult.OutOfRange;
                 var protection = request.Gadget == PrankGadget.Pee ? splashProtectedUntil : knockProtectedUntil;
+                // Jamais un joueur déjà à terre (batte comme fusil : pas de KO enchaîné ni de chute rallongée).
                 if ((protection.TryGetValue(request.Victim, out float until) && now < until)
-                    || (request.Gadget == PrankGadget.Bat && Victims.IsDown(request.Victim)))
+                    || (request.Gadget != PrankGadget.Pee && Victims.IsDown(request.Victim)))
                     return PrankResult.TargetProtected;
             }
             else
@@ -121,11 +124,17 @@ namespace RugWash.Pranks
                 }
                 else
                 {
+                    // Batte : chute comique ; fusil : KO cartoon de 5 s, élan plus fort et un peu de hauteur (bornés à l'arrivée).
+                    bool blast = request.Gadget == PrankGadget.Blaster;
                     Vector3 push = victimFeet - actor.Eye;
                     push.y = 0f;
-                    push = (push.sqrMagnitude > 1e-4f ? push.normalized : Vector3.forward) * tuning.knockImpulse + Vector3.up;
-                    knockProtectedUntil[request.Victim] = now + tuning.knockProtectionSeconds;
-                    Victims.Knock(request.Victim, push, tuning.knockSeconds, actor.Name);
+                    push = (push.sqrMagnitude > 1e-4f ? push.normalized : Vector3.forward) * (blast ? tuning.blasterImpulse : tuning.knockImpulse)
+                           + Vector3.up * (blast ? tuning.blasterLift : 1f);
+                    float seconds = blast ? tuning.blasterKnockSeconds : tuning.knockSeconds;
+                    knockProtectedUntil[request.Victim] = now + Mathf.Max(tuning.knockProtectionSeconds, seconds + 10f);
+                    Victims.Knock(request.Victim, push, seconds, actor.Name, request.Gadget);
+                    // Faux sang stylisé au sol, sous le joueur touché (tapis ou aire de lavage, comme toute salissure).
+                    if (blast) outcome.Added = StainUnder(gadget, victimFeet);
                 }
             }
             else
@@ -137,9 +146,27 @@ namespace RugWash.Pranks
             return PrankResult.Done;
         }
 
-        /// <summary>Dépose la ou les taches du gadget autour du point (repère du tapis) ; retourne la saleté ajoutée.</summary>
-        float Stain(PrankTuning.Gadget gadget, Vector3 point)
+        /// <summary>Taches sous un joueur touché : sur le tapis (dans la limite par tapis) ou sur l'aire de lavage.</summary>
+        float StainUnder(PrankTuning.Gadget gadget, Vector3 feet)
         {
+            if (rug != null && rug.IsLoaded && !rug.IsFinished && rug.TryWorldToUV(feet, out _)
+                && PrankRules.CapRemaining(AddedToRug, rug.Grid.InitialDirt, tuning.rugCapFraction, tuning.rugCapMinimum) > 0f)
+            {
+                float added = Stain(gadget, feet, rug);
+                AddedToRug += added;
+                return added;
+            }
+            if (workSurface != null && workSurface.IsLoaded && workSurface.AcceptsDirt && workSurface.TryWorldToUV(feet, out _))
+                Stain(gadget, feet, workSurface);
+            return 0f;
+        }
+
+        /// <summary>Dépose la ou les taches du gadget autour du point (repère du tapis) ; retourne la saleté ajoutée.</summary>
+        float Stain(PrankTuning.Gadget gadget, Vector3 point) => Stain(gadget, point, rug);
+
+        float Stain(PrankTuning.Gadget gadget, Vector3 point, RugCleaningController surface)
+        {
+            var rug = surface;
             seed++;
             float added = 0f;
             Vector3 right = rug.transform.right, forward = rug.transform.forward;

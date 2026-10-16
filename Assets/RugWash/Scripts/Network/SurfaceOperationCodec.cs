@@ -16,6 +16,8 @@ namespace RugWash.Network
         Deposit = 7,
         /// <summary>Raclette (v0.1.2).</summary>
         Gather = 8,
+        /// <summary>Raclette sur un tapis : eau seulement (mission de corrections).</summary>
+        Wipe = 9,
     }
 
     /// <summary>
@@ -58,6 +60,7 @@ namespace RugWash.Network
                 case SweepOperation _: type = SurfaceOpType.Sweep; return true;
                 case DepositOperation _: type = SurfaceOpType.Deposit; return true;
                 case GatherOperation _: type = SurfaceOpType.Gather; return true;
+                case WipeWaterOperation _: type = SurfaceOpType.Wipe; return true;
                 default: type = 0; return false;
             }
         }
@@ -96,9 +99,13 @@ namespace RugWash.Network
                 case SurfaceOpType.Deposit:
                     var deposit = (DepositOperation)boxed;
                     w.Byte((byte)deposit.Type); w.Float(deposit.Mud); w.Float(deposit.Debris); w.Float(deposit.Foam); w.Float(deposit.Water);
+                    w.Float(deposit.Residue);
                     break;
                 case SurfaceOpType.Gather:
                     w.Float(((GatherOperation)boxed).Efficiency);
+                    break;
+                case SurfaceOpType.Wipe:
+                    w.Float(((WipeWaterOperation)boxed).Efficiency);
                     break;
             }
         }
@@ -225,7 +232,11 @@ namespace RugWash.Network
                 {
                     var type = (DirtType)r.Byte();
                     if ((int)type >= DirtTypes.Count) type = DirtType.Soil;
-                    var op = new DepositOperation { Type = type, Mud = Clamp(r.Float(), 0f, 1f), Debris = Clamp(r.Float(), 0f, 1f), Foam = Clamp(r.Float(), 0f, 1f), Water = Clamp(r.Float(), 0f, 1f) };
+                    var op = new DepositOperation
+                    {
+                        Type = type, Mud = Clamp(r.Float(), 0f, 1f), Debris = Clamp(r.Float(), 0f, 1f), Foam = Clamp(r.Float(), 0f, 1f), Water = Clamp(r.Float(), 0f, 1f),
+                        Residue = Clamp(r.Float(), 0f, 1f),
+                    };
                     result.Touched = surface.ApplyLocal(g, allowRunoff, ref op);
                     break;
                 }
@@ -234,6 +245,13 @@ namespace RugWash.Network
                     // Raclette sur un tapis : sans effet (les fibres ne se raclent pas), même pour un message trafiqué.
                     var op = new GatherOperation { Efficiency = Clamp(r.Float(), 0f, 1f) };
                     if (surface.Kind != SurfaceKind.Rug) result.Touched = surface.ApplyLocal(g, allowRunoff, ref op);
+                    break;
+                }
+                case SurfaceOpType.Wipe:
+                {
+                    // Raclette sur un tapis : l'eau seulement (opération incapable de toucher à autre chose).
+                    var op = new WipeWaterOperation { Efficiency = Clamp(r.Float(), 0f, 1f) };
+                    if (surface.Kind == SurfaceKind.Rug) result.Touched = surface.ApplyLocal(g, allowRunoff, ref op);
                     break;
                 }
             }

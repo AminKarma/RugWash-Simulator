@@ -298,9 +298,41 @@ Décisions : `AUDIT_V012.md` § 8. Résultats d'exécution : `VALIDATION.md` § 
 | 4.3 Batte : petite tache de faux sang sur un tapis ; chute comique d'un joueur (ragdoll du jalon 5), relevé rapide, protection, jamais un joueur à terre | Testé (EditMode + PlayMode, capture) | `QuickRecover_…`, `Bat_KnocksTheLocalPlayerDown_…`, `Authority_…`, capture `73_bat` |
 | 4.5 Prix élevés (≥ 2 × l'outil le plus cher), réputation, réglages centralisés (`PrankTuning`), recharges, délai global, plafond par tapis, tapis terminé épargné, progression des autres intacte | Testé (EditMode + PlayMode) | `Tuning_Protects_…`, `CheckUse_…`, `Range_Cap_…`, `Gadgets_MustBeBought_…`, `Authority_…` |
 | Interface : onglet Farces, gadget / recharge / coût au HUD, touche G reconfigurable, manette (croix haut, RT, A) | Testé (PlayMode, capture) | `Gadgets_MustBeBought_…`, capture `76_shop_pranks` |
-| Réseau : demande de l'invité validée par l'hôte (carrière, position chez l'hôte), effets diffusés, gouttes / chute au seul joueur visé, protocole `rugwash-coop-7` | Testé côté hôte (session locale en PlayMode) ; **deux processus non exécutés** | `Host_AppliesAGuestsPrankToTheHostPlayer_…` |
-| Tests Unity (batch) | Testé | EditMode 216, PlayMode 127 / 127 (`VALIDATION.md` § 18) |
-| Jeu compilé (build, benchmark, deux processus) | **Non exécuté** (ouvre des fenêtres du jeu) | — |
+| Réseau : demande de l'invité validée par l'hôte (carrière, position chez l'hôte), effets diffusés, gouttes / chute au seul joueur visé, protocole `rugwash-coop-7` | Testé (PlayMode + deux processus au jalon 7) | `Host_AppliesAGuestsPrankToTheHostPlayer_…`, étape `multiplayer` (`VALIDATION.md` § 19) |
+| Tests Unity (batch) | Testé | EditMode 216 / 216, PlayMode 127 / 127 (`VALIDATION.md` § 18) |
+| Jeu compilé (build, benchmark, deux processus) | Exécuté au jalon 7 | `VALIDATION.md` § 19 |
+
+## Update v0.1.2 — Jalon 7 (intégration et tests finaux)
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| Régression complète solo (EditMode, PlayMode) | Testé | EditMode 223 / 223, PlayMode 127 / 127 |
+| Sauvegardes anciennes et nouvelles : v0 à v3 migrées sans perte, nouvelle partie = kit seul, version future refusée, v4 relue à l'identique | Testé (EditMode) | `IntegrationV012Tests` |
+| Build Windows | Testé | étape `build` |
+| Performance du jeu compilé (1920×1080, Ultra) : ~200 FPS de moyenne, 1 % bas 85-100 FPS, mémoire et nombre d'objets stables sur 3 commandes | Testé | étape `benchmark` (15 / 15), `VALIDATION.md` § 19 |
+| Coopératif à deux processus étendu : jalons 1 à 4 + atelier de l'hôte (décor, machines), apparence, farces (pipi de l'invité validé par l'hôte, coup de batte de l'hôte, chute vue des deux côtés, relevé) | Testé | étape `multiplayer` (43 / 43) |
+| Économie (récompense unique, carrière de l'invité, achats, coûts des farces) | Testé (deux processus + PlayMode) | idem |
+| Reconnexion | Bouton « Se reconnecter » (jalon 5 V2), messages de déconnexion testés en EditMode ; **pas de scénario automatique de reconnexion entre deux processus** | `DisconnectMessages_SayWhatHappened` |
+| Plusieurs machines, Internet, Steam, plus de deux clients | **Non testé** (une seule machine, pas de client Steam lancé) | — |
+
+## Mission de corrections et d'optimisation (bugfix)
+
+Rapport complet : `RAPPORT_CORRECTIFS.md`. Exécutions : `VALIDATION.md` § 20.
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| 3 Économie de session = sauvegarde de l'hôte ; sauvegarde de l'invité jamais modifiée (préférences seulement) ; achats de l'invité payés par l'atelier ; récompense unique | Testé (PlayMode + deux processus) | `Guest_NeverWritesTheHostsSessionEconomy_…`, étape `multiplayer` |
+| 2.4 Crash détecté en 10 s, identité de joueur, ancienne connexion fermée au retour ; correctif d'Unity Transport (hôte sourd après un crash) | Testé (EditMode + deux processus : crash, reconnexion, hôte tué) | `BugfixSessionTests`, étape `multiplayer` |
+| 2.3 Version du jeu et du protocole dans la connexion et le message, salon Steam vérifié avant de rejoindre | Testé (EditMode) ; Steam non exécuté | `BugfixSessionTests` |
+| 2.1 Plus d'allongement télescopique à la première personne (tête jamais sous la surface) ; silhouettes distantes télescopiques | Testé (PlayMode) | `ContactTools_LocalHeadNeverSinksBelowTheSurface_…`, `RemoteAvatar_…` |
+| 2.2 Jet depuis la buse en bougeant (ordre d'exécution) ; jet distant rattaché à la buse | Testé (PlayMode) | `SprayEffects_…`, `RemoteAvatar_…` |
+| 2.5 / 2.9 Fusil : KO cartoon de 5 s, tête qui éclate, faux sang stylisé, relevé automatique, garde-fous ; élans exagérés bornés | Testé (EditMode + PlayMode) | `Blaster_…`, `BlasterKnockout_…`, `RemoteAvatar_Ragdolls_…` |
+| 2.6 Barre d'outils : outils possédés seulement | Testé (PlayMode) | `Toolbar_…`, `WorkshopV2…` |
+| 2.7 Boutique : onglets Outils et Améliorations | Testé (PlayMode) | `ContentV3…`, `Shop_…` |
+| 2.8 Raclette : savon, résidus et débris ramassés, retrait réel, eau seulement sur un tapis | Testé (EditMode + PlayMode) | `Gather_…`, `Squeegee_…` |
+| 2.10 Mousse : diagnostic au Profiler Unity ; à-coups en multijoueur corrigés (correction lente par tranches, rendu ligne par ligne, un bord recontaminé à la fois) | Testé (mesures avant/après, PlayMode, EditMode, deux processus) | `VALIDATION.md` § 20.4, `SlowCorrection_…`, `DirtyRows_…`, `DirtyWashArea_RecontaminatesOneBorderAtATime_…` |
+| 2.11 Paliers de rendu réels (Bas, Moyen, Élevé ; Ultra inchangé) ; protocole de benchmark reproductible | Mesuré sur une seule machine (charge GPU ×4 et 2 fils CPU en approximation) | `QualityTierTests`, `VALIDATION.md` § 20.5 |
+| PC moins puissants réels, deux machines, Internet, Steam | **Non testé** | — |
 
 ## Hors périmètre de la démo (documenté)
 

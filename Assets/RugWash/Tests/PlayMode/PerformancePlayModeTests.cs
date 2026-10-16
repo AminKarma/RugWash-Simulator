@@ -130,6 +130,85 @@ namespace RugWash.Tests
             UnityEngine.Object.Destroy(copy);
         }
 
+        /// <summary>Mousse imposée sur toute la grille, marquée comme simulation lente (comme la mousse qui retombe).</summary>
+        struct SlowFoam : ICellOperation
+        {
+            public float Foam;
+
+            public void Apply(ref RugCell cell, float weight)
+            {
+                cell.Foam = Foam;
+                cell.Moisture = 0.4f;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator SlowCorrection_WithLotsOfFoam_IsSpreadInRowChunks_AndTheGuestConvergesExactly()
+        {
+            TestRugs.LoadDefault(game);
+            var hostRug = game.Rug;
+            var copy = UnityEngine.Object.Instantiate(hostRug.gameObject, hostRug.transform.position + new Vector3(0f, 0f, 20f), hostRug.transform.rotation);
+            var guestRug = copy.GetComponent<RugCleaningController>();
+            yield return null;
+            var definition = hostRug.Definition;
+            var hostSync = new SurfaceSyncHost(_ => new SurfaceIdentity(definition.id, string.Empty));
+            hostSync.Register(0, hostRug);
+            var guestSync = new SurfaceSyncClient(_ => { }, (_, identity) =>
+            {
+                guestRug.LoadRug(definition);
+                return true;
+            }) { LocalClientId = 7 };
+            guestSync.Register(0, guestRug);
+            var writer = new ByteWriter(4096);
+            writer.Reset();
+            Assert.IsTrue(hostSync.TryWriteUpdate(0, writer));
+            Assert.IsTrue(guestSync.Receive(writer.Segment));
+
+            // Tout le tapis couvert : la zone de correction lente est la grille entière.
+            var foam = new SlowFoam { Foam = 0.9f };
+            hostRug.Grid.ApplyAllTracked(ref foam, slowReplication: true);
+            writer.Reset();
+            Assert.IsFalse(hostSync.TryWriteUpdate(0, writer, includeSlow: false), "Rien en réplication rapide.");
+
+            const int budget = 4096;
+            hostSync.BeginSlowCorrection(0);
+            int chunks = 0, total = 0, biggest = 0;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            double worstMs = 0;
+            while (hostSync.SlowCorrectionPending(0))
+            {
+                writer.Reset();
+                long start = sw.ElapsedTicks;
+                int written = hostSync.TryWriteSlowChunk(0, writer, budget);
+                worstMs = Math.Max(worstMs, (sw.ElapsedTicks - start) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+                Assert.Greater(written, 0);
+                Assert.LessOrEqual(written, Mathf.Max(budget, hostRug.Grid.Width), "Une tranche respecte le budget (au moins une ligne).");
+                Assert.IsTrue(guestSync.Receive(writer.Segment));
+                biggest = Mathf.Max(biggest, writer.Length);
+                total += written;
+                chunks++;
+                Assert.Less(chunks, 1000);
+            }
+            Debug.Log($"[RugWash] Correction lente d'un tapis couvert ({hostRug.Grid.CellCount} cellules) : {chunks} tranches, " +
+                      $"plus grand message {biggest / 1024f:0.0} Ko, pire écriture {worstMs:0.00} ms.");
+            Assert.AreEqual(hostRug.Grid.CellCount, total, "Toute la grille est corrigée, une fois.");
+            Assert.Greater(chunks, 1, "Répartie sur plusieurs envois.");
+            Assert.AreEqual(0, hostSync.TryWriteSlowChunk(0, writer, budget), "Cycle terminé.");
+
+            float maxError = 0f;
+            for (int y = 0; y < hostRug.Grid.Height; y++)
+            for (int x = 0; x < hostRug.Grid.Width; x++)
+            {
+                var a = hostRug.Grid.GetCell(x, y);
+                var b = guestRug.Grid.GetCell(x, y);
+                maxError = Mathf.Max(maxError, Mathf.Abs(a.Foam - b.Foam), Mathf.Abs(a.Moisture - b.Moisture));
+            }
+            Assert.LessOrEqual(maxError, 0.5f / 255f + 1e-4f, "Même résultat qu'une correction d'un seul bloc.");
+            guestSync.Unregister();
+            hostSync.Unregister();
+            UnityEngine.Object.Destroy(copy);
+        }
+
         // ------------------------------------------------------------------ Session prolongée
 
         static (int objects, int systems, int textures, int meshes, int materials, long managed) Census()

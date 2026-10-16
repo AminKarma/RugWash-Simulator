@@ -28,6 +28,7 @@ namespace RugWash.Cleaning
         Vector3 pendingPoint;
         float flushTimer, statusTimer;
         int depositCount;
+        int contaminationBand;
         int lastVersion = -1;
         readonly RectInt[] bands = new RectInt[4];
 
@@ -128,8 +129,13 @@ namespace RugWash.Cleaning
             var grid = orderRug.Grid;
             WorkSurfaceRules.BorderBands(grid.Width, grid.Height, bands);
             float before = grid.TotalDirt;
-            var mud = new BorderContaminationOperation { Amount = rate * seconds, Cap = WorkSurfaceRules.MaxContamination };
-            for (int i = 0; i < bands.Length; i++) grid.ApplyRect(bands[i], 1f, ref mud);
+            // Mission de corrections (2.10) : un bord à la fois, à tour de rôle, avec la quantité des quatre (même moyenne).
+            // Les quatre bords d'un coup formaient un rectangle modifié couvrant tout le tapis : en ligne, le tapis entier
+            // était renvoyé aux invités et réencodé toutes les 0,4 s (à-coups de 5 à 10 ms quand l'aire de lavage est sale,
+            // par exemple après le rinçage d'un tapis couvert de mousse).
+            var mud = new BorderContaminationOperation { Amount = rate * seconds * bands.Length, Cap = WorkSurfaceRules.MaxContamination };
+            grid.ApplyRect(bands[contaminationBand], 1f, ref mud);
+            contaminationBand = (contaminationBand + 1) % bands.Length;
             ContinuousContamination += Mathf.Max(0f, grid.TotalDirt - before);
         }
 

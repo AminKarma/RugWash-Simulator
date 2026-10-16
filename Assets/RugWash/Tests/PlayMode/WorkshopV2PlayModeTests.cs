@@ -304,7 +304,8 @@ namespace RugWash.Tests
             Assert.IsFalse(tools.SelectSlot(8), "Outil pas encore acheté.");
             Assert.AreEqual(detail, requested);
             var toolbar = Object.FindAnyObjectByType<ToolSelectionUI>();
-            StringAssert.Contains("(boutique)", toolbar.GetComponentsInChildren<Text>(true)[7].text);
+            // Mission de corrections : la barre n'affiche que les outils possédés.
+            CollectionAssert.DoesNotContain(toolbar.Shown, detail, "Outil non possédé : absent de la barre.");
 
             game.Wallet.Wallet.Add(500);
             Assert.IsTrue(game.ShopUI.Open());
@@ -319,7 +320,8 @@ namespace RugWash.Tests
             Assert.IsTrue(detail.IsUnlocked);
             Assert.IsTrue(tools.SelectSlot(8));
             Assert.AreEqual(detail, tools.ActiveTool);
-            StringAssert.DoesNotContain("(boutique)", toolbar.GetComponentsInChildren<Text>(true)[7].text);
+            CollectionAssert.Contains(toolbar.Shown, detail, "Acheté : il apparaît aussitôt dans la barre.");
+            foreach (var label in toolbar.GetComponentsInChildren<Text>()) StringAssert.DoesNotContain("(boutique)", label.text);
         }
 
         [UnityTest]

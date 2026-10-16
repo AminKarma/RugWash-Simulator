@@ -207,7 +207,7 @@ namespace RugWash.Editor
 
             // Farces entre coéquipiers (v0.1.2 jalon 6) : autorité (solo, hôte), effets reproduits localement, gadgets du joueur.
             var pranks = game.AddComponent<RugWash.Pranks.PrankService>();
-            Wire(pranks, ("tuning", content.Pranks), ("rug", rug));
+            Wire(pranks, ("tuning", content.Pranks), ("rug", rug), ("workSurface", workSurfaceArea));
             var prankEffects = BuildPrankEffects(effects, content);
             var gadgetController = player.GetComponent<RugWash.Pranks.PrankGadgetController>();
             Wire(gadgetController, ("tuning", content.Pranks), ("upgrades", upgrades), ("wallet", wallet), ("service", pranks),
@@ -981,10 +981,12 @@ namespace RugWash.Editor
                 ("cleanFeedback", ctx.CleanPool));
             if (model.Head != null && model.Shaft != null)
             {
-                // Outil de contact : manche télescopique jusqu'à la portée de l'outil.
+                // Outil de contact, vue à la première personne : le manche garde sa longueur (aucun allongement visible ;
+                // un manche de 1 à 2 m pivotant vers une cible proche enfonçait la tête dans le sol). Il peut seulement se
+                // raccourcir devant un obstacle proche. Les silhouettes des autres joueurs gardent le manche télescopique.
                 Wire(tool, ("reachHead", model.Head), ("reachShaft", model.Shaft));
                 SetFloat(tool, "reachShaftLength", model.ShaftLength);
-                SetFloat(tool, "maxReachExtension", definition.range);
+                SetFloat(tool, "maxReachExtension", 0f);
             }
             return tool;
         }
@@ -1679,11 +1681,13 @@ namespace RugWash.Editor
 
             // ---- Boutique
             var shopWindow = BuildWindow(canvas.transform, "Shop", new Vector2(1500f, 980f), sprites, "Boutique", out var shopPanel, out var shopClose);
-            var equipmentTab = CreateButton("Tab_Equipment", shopWindow, "Matériel", sprites.Rounded, new Vector2(240f, 50f));
-            var workshopTab = CreateButton("Tab_Workshop", shopWindow, "Atelier", sprites.Rounded, new Vector2(240f, 50f));
-            var pranksTab = CreateButton("Tab_Pranks", shopWindow, "Farces", sprites.Rounded, new Vector2(240f, 50f));
-            var productsTab = CreateButton("Tab_Products", shopWindow, "Produits", sprites.Rounded, new Vector2(240f, 50f));
-            foreach (var (tab, x) in new[] { (equipmentTab, -375f), (workshopTab, -125f), (pranksTab, 125f), (productsTab, 375f) })
+            // Catégories : Outils et Améliorations séparés (mêmes articles qu'avant, mêmes prix et règles).
+            var equipmentTab = CreateButton("Tab_Equipment", shopWindow, "Outils", sprites.Rounded, new Vector2(230f, 50f));
+            var upgradesTab = CreateButton("Tab_Upgrades", shopWindow, "Améliorations", sprites.Rounded, new Vector2(230f, 50f));
+            var workshopTab = CreateButton("Tab_Workshop", shopWindow, "Atelier", sprites.Rounded, new Vector2(230f, 50f));
+            var pranksTab = CreateButton("Tab_Pranks", shopWindow, "Farces", sprites.Rounded, new Vector2(230f, 50f));
+            var productsTab = CreateButton("Tab_Products", shopWindow, "Produits", sprites.Rounded, new Vector2(230f, 50f));
+            foreach (var (tab, x) in new[] { (equipmentTab, -490f), (upgradesTab, -245f), (workshopTab, 0f), (pranksTab, 245f), (productsTab, 490f) })
             {
                 StyleTab(tab);
                 var rect = (RectTransform)tab.transform;
@@ -1706,7 +1710,7 @@ namespace RugWash.Editor
             built.Shop = shopWindow.parent.parent.gameObject.AddComponent<ShopUI>();
             Wire(built.Shop, ("panel", shopPanel), ("balanceLabel", balance), ("listRoot", grid), ("rowTemplate", shopRow), ("messageLabel", shopMessage),
                 ("closeButton", shopClose), ("equipmentTabButton", equipmentTab), ("productsTabButton", productsTab), ("workshopTabButton", workshopTab),
-                ("pranksTabButton", pranksTab));
+                ("pranksTabButton", pranksTab), ("upgradesTabButton", upgradesTab));
 
             // ---- Résultats
             var resultsWindow = BuildWindow(canvas.transform, "Results", new Vector2(1600f, 940f), sprites, "Résultats de la commande", out var resultsPanel, out var resultsClose);

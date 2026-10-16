@@ -38,9 +38,14 @@ namespace RugWash.Tests
         }
 
         [Test]
-        public void Gather_TakesWaterFoamAndLooseMud_ButNeverFixedDirt()
+        public void Gather_TakesWaterFoamSoapLooseMudAndDebris_ButNeverFixedDirt()
         {
             var grid = WetPad(out _, out _);
+            var seeded = grid.GetCell(7, 8);
+            seeded.Residue = 0.3f;
+            seeded.Dust = 0.2f;
+            seeded.DustType = DirtType.Dust;
+            grid.SetCell(7, 8, seeded);
             var before = grid.GetCell(7, 8);
             var gather = new GatherOperation { Efficiency = 0.6f };
             grid.ApplyRect(new RectInt(5, 5, 6, 10), 1f, ref gather);
@@ -48,8 +53,9 @@ namespace RugWash.Tests
             Assert.AreEqual(before.Moisture * 0.4f, after.Moisture, 1e-5f);
             Assert.AreEqual(before.Foam * 0.4f, after.Foam, 1e-5f);
             Assert.AreEqual(before.Loosened * 0.4f, after.Loosened, 1e-5f);
+            Assert.AreEqual(before.Residue * 0.4f, after.Residue, 1e-5f, "Le savon restant est ramassé (mission de corrections).");
+            Assert.AreEqual(before.Dust * 0.4f, after.Dust, 1e-5f, "Les débris secs non fixés aussi.");
             Assert.AreEqual(before.Stain, after.Stain, 1e-6f, "Les taches fixées ne se raclent pas.");
-            Assert.AreEqual(before.Dust, after.Dust, 1e-6f);
             Assert.AreEqual(60f, gather.WeightSum, 1e-4f);
             Assert.AreEqual(before.Moisture * 0.6f * 60f, gather.Water, 1e-3f);
         }

@@ -4,6 +4,7 @@ using RugWash.Cleaning;
 using RugWash.Core;
 using RugWash.Economy;
 using RugWash.Orders;
+using RugWash.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -200,6 +201,9 @@ namespace RugWash.Tests
             StringAssert.Contains("Fonds insuffisants", game.ShopUI.LastMessage);
 
             game.Wallet.Wallet.Add(1000);
+            // Mission de corrections : les améliorations ont leur propre onglet, séparé des outils.
+            game.ShopUI.ShowTab(ShopUI.Tab.Upgrades);
+            yield return null;
             game.ShopUI.RowOf(game.Upgrades.Catalog[waterIndex]).ActionButton.onClick.Invoke();
             yield return null;
             Assert.AreEqual(waterBefore + 20f, equipment.Water.Capacity, 1e-4f, "Le réservoir doit réellement grandir.");

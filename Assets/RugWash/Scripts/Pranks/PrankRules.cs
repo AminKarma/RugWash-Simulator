@@ -64,7 +64,8 @@ namespace RugWash.Pranks
         bool TryGetFeet(ulong clientId, out Vector3 feet);
         bool IsDown(ulong clientId);
         void Splash(ulong clientId, float intensity, float seconds, float fadeSeconds, string from);
-        void Knock(ulong clientId, Vector3 impulse, float seconds, string from);
+        /// <param name="cause">Gadget responsable (batte : chute ; fusil : KO cartoon, tête qui éclate).</param>
+        void Knock(ulong clientId, Vector3 impulse, float seconds, string from, PrankGadget cause);
     }
 
     /// <summary>Règles pures des farces (testées en EditMode).</summary>

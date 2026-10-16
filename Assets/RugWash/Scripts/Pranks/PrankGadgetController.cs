@@ -71,6 +71,8 @@ namespace RugWash.Pranks
         /// <summary>Dernier résultat d'une farce de ce joueur (tests).</summary>
         public PrankResult LastResult { get; private set; }
         public PrankRequest LastRequest { get; private set; }
+        /// <summary>Réponses reçues de l'autorité (diagnostic : farce en ligne validée ou refusée).</summary>
+        public int ResultsReceived { get; private set; }
 
         public event Action<PrankGadget> EquippedChanged;
         public event Action<string> Message;
@@ -302,6 +304,7 @@ namespace RugWash.Pranks
         {
             var settings = tuning.Get(gadget);
             if (settings == null) return;
+            ResultsReceived++;
             if (result != PrankResult.Done)
             {
                 readyAt[(int)gadget] = 0f;
@@ -369,11 +372,18 @@ namespace RugWash.Pranks
             Message?.Invoke($"{from} vous a fait une farce : gouttes sur la vue pendant {Mathf.CeilToInt(seconds)} s");
         }
 
-        /// <summary>Coup de batte (farce) : chute comique, relevé rapide possible.</summary>
-        public void ReceiveKnock(Vector3 impulse, float seconds, string from)
+        /// <summary>
+        /// Coup reçu (farce) : batte = chute comique, relevé rapide possible ; fusil = KO cartoon, relevé automatique après
+        /// quelques secondes. Le gadget en main est rangé (rien n'est perdu ni dupliqué : les gadgets sont des achats).
+        /// </summary>
+        public void ReceiveKnock(Vector3 impulse, float seconds, string from, PrankGadget cause = PrankGadget.Bat)
         {
             if (knockdown == null) return;
-            knockdown.Knockdown(impulse, seconds, $"{from} vous a envoyé au tapis (farce) — {knockdown.QuickRecoverHint}");
+            Unequip();
+            if (cause == PrankGadget.Blaster)
+                knockdown.Knockdown(impulse, seconds, $"{from} vous a mis KO (fusil de farces) — debout dans {Mathf.CeilToInt(seconds)} s", KnockCause.Blaster);
+            else
+                knockdown.Knockdown(impulse, seconds, $"{from} vous a envoyé au tapis (farce) — {knockdown.QuickRecoverHint}", KnockCause.Bat);
         }
 
         /// <summary>Fin de partie, replacement du joueur : plus aucun effet de farce en cours.</summary>
@@ -394,7 +404,7 @@ namespace RugWash.Pranks
                 {
                     case PrankGadget.Pee: return "faire pipi (tapis ou coéquipier)";
                     case PrankGadget.Bat: return "frapper (tapis ou coéquipier)";
-                    case PrankGadget.Blaster: return "tirer du faux sang (tapis)";
+                    case PrankGadget.Blaster: return "tirer (tapis, ou coéquipier : KO 5 s)";
                     default: return "utiliser";
                 }
             }

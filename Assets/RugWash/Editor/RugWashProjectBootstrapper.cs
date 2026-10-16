@@ -28,6 +28,10 @@ namespace RugWash.Editor
 
         public const string UrpAsset = RenderingSettings + "/RugWash_URP.asset";
         public const string UrpRendererData = RenderingSettings + "/RugWash_URP_Renderer.asset";
+
+        /// <summary>Pipeline d'un palier de qualité (Low, Medium, High) ; Ultra = <see cref="UrpAsset"/>.</summary>
+        public static string UrpTierAsset(string tier) => $"{RenderingSettings}/RugWash_URP_{tier}.asset";
+        public static string UrpTierRendererData(string tier) => $"{RenderingSettings}/RugWash_URP_Renderer_{tier}.asset";
         public const string WorkshopVolumeProfile = RenderingSettings + "/Workshop_VolumeProfile.asset";
 
         /// <summary>Calques physiques/rendu réservés par le projet.</summary>
@@ -223,20 +227,114 @@ namespace RugWash.Editor
             if (GraphicsSettings.defaultRenderPipeline != pipeline)
                 GraphicsSettings.defaultRenderPipeline = pipeline;
 
-            // Un niveau de qualité avec un autre pipeline écraserait le pipeline par défaut.
-            int currentLevel = QualitySettings.GetQualityLevel();
-            for (int i = 0; i < QualitySettings.names.Length; i++)
-            {
-                var levelPipeline = QualitySettings.GetRenderPipelineAssetAt(i);
-                if (levelPipeline == null || levelPipeline == pipeline)
-                    continue;
-                QualitySettings.SetQualityLevel(i, false);
-                QualitySettings.renderPipeline = pipeline;
-            }
-            QualitySettings.SetQualityLevel(currentLevel, false);
+            EnsureQualityTiers(pipeline);
 
             EditorUtility.SetDirty(pipeline);
             AssetDatabase.SaveAssets();
+            return pipeline;
+        }
+
+        /// <summary>
+        /// Occlusion ambiante d'un palier : absente ; à mi-résolution avec peu d'échantillons et un flou simple ; à mi-résolution
+        /// avec la qualité d'Ultra ; complète (Ultra).
+        /// </summary>
+        public enum AmbientOcclusionTier { Off, HalfLow, HalfMedium, Full }
+
+        /// <summary>Réglages d'un palier de rendu (valeurs fixées ici, appliquées à chaque initialisation).</summary>
+        public readonly struct QualityTier
+        {
+            public readonly string Name;
+            public readonly int Msaa;
+            public readonly float RenderScale;
+            public readonly bool SpotShadows;
+            public readonly int ShadowResolution;
+            public readonly AmbientOcclusionTier AmbientOcclusion;
+
+            public QualityTier(string name, int msaa, float renderScale, bool spotShadows, int shadowResolution, AmbientOcclusionTier ambientOcclusion)
+            {
+                Name = name;
+                Msaa = msaa;
+                RenderScale = renderScale;
+                SpotShadows = spotShadows;
+                ShadowResolution = shadowResolution;
+                AmbientOcclusion = ambientOcclusion;
+            }
+        }
+
+        /// <summary>
+        /// Paliers de rendu (mission de corrections, 2.11). Avant, les six niveaux de qualité utilisaient le même pipeline
+        /// (MSAA 4×, SSAO pleine résolution, ombres 2048) : choisir « Moyen » ne réduisait presque rien. Les réglages les plus
+        /// coûteux ont été mesurés un par un (benchmark « graphics ») ; Ultra reste le pipeline d'origine, inchangé.
+        /// Mesure (charge GPU ×4) : un palier Élevé à occlusion complète et MSAA 2× coûtait autant qu'Ultra ; il passe donc
+        /// à l'occlusion à mi-résolution (qualité d'Ultra conservée).
+        /// </summary>
+        public static readonly QualityTier[] QualityTiers =
+        {
+            new QualityTier("Low", 1, 0.85f, false, 1024, AmbientOcclusionTier.Off),
+            new QualityTier("Medium", 1, 1f, true, 1024, AmbientOcclusionTier.HalfLow),
+            new QualityTier("High", 2, 1f, true, 2048, AmbientOcclusionTier.HalfMedium),
+        };
+
+        /// <summary>Palier de chaque niveau de qualité (Very Low, Low, Medium, High, Very High, Ultra) ; -1 = Ultra.</summary>
+        public static readonly int[] TierOfLevel = { 0, 0, 1, 2, -1, -1 };
+
+        /// <summary>Crée (copie d'Ultra) et règle les pipelines des paliers, puis les assigne aux niveaux de qualité.</summary>
+        static void EnsureQualityTiers(UniversalRenderPipelineAsset ultra)
+        {
+            var tiers = new UniversalRenderPipelineAsset[QualityTiers.Length];
+            for (int i = 0; i < QualityTiers.Length; i++) tiers[i] = EnsureTier(QualityTiers[i]);
+
+            int currentLevel = QualitySettings.GetQualityLevel();
+            for (int level = 0; level < QualitySettings.names.Length; level++)
+            {
+                int tier = level < TierOfLevel.Length ? TierOfLevel[level] : -1;
+                var wanted = tier >= 0 && tiers[tier] != null ? tiers[tier] : ultra;
+                if (QualitySettings.GetRenderPipelineAssetAt(level) == wanted) continue;
+                QualitySettings.SetQualityLevel(level, false);
+                QualitySettings.renderPipeline = wanted;
+            }
+            QualitySettings.SetQualityLevel(currentLevel, false);
+        }
+
+        static UniversalRenderPipelineAsset EnsureTier(QualityTier tier)
+        {
+            string rendererPath = RugWashPaths.UrpTierRendererData(tier.Name), pipelinePath = RugWashPaths.UrpTierAsset(tier.Name);
+            if (AssetDatabase.LoadAssetAtPath<UniversalRendererData>(rendererPath) == null && !AssetDatabase.CopyAsset(RugWashPaths.UrpRendererData, rendererPath))
+                return null;
+            if (AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(pipelinePath) == null && !AssetDatabase.CopyAsset(RugWashPaths.UrpAsset, pipelinePath))
+                return null;
+            var renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(rendererPath);
+            var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(pipelinePath);
+
+            foreach (var feature in renderer.rendererFeatures)
+            {
+                if (!(feature is ScreenSpaceAmbientOcclusion ssao)) continue;
+                var serializedFeature = new SerializedObject(ssao);
+                serializedFeature.FindProperty("m_Active").boolValue = tier.AmbientOcclusion != AmbientOcclusionTier.Off;
+                bool half = tier.AmbientOcclusion == AmbientOcclusionTier.HalfLow || tier.AmbientOcclusion == AmbientOcclusionTier.HalfMedium;
+                serializedFeature.FindProperty("m_Settings.Downsample").boolValue = half;
+                // Échantillons et flou : 0 élevé, 1 moyen, 2 bas (énumérations de l'URP) ; Ultra : échantillons moyens, flou élevé.
+                bool low = tier.AmbientOcclusion == AmbientOcclusionTier.HalfLow;
+                serializedFeature.FindProperty("m_Settings.Samples").intValue = low ? 2 : 1;
+                serializedFeature.FindProperty("m_Settings.BlurQuality").intValue = low ? 2 : 0;
+                serializedFeature.ApplyModifiedPropertiesWithoutUndo();
+            }
+            EditorUtility.SetDirty(renderer);
+
+            var serialized = new SerializedObject(pipeline);
+            var renderers = serialized.FindProperty("m_RendererDataList");
+            renderers.arraySize = 1;
+            renderers.GetArrayElementAtIndex(0).objectReferenceValue = renderer;
+            serialized.FindProperty("m_DefaultRendererIndex").intValue = 0;
+            serialized.FindProperty("m_MSAA").intValue = tier.Msaa;
+            serialized.FindProperty("m_RenderScale").floatValue = tier.RenderScale;
+            serialized.FindProperty("m_AdditionalLightShadowsSupported").boolValue = tier.SpotShadows;
+            serialized.FindProperty("m_AdditionalLightsShadowmapResolution").intValue = tier.ShadowResolution;
+            serialized.FindProperty("m_MainLightShadowmapResolution").intValue = tier.ShadowResolution;
+            // Résolution d'une ombre de projecteur (palier « élevé » de ses lumières) : la moitié de l'atlas, comme Ultra.
+            serialized.FindProperty("m_AdditionalLightsShadowResolutionTierHigh").intValue = Mathf.Min(1024, tier.ShadowResolution / 2);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(pipeline);
             return pipeline;
         }
 

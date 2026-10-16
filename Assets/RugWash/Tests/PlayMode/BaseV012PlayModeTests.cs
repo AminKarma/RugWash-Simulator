@@ -293,7 +293,7 @@ namespace RugWash.Tests
             Vector3 rest = body.localPosition;
             avatar.PreviewKnockdown(true, new Vector3(0f, 1f, 40f));
             Assert.IsTrue(ragdoll.IsActive);
-            Assert.LessOrEqual(ragdoll.BodyRigidbody.linearVelocity.magnitude, 6.01f, "Élan borné.");
+            Assert.LessOrEqual(ragdoll.BodyRigidbody.linearVelocity.magnitude, 12.01f, "Élan exagéré mais borné.");
             yield return new WaitForSeconds(1.5f);
             Assert.Greater(Vector3.Angle(body.up, Vector3.up), 30f, "Le corps a basculé.");
             Assert.Greater(body.position.y, -0.3f, "Pas à travers le sol.");

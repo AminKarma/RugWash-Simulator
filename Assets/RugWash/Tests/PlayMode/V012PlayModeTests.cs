@@ -294,7 +294,7 @@ namespace RugWash.Tests
         // ------------------------------------------------------------------ 1.4 / 1.3 Outils : tête sur le point visé, jet depuis la buse
 
         [UnityTest]
-        public IEnumerator ContactTools_HeadLandsOnTheAimedPoint_AtAllDistancesAnglesAndEyeHeights()
+        public IEnumerator ContactTools_LocalHeadNeverSinksBelowTheSurface_AtAllDistancesAnglesAndEyeHeights()
         {
             TestRugs.LoadDefault(game);
             var tools = game.ToolController;
@@ -314,18 +314,42 @@ namespace RugWash.Tests
                         yield return new WaitForSeconds(0.35f);
                         var aim = tools.CurrentAim;
                         Assert.IsTrue(aim.HasRug, $"{tool.name} : le tapis doit être visé ({pose.uv}).");
-                        if (aim.Distance > tool.Range) continue;
-                        Assert.Less(Vector3.Distance(tool.AimTarget, aim.Point), 1e-3f, "La cible est le point traité (réticule).");
-                        Assert.Less(tool.TipToTargetMeters, 0.05f,
-                            $"{tool.name} : tête à {tool.TipToTargetMeters * 100f:0.0} cm du point visé (distance {aim.Distance:0.00} m, " +
+                        // Hors de portée, la cible est le point du rayon à la portée maximale (l'outil se tend sans tricher).
+                        if (aim.Distance <= tool.Range)
+                            Assert.Less(Vector3.Distance(tool.AimTarget, aim.Point), 1e-3f, "La cible est le point traité (réticule).");
+                        // Mission de corrections : mesure pendant l'utilisation (animation comprise), là où la tête s'enfonçait.
+                        tools.AutomationUseOverride = true;
+                        float lowest = float.MaxValue;
+                        for (int frame = 0; frame < 20; frame++)
+                        {
+                            yield return null;
+                            lowest = Mathf.Min(lowest, LowestPoint(tool.AimTip.parent));
+                            Assert.LessOrEqual(tool.ReachExtension, 1e-3f, $"{tool.name} : aucun allongement visible du manche à la première personne.");
+                        }
+                        tools.AutomationUseOverride = false;
+                        Assert.GreaterOrEqual(lowest, aim.Point.y - 0.005f,
+                            $"{tool.name} : tête à {(aim.Point.y - lowest) * 100f:0.0} cm sous la surface (distance {aim.Distance:0.00} m, " +
                             $"yeux {eye:+0.00;-0.00} m, lacet {pose.yaw}).");
-                        report.Add($"{tool.name} d={aim.Distance:0.00} m yeux {eye:+0.00;-0.00} : tête à {tool.TipToTargetMeters * 100f:0.0} cm, " +
-                                   $"manche +{tool.ReachExtension:0.00} m");
+                        report.Add($"{tool.name} d={aim.Distance:0.00} m yeux {eye:+0.00;-0.00} : point bas de la tête {(lowest - aim.Point.y) * 100f:0.0} cm " +
+                                   $"au-dessus de la surface, extrémité à {tool.TipToTargetMeters * 100f:0.0} cm de la cible");
                     }
                 }
                 SetEyeOffset(0f);
             }
             Debug.Log("[RugWash] Portée des outils de contact :\n" + string.Join("\n", report));
+        }
+
+        /// <summary>Point le plus bas (monde) des maillages visibles sous <paramref name="root"/>.</summary>
+        static float LowestPoint(Transform root)
+        {
+            float lowest = float.MaxValue;
+            foreach (var filter in root.GetComponentsInChildren<MeshFilter>())
+            {
+                if (filter.sharedMesh == null || !filter.GetComponent<MeshRenderer>().enabled) continue;
+                var matrix = filter.transform.localToWorldMatrix;
+                foreach (var v in filter.sharedMesh.vertices) lowest = Mathf.Min(lowest, matrix.MultiplyPoint3x4(v).y);
+            }
+            return lowest;
         }
 
         [UnityTest]
@@ -408,7 +432,9 @@ namespace RugWash.Tests
             // Lance en action : le jet de la silhouette part de la buse de SON outil.
             avatar.SetPreviewState(4, true, pitch);
             yield return new WaitForSeconds(0.3f);
-            var liquid = avatarObject.transform.Find("Visuals/Effects/Liquid").GetComponent<ParticleSystem>();
+            // Mission de corrections : l'effet est rattaché à la buse de l'outil tenu (origine réelle du jet).
+            var liquid = avatar.LiquidEffect;
+            Assert.AreEqual(avatar.ActiveTool.tip, liquid.transform.parent, "Jet distant rattaché à la buse.");
             Assert.IsTrue(liquid.isPlaying);
             Assert.Less(Vector3.Distance(liquid.transform.position, avatar.ActiveTool.tip.position), 0.01f, "Jet distant depuis la buse.");
 

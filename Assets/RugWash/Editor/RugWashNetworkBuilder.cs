@@ -125,6 +125,16 @@ namespace RugWash.Editor
                 Gravity = -0.05f, MaxParticles = 40, Shape = ParticleSystemShapeType.Sphere, Radius = 0.08f, Loop = true, Rate = 25f, SizeGrowth = 1.8f,
             });
 
+            // KO du fusil de farces : gerbe de confettis rouge cerise et blancs à la place de la tête (dessin animé, sans gore).
+            var headPop = CreateParticles("HeadPop", fx, c["Debris"], new ParticleConfig
+            {
+                Lifetime = new Vector2(0.6f, 1.1f), Speed = Vector2.zero, Size = new Vector2(0.03f, 0.07f), Color = Color.white, Gravity = 1.2f,
+                MaxParticles = 80, Shape = ParticleSystemShapeType.Sphere, Radius = 0.05f, Loop = true, PlayOnAwake = true, Rate = 0f,
+            });
+            var popMain = headPop.main;
+            popMain.startColor = new ParticleSystem.MinMaxGradient(new Color(0.9f, 0.08f, 0.15f, 1f), new Color(1f, 0.97f, 0.9f, 1f));
+            DisableShadows(headPop.gameObject);
+
             var audio = root.AddComponent<AudioSource>();
             audio.playOnAwake = false;
             audio.loop = true;
@@ -138,7 +148,7 @@ namespace RugWash.Editor
             Wire(avatar, ("visuals", visuals.gameObject), ("head", head), ("view", view), ("nameLabel", label), ("liquidEffect", liquid),
                 ("dustEffect", dust), ("toolAudio", audio), ("legLeft", legLeft), ("legRight", legRight), ("shoulderLeft", shoulderLeft),
                 ("shoulderRight", shoulderRight), ("upperArmLeft", upperLeft), ("upperArmRight", upperRight), ("foreArmLeft", foreLeft),
-                ("foreArmRight", foreRight), ("handRight", handRight), ("appearance", appearance), ("ragdoll", ragdoll));
+                ("foreArmRight", foreRight), ("handRight", handRight), ("appearance", appearance), ("ragdoll", ragdoll), ("headPop", headPop));
             SetInt(avatar, "aimMask", ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5)));
             var serialized = new SerializedObject(avatar);
             var list = serialized.FindProperty("tools");

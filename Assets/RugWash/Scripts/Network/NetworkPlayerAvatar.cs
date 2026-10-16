@@ -51,6 +51,8 @@ namespace RugWash.Network
         [SerializeField] CharacterAppearance appearance;
         [Tooltip("Ragdoll de la silhouette quand ce joueur chute (v0.1.2).")]
         [SerializeField] AvatarRagdoll ragdoll;
+        [Tooltip("KO du fusil de farces : la tête « éclate » en confettis rouges et blancs (dessin animé), puis revient.")]
+        [SerializeField] ParticleSystem headPop;
         [Tooltip("Pivot de la tête (tangage).")]
         [SerializeField] Transform head;
         [Tooltip("Point de vue (yeux), enfant de la tête : support des outils, comme la caméra du joueur local.")]
@@ -88,6 +90,8 @@ namespace RugWash.Network
         /// <summary>Personnalisation du joueur (tenue, casquette, gants), lue dans SA sauvegarde et montrée aux autres.</summary>
         readonly NetworkVariable<int> look = new NetworkVariable<int>(-1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         /// <summary>Chute : état « à terre » et élan reçu (aucun os n'est transmis, chaque poste simule le ragdoll).</summary>
+        // Déclarée avant « à terre » : reçue avec elle, elle est déjà à jour quand la chute commence chez les autres.
+        readonly NetworkVariable<byte> knockCause = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<bool> knockedDown = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<Vector3> knockImpulse = new NetworkVariable<Vector3>(Vector3.zero, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         PlayerKnockdown localKnockdown;
@@ -138,8 +142,15 @@ namespace RugWash.Network
         /// <summary>Hôte, avant l'apparition : nom affiché du joueur.</summary>
         public void SetInitialName(string name) => initialName = SessionRules.CleanName(name);
 
+        /// <summary>Durée de vol moyenne d'une goutte du jet distant jusqu'au point visé (s).</summary>
+        const float LiquidFlightSeconds = 0.32f;
+        /// <summary>Jet, brume ou mousse de l'outil tenu (rattaché à sa buse).</summary>
+        public ParticleSystem LiquidEffect => liquidEffect;
+        Transform effectsRoot;
+
         void Awake()
         {
+            effectsRoot = liquidEffect != null ? liquidEffect.transform.parent : null;
             EffectBudget.Configure(liquidEffect);
             EffectBudget.Configure(dustEffect);
             poses = new ToolPose[tools.Count];
@@ -175,6 +186,10 @@ namespace RugWash.Network
             look.OnValueChanged += (_, value) => ApplyLook(value);
             ApplyLook(look.Value);
             knockedDown.OnValueChanged += (_, value) => ApplyKnockdown(value);
+            knockCause.OnValueChanged += (_, value) =>
+            {
+                if (!IsOwner && knockedDown.Value && value == (byte)KnockCause.Blaster) PopHead();
+            };
             if (!IsOwner && knockedDown.Value) ApplyKnockdown(true);
             displayName.OnValueChanged += (_, value) => RefreshName();
             RefreshName();
@@ -194,6 +209,7 @@ namespace RugWash.Network
         void OnLocalKnockedDown(Vector3 impulse, float seconds)
         {
             if (!IsSpawned || !IsOwner) return;
+            knockCause.Value = localKnockdown != null ? (byte)localKnockdown.Cause : (byte)0;
             knockImpulse.Value = impulse;
             knockedDown.Value = true;
         }
@@ -206,24 +222,70 @@ namespace RugWash.Network
 
         void ApplyKnockdown(bool down)
         {
-            if (IsOwner || ragdoll == null) return;
-            if (down) ragdoll.Begin(knockImpulse.Value);
-            else ragdoll.End();
+            if (IsOwner) return;
+            ShowKnockdown(down, knockImpulse.Value, (KnockCause)knockCause.Value);
         }
 
         /// <summary>Tests (hors réseau) : fait chuter ou relève la silhouette.</summary>
-        public void PreviewKnockdown(bool down, Vector3 impulse)
+        public void PreviewKnockdown(bool down, Vector3 impulse, KnockCause cause = KnockCause.Fall)
         {
             hasPreviewDown = down;
-            if (ragdoll == null) return;
-            if (down) ragdoll.Begin(impulse);
-            else ragdoll.End();
+            ShowKnockdown(down, impulse, cause);
+        }
+
+        readonly List<Renderer> poppedHead = new List<Renderer>();
+        /// <summary>La tête a « éclaté » (KO du fusil) et n'est pas encore revenue.</summary>
+        public bool HeadPopped => poppedHead.Count > 0;
+
+        void ShowKnockdown(bool down, Vector3 impulse, KnockCause cause)
+        {
+            if (down)
+            {
+                if (ragdoll != null) ragdoll.Begin(impulse);
+                if (cause == KnockCause.Blaster) PopHead();
+                return;
+            }
+            if (ragdoll != null) ragdoll.End();
+            RestoreHead();
+        }
+
+        /// <summary>Effet cartoon exagéré, sans gore : la tête disparaît dans une gerbe de confettis rouges et blancs.</summary>
+        void PopHead()
+        {
+            if (head == null || HeadPopped) return;
+            foreach (var renderer in head.GetComponentsInChildren<Renderer>())
+            {
+                if (view != null && renderer.transform.IsChildOf(view)) continue;
+                if (!renderer.enabled) continue;
+                renderer.enabled = false;
+                poppedHead.Add(renderer);
+            }
+            if (headPop == null) return;
+            headPop.transform.position = head.position + Vector3.up * 0.08f;
+            if (!headPop.isPlaying) headPop.Play();
+            for (int i = 0; i < 36; i++)
+                headPop.Emit(new ParticleSystem.EmitParams
+                {
+                    position = headPop.transform.position + UnityEngine.Random.insideUnitSphere * 0.06f,
+                    velocity = UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(1.5f, 4f) + Vector3.up * 1.5f,
+                    applyShapeToPosition = false,
+                }, 1);
+        }
+
+        void RestoreHead()
+        {
+            foreach (var renderer in poppedHead)
+                if (renderer != null) renderer.enabled = true;
+            poppedHead.Clear();
         }
 
         public AvatarRagdoll Ragdoll => ragdoll;
         /// <summary>Ce joueur est à terre (chute, coup de batte).</summary>
         public bool IsKnockedDown => hasPreviewDown || knockedDown.Value;
         bool hasPreviewDown;
+
+        /// <summary>Apparence reçue de ce joueur (valeur compacte, -1 si aucune).</summary>
+        public int PackedLook => look.Value;
 
         void ApplyLook(int packed)
         {
@@ -287,6 +349,11 @@ namespace RugWash.Network
                 for (int i = 0; i < tools.Count; i++)
                     if (tools[i]?.root != null) tools[i].root.SetActive(i == slot - 1);
                 if (handRight != null) handRight.SetActive(ActiveTool == null);
+                // Effets rattachés à la bouche (ou à la tête) de l'outil affiché : ils en partent quel que soit le moment où
+                // la silhouette est déplacée dans l'image (interpolation réseau), jamais du corps du joueur.
+                Transform anchor = ActiveTool != null && ActiveTool.tip != null ? ActiveTool.tip : effectsRoot;
+                if (liquidEffect != null) liquidEffect.transform.SetParent(anchor, false);
+                if (dustEffect != null) dustEffect.transform.SetParent(anchor, false);
                 shownUsing = !CurrentUsing;
                 snapPose = true;
                 if (slot >= 1 && slot <= poses.Length) poses[slot - 1]?.ResetState();
@@ -333,12 +400,19 @@ namespace RugWash.Network
                     else toolAudio.Stop();
                 }
             }
-            // Les effets partent de la bouche de l'outil (ou de sa tête) et suivent le point visé.
+            // Les effets partent de la bouche de l'outil (ou de sa tête, à laquelle ils sont rattachés) vers le point visé ;
+            // le jet est assez rapide pour l'atteindre (comme à la première personne), quelle que soit la distance.
             if (active && tool != null && tool.tip != null)
             {
                 Vector3 toTarget = AimTarget - tool.tip.position;
                 var rotation = toTarget.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(toTarget) : tool.tip.rotation;
-                if (liquidEffect != null && tool.effect == 1) liquidEffect.transform.SetPositionAndRotation(tool.tip.position, rotation);
+                if (liquidEffect != null && tool.effect == 1)
+                {
+                    liquidEffect.transform.SetPositionAndRotation(tool.tip.position, rotation);
+                    var main = liquidEffect.main;
+                    // Vitesse de départ du préfabriqué : 2,5 à 4 m/s (moyenne 3,25) ; mise à l'échelle pour atteindre la cible.
+                    main.startSpeedMultiplier = Mathf.Clamp(toTarget.magnitude / LiquidFlightSeconds, 2.5f, 16f) / 3.25f;
+                }
                 if (dustEffect != null && tool.effect == 2) dustEffect.transform.SetPositionAndRotation(tool.tip.position, Quaternion.identity);
             }
 

@@ -71,7 +71,10 @@ namespace RugWash.Tests
         {
             Assert.AreEqual(Orders.OrderStartResult.Started, game.Orders.TryStart(game.Orders.Book.Orders[0]));
             yield return null;
-            game.PlayerController.Teleport(new Vector3(0f, 0.06f, -1f), 0f, 55f);
+            // Visée du centre réel du tapis (sa taille dépend de la commande) : 1,1 m devant, à hauteur des yeux.
+            Vector3 center = game.Rug.UVToWorld(new Vector2(0.5f, 0.5f));
+            float pitch = Mathf.Atan2(1.68f - center.y, 1.1f) * Mathf.Rad2Deg;
+            game.PlayerController.Teleport(new Vector3(center.x, 0.06f, center.z - 1.1f), 0f, pitch);
             yield return null;
             yield return null;
         }
@@ -123,8 +126,9 @@ namespace RugWash.Tests
             public readonly Dictionary<ulong, Vector3> Feet = new Dictionary<ulong, Vector3>();
             public readonly HashSet<ulong> Down = new HashSet<ulong>();
             public int Splashes, Knocks;
-            public float LastIntensity;
+            public float LastIntensity, LastSeconds;
             public Vector3 LastImpulse;
+            public PrankGadget LastCause;
             public bool TryGetFeet(ulong clientId, out Vector3 feet) => Feet.TryGetValue(clientId, out feet);
             public bool IsDown(ulong clientId) => Down.Contains(clientId);
 
@@ -134,10 +138,12 @@ namespace RugWash.Tests
                 LastIntensity = intensity;
             }
 
-            public void Knock(ulong clientId, Vector3 impulse, float seconds, string from)
+            public void Knock(ulong clientId, Vector3 impulse, float seconds, string from, PrankGadget cause)
             {
                 Knocks++;
                 LastImpulse = impulse;
+                LastSeconds = seconds;
+                LastCause = cause;
             }
         }
 
@@ -222,7 +228,8 @@ namespace RugWash.Tests
             Assert.Greater(cells, 10, "Une vraie tache sur le tapis.");
             Assert.IsTrue(game.Rug.TrySampleCell(point, out RugCell after));
             Assert.Greater(after.Moisture, before.Moisture + 0.3f, "Elle est humide.");
-            Assert.Greater(game.Rug.Grid.TotalDirt, dirt + urine * 0.9f, "Saleté réelle en plus : il faut la nettoyer.");
+            Assert.Greater(game.Pranks.AddedToRug, 1f, "Saleté réellement ajoutée.");
+            Assert.AreEqual(dirt + game.Pranks.AddedToRug, game.Rug.Grid.TotalDirt, 0.5f, "Elle compte dans la saleté du tapis : il faut la nettoyer.");
             Assert.AreEqual(1, gadgets.Effects.ActiveStreams, "Jet en arc (dessin animé).");
             Assert.IsFalse(gadgets.TryUse(), "Recharge.");
             Assert.AreEqual(PrankResult.Cooldown, gadgets.LastResult);
@@ -247,7 +254,7 @@ namespace RugWash.Tests
         // ------------------------------------------------------------------ Fusil-jouet
 
         [UnityTest]
-        public IEnumerator Blaster_SplattersStylizedFakeBlood_CostsPerShot_AndNeverTargetsPlayers()
+        public IEnumerator Blaster_SplattersStylizedFakeBlood_CostsPerShot_AndKnocksAPlayerOutForFiveSeconds()
         {
             yield return LoadWorkshop();
             Own("up_prank_blaster");
@@ -284,8 +291,14 @@ namespace RugWash.Tests
             var victims = new FakeVictims();
             victims.Feet[9] = game.PlayerController.transform.position + Vector3.forward;
             game.Pranks.Victims = victims;
-            Assert.AreEqual(PrankResult.InvalidTarget, game.Pranks.Execute(actor, AtPlayer(PrankGadget.Blaster, 9), out _), "Jamais sur un joueur.");
-            Assert.AreEqual(0, victims.Splashes + victims.Knocks);
+            Assert.AreEqual(PrankResult.Done, game.Pranks.Execute(actor, AtPlayer(PrankGadget.Blaster, 9), out var hit), "Mission de corrections : KO.");
+            Assert.IsTrue(hit.HitPlayer);
+            Assert.AreEqual(1, victims.Knocks);
+            Assert.AreEqual(PrankGadget.Blaster, victims.LastCause, "Cause transmise : la tête éclate chez les autres.");
+            Assert.AreEqual(5f, victims.LastSeconds, 1e-4f, "KO de 5 s.");
+            Assert.Greater(victims.LastImpulse.magnitude, game.Pranks.Tuning.knockImpulse, "Élan plus fort qu'un coup de batte.");
+            Assert.AreEqual(PrankResult.TargetProtected, game.Pranks.Execute(new FakeActor { Id = 8, Eye = actor.Eye }, AtPlayer(PrankGadget.Blaster, 9), out _),
+                "Pas de KO en chaîne.");
             game.Pranks.Victims = null;
         }
 
@@ -321,6 +334,8 @@ namespace RugWash.Tests
             now += service.Tuning.knockProtectionSeconds + 1f;
             victims.Down.Add(9);
             Assert.AreEqual(PrankResult.TargetProtected, service.Execute(other, AtPlayer(PrankGadget.Bat, 9), out _), "Jamais un joueur à terre.");
+            Assert.AreEqual(PrankResult.TargetProtected, service.Execute(other, AtPlayer(PrankGadget.Blaster, 9), out _),
+                "Fusil : jamais un joueur déjà à terre (pas de KO enchaîné).");
             victims.Down.Clear();
 
             victims.Feet[10] = new Vector3(0f, 0f, 6f);

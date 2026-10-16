@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
   id: up_prank_blaster
   displayName: "Fusil \xE0 pompe de farces et attrapes"
-  description: "Jouet \xE0 embout orange : \xE9claboussures de faux sang de th\xE9\xE2tre
-    sur le tapis, nettoyables. Jamais sur un joueur. 60 \u20AC par tir."
+  description: "Jouet \xE0 embout orange : faux sang de th\xE9\xE2tre sur le tapis,
+    ou KO cartoon de 5 s pour un co\xE9quipier. 60 \u20AC par tir."
   price: 6500
   effect: 11
   value: 1

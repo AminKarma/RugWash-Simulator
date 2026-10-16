@@ -25,6 +25,14 @@ namespace RugWash.Network
         UnityTransport directTransport;
         SteamSocketsTransport steamTransport;
         readonly Dictionary<ulong, string> names = new Dictionary<ulong, string>();
+        // Hôte : identité stable de chaque joueur connecté (reconnexion après un crash : l'ancienne connexion est fermée).
+        readonly Dictionary<ulong, string> playerKeys = new Dictionary<ulong, string>();
+
+        /// <summary>Délai avant de considérer une connexion directe comme perdue (crash, câble) : 10 s au lieu de 30.</summary>
+        public const int DisconnectTimeoutMS = 10000;
+
+        /// <summary>Hôte : anciennes connexions fermées parce que le même joueur s'est reconnecté (diagnostic).</summary>
+        public int StaleConnectionsEvicted { get; private set; }
         bool leaveRequested;
         bool startedAsHost;
         string reconnectAddress;
@@ -108,6 +116,8 @@ namespace RugWash.Network
             go.SetActive(false);
             manager = go.AddComponent<NetworkManager>();
             directTransport = go.AddComponent<UnityTransport>();
+            // Crash d'un joueur : détecté en 10 s (30 s par défaut), son personnage n'attend pas plus longtemps.
+            directTransport.DisconnectTimeoutMS = DisconnectTimeoutMS;
             steamTransport = go.AddComponent<SteamSocketsTransport>();
             manager.NetworkConfig = new NetworkConfig
             {
@@ -129,6 +139,31 @@ namespace RugWash.Network
         }
 
         string Version => content != null ? content.protocolVersion : "rugwash-coop";
+        static string GameVersion => Application.version;
+
+        /// <summary>
+        /// Identité stable de ce joueur : compte Steam si Steam est actif, sinon un identifiant tiré au hasard une fois par
+        /// installation. « -rugwash-player-key » la remplace (tests à plusieurs processus sur une même machine).
+        /// </summary>
+        public string LocalPlayerKey
+        {
+            get
+            {
+                var args = Environment.GetCommandLineArgs();
+                int index = Array.IndexOf(args, "-rugwash-player-key");
+                if (index >= 0 && index + 1 < args.Length) return args[index + 1];
+                if (Steam != null && Steam.IsInitialized) return "steam:" + Steam.LocalSteamId;
+                const string Pref = "rugwash.playerKey";
+                string key = PlayerPrefs.GetString(Pref, string.Empty);
+                if (string.IsNullOrEmpty(key))
+                {
+                    key = Guid.NewGuid().ToString("N");
+                    PlayerPrefs.SetString(Pref, key);
+                    PlayerPrefs.Save();
+                }
+                return key;
+            }
+        }
         int MaxPlayers => content != null ? content.maxPlayers : 4;
 
         void Approve(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
@@ -142,11 +177,26 @@ namespace RugWash.Network
                 return;
             }
             int connected = manager.ConnectedClientsIds.Count;
-            bool ok = SessionRules.Approve(request.Payload, Version, connected, MaxPlayers, out string name, out string reason);
+            ConnectionPayload.TryDecode(request.Payload, out var announced);
+            bool stale = SessionRules.TryFindStaleConnection(playerKeys, announced.PlayerKey, request.ClientNetworkId, out ulong staleId);
+            if (stale) connected--;
+            bool ok = SessionRules.Approve(request.Payload, Version, GameVersion, connected, MaxPlayers, out string name, out string reason, out _);
             response.Approved = ok;
             response.CreatePlayerObject = false;
             response.Reason = reason;
-            if (ok) names[request.ClientNetworkId] = name;
+            Debug.Log(ok ? $"[RugWash] Joueur admis (client {request.ClientNetworkId}){(stale ? $", ancienne connexion {staleId} fermée" : string.Empty)}."
+                : $"[RugWash] Connexion refusée (client {request.ClientNetworkId}) : {reason}");
+            if (!ok) return;
+            names[request.ClientNetworkId] = name;
+            if (!string.IsNullOrEmpty(announced.PlayerKey)) playerKeys[request.ClientNetworkId] = announced.PlayerKey;
+            // Le même joueur revient (crash, perte de réseau) alors que son ancienne connexion n'a pas encore expiré : elle est
+            // fermée tout de suite, son personnage disparaît (aucun doublon). Sa progression n'est pas concernée (session).
+            if (stale)
+            {
+                playerKeys.Remove(staleId);
+                StaleConnectionsEvicted++;
+                manager.DisconnectClient(staleId, "Reconnexion du même joueur : ancienne connexion fermée.");
+            }
         }
 
         bool StartHost()
@@ -154,6 +204,8 @@ namespace RugWash.Network
             leaveRequested = false;
             startedAsHost = true;
             names.Clear();
+            playerKeys.Clear();
+            StaleConnectionsEvicted = 0;
             SetState(SessionState.Connecting, "Démarrage de la partie…");
             if (!manager.StartHost())
             {
@@ -184,7 +236,7 @@ namespace RugWash.Network
         {
             leaveRequested = false;
             startedAsHost = false;
-            manager.NetworkConfig.ConnectionData = new ConnectionPayload(Version, LocalName).Encode();
+            manager.NetworkConfig.ConnectionData = new ConnectionPayload(Version, LocalName, GameVersion, LocalPlayerKey).Encode();
             SetState(SessionState.Connecting, "Connexion à la partie…");
             if (!manager.StartClient())
             {
@@ -300,6 +352,14 @@ namespace RugWash.Network
                 SetState(SessionState.InLobby);
                 return;
             }
+            // Salon d'une autre version (invitation, ancienne liste) : refus clair avant toute connexion au jeu.
+            string lobbyVersion = Steam.GetLobbyData(SteamPlatform.VersionKey);
+            if (!string.IsNullOrEmpty(lobbyVersion) && lobbyVersion != Version)
+            {
+                LastEndedWithError = true;
+                LeaveLobbyOnly(SessionRules.VersionMismatch(GameVersion, Version, null, lobbyVersion));
+                return;
+            }
             SetState(SessionState.InLobby, "Dans le salon : en attente du lancement par l'hôte…");
             TryConnectToLobbyHost();
         }
@@ -405,6 +465,7 @@ namespace RugWash.Network
                 if (clientId != NetworkManager.ServerClientId)
                 {
                     names.Remove(clientId);
+                    playerKeys.Remove(clientId);
                     Changed?.Invoke();
                 }
                 return;

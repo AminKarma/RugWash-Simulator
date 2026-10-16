@@ -61,8 +61,12 @@ namespace RugWash.Player
                     if (targetIndicator != null) targetIndicator.Hide();
                 }
                 else ActiveTool?.Equip();
+                SuspendedChanged?.Invoke();
             }
         }
+
+        /// <summary>Gadget sorti ou rangé (la barre d'outils retire ou remet la surbrillance de l'outil actif).</summary>
+        public event Action SuspendedChanged;
 
         /// <summary>Le joueur a choisi un outil pendant qu'un gadget est en main.</summary>
         public event Action ResumeRequested;

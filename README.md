@@ -4,7 +4,7 @@ Jeu original de nettoyage de tapis à la première personne (PC Windows), en cou
 Le joueur tient un petit atelier : il inspecte des tapis sales, choisit ses outils, brosse, rince
 et voit le motif d'origine réapparaître progressivement.
 
-> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 jalons 1 à 6** (game feel, scan, nouveaux
+> **État actuel : démo complète (phases 0 à 6) + roadmap V2 jalons 0 à 5 + update v0.1.2 complète, jalons 1 à 7** (game feel, scan, nouveaux
 > outils, aire de lavage, robot aspirateur, tapis de soie, nouvelles salissures, produits spécialisés, RugDex, manette,
 > **coopératif jusqu'à 4 joueurs** — réseau local testé, Steam implémenté mais pas encore testé en réel, voir § Multijoueur).
 > v0.1.2 jalon 1 : outils posés sur le point visé (manche télescopique), modèles détaillés chez les autres joueurs,
@@ -22,6 +22,12 @@ et voit le motif d'origine réapparaître progressivement.
 > de fond — `VALIDATION.md` § 17.
 > v0.1.2 jalon 6 : farces entre coéquipiers (pipi, batte, fusil-jouet à faux sang de théâtre), chères, avec recharges et
 > garde-fous, salissures nettoyables, validées par l'hôte en ligne — `VALIDATION.md` § 18.
+> v0.1.2 jalon 7 : intégration et tests finaux — régression complète, sauvegardes v0 à v4, build Windows, benchmark du jeu
+> compilé et coopératif à deux processus étendu aux jalons 3 à 6 (critères d'acceptation : `VALIDATION.md` § 19).
+> Mission de corrections et d'optimisation : économie de session = sauvegarde de l'hôte (celle de l'invité jamais modifiée),
+> crash et reconnexion sans personnage fantôme, versions vérifiées, outils et jet corrigés, fusil (KO cartoon de 5 s),
+> raclette, barre d'outils et boutique, mousse sans à-coups en ligne, niveaux de qualité réellement allégés — rapport :
+> [Assets/RugWash/Documentation/RAPPORT_CORRECTIFS.md](Assets/RugWash/Documentation/RAPPORT_CORRECTIFS.md), `VALIDATION.md` § 20.
 > Build Windows produit et vérifié automatiquement.
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
@@ -88,7 +94,8 @@ par-dessus) et les listes défilent jusqu'à l'élément sélectionné.
 
 **Paramètres** (menu principal ou pause → « Paramètres », trois onglets) — chaque option est réellement appliquée :
 - **Général** : volumes général / effets / interface / **musique** (0 % = muette), résolution, mode d'affichage (plein écran, plein écran fenêtré,
-  fenêtré), niveau de qualité ;
+  fenêtré), niveau de qualité (Bas, Moyen, Élevé et Ultra n'ont pas le même coût : MSAA, occlusion ambiante, ombres, échelle
+  de rendu — « Moyen » pour un PC moins puissant, voir `VALIDATION.md` § 20.5) ;
 - **Commandes** : sensibilité de la souris, inversion de l'axe vertical (souris et stick), **balancement** de la caméra et des
   outils (0 % = désactivé), **vitesse de la caméra au stick** (30–360 °/s), **zone morte des sticks** (2–50 %),
   **vibrations** (intensité, 0 = désactivées) ;
@@ -115,7 +122,7 @@ Résolution et mode d'affichage n'ont d'effet visible que dans un build (l'édit
 | 7 | Balai | Tapis **sec** : chasse poils et débris (à passer avant le produit) ; l'humidité colle les débris, les taches fixées ne bougent pas. Aire de lavage et sol : pousse **eau sale, boue et mousse** vers le caniveau | — |
 | 8 | Brosse de détail | Petite zone, **×2,2 sur la graisse et les taches incrustées** — **à acheter** à la boutique (140 €) | — |
 | 9 | Seau d'eau | Kit de départ : rince de près, moins puissant que la lance | Eau |
-| 0 | Raclette | **Aire de lavage** : la lame ramasse l'eau, la mousse et la boue détachée et les pousse dans le sens du geste ; au caniveau, elles sont évacuées. Immobile, elle ne fait rien ; contre la bordure, elle bloque ; **sans effet sur un tapis** — à acheter (90 €) | — |
+| 0 | Raclette | **Aire de lavage** : la lame ramasse l'eau, la mousse, le savon restant, la boue détachée et les débris secs, les pousse dans le sens du geste et en retire une part à chaque mètre raclé ; au caniveau ou au-delà du bord, tout est évacué. Immobile, elle ne fait rien. **Sur un tapis : seulement l'eau des fibres**, jamais la saleté — à acheter (90 €) | — |
 | — (molette) | Monobrosse | Disque rotatif large : détache fort sur fibres **humides ou savonneuses** (35 % à sec, et elle use alors les fibres fragiles deux fois plus vite que la brosse), fait monter la mousse ; ne retire rien (rincer, extraire ensuite) ; machine lourde : marche ralentie quand elle tourne — à acheter (650 €) | — (électrique) |
 
 Hors kit de départ, les outils s'achètent sur l'ordinateur (Boutique). **Accessoire** : la brosse turbo anti-poils (130 €)
@@ -213,9 +220,10 @@ partir de ces valeurs (`ProductTable.Describe`) : il n'annonce rien que le code 
 4. **Une récompense n'est versée qu'une fois** : une commande terminée ne peut être ni relivrée ni refaite.
 5. **Écran de résultats** : note, critères mesurés (✔/✘), paiement, réputation, images avant/après,
    « Retour à l'atelier » ou « Choisir une autre commande ».
-6. **Boutique** (ordinateur → Boutique, liste défilante) : d'abord les **outils à acheter** (aspirateur, balai, lance,
-   extracteur, canon à mousse, brosse de détail), puis les améliorations avec prix et **effet réel** (valeur actuelle →
-   après achat) : réservoirs d'eau / détergent / cuve, buse économe (−30 % de produit), puissance des outils, largeurs.
+6. **Boutique** (ordinateur → Boutique, liste défilante) : onglet **Outils** (aspirateur, balai, lance, extracteur, canon à
+   mousse, brosse de détail…), onglet **Améliorations** avec prix et **effet réel** (valeur actuelle → après achat) :
+   réservoirs d'eau / détergent / cuve, buse économe (−30 % de produit), puissance des outils, largeurs. La barre d'outils
+   du HUD ne montre que les outils possédés.
    Une amélioration d'outil demande l'outil. Achat refusé (solde inchangé) si fonds insuffisants ou prérequis manquant.
 
    Onglet **Produits** : **bidon de détergent de 40 L** (45 €, stock entreposé jusqu'à 160 L), puis les produits
@@ -232,7 +240,7 @@ partir de ces valeurs (`ProductTable.Describe`) : il n'annonce rien que le code 
    pas) ; un bidon de 40 L est un stock de 40 litres consommé progressivement (≈ 10 remplissages de 4 L). Le niveau se voit
    dans le contenant de l'outil (shader de niveau de liquide) et s'affiche « 2,4 / 4 L · stock 12 L ». Réserve vide :
    l'outil ne pulvérise pas, la raison s'affiche et un son de refus est joué. En ligne, achats et remplissages sont validés
-   par l'hôte sur la carrière du joueur concerné.
+   par l'hôte et pris sur l'économie de son atelier.
 10. **Missions générées sans fin** : en plus des 10 contrats du catalogue, le tableau propose toujours **trois missions**
     (deux accessibles, une du palier suivant « à viser »). Chaque mission livrée est remplacée par la suivante. Les paliers
     de réputation s'ouvrent progressivement (0, 3, 8, 15, 24, 35…) : tapis plus précieux, plus de salissures, objectifs plus
@@ -323,15 +331,15 @@ gauche (RT) : une farce par appui. Le HUD affiche le gadget, sa recharge et son 
 |---|---|---|---|---|
 | Soda géant (pipi) | 1 500 €, réputation 5 | Auréole jaune et humide | Gouttes sur sa vue (6 s, fondu, jamais opaques) | 45 s |
 | Batte de baseball | 4 000 €, réputation 12 | Petite tache de faux sang | Chute comique d'1,4 s (relevé immédiat avec E), puis 15 s de protection | 20 s |
-| Fusil de farces et attrapes (jouet, embout orange) | 6 500 €, réputation 20, **60 € par tir** | Neuf éclaboussures de faux sang de théâtre | Aucun effet (ne vise jamais un joueur) | 12 s |
+| Fusil de farces et attrapes (jouet, embout orange) | 6 500 €, réputation 20, **60 € par tir** | Neuf éclaboussures de faux sang de théâtre | **KO cartoon de 5 s** : la tête « éclate » en confettis de dessin animé (vue par les autres), le corps part en arrière (élan borné), tache de faux sang stylisée au sol ; relevé automatique, puis 15 s de protection ; jamais sur un joueur déjà à terre | 12 s |
 
 - Les taches (*Pipi (farce)*, *Faux sang (farce)*) sont de vraies salissures : détergent + brosse les détachent, le
   rinçage les évacue (l'aspirateur n'y fait rien).
 - Garde-fous : 3 s entre deux farces quelconques, portée limitée, plafond de saleté ajoutée par tapis (15 % de sa saleté
   initiale), tapis terminé épargné, joueur à terre ou récemment visé protégé. Aucune farce ne touche à l'argent, aux achats
   ni à la réputation d'un autre joueur. Réglages : `ScriptableObjects/PrankTuning.asset`.
-- En ligne, l'hôte valide chaque farce (carrière de l'auteur, position de sa silhouette chez l'hôte) ; la tache arrive par
-  la réplication du tapis, les gouttes ou la chute seulement chez le joueur visé.
+- En ligne, l'hôte valide chaque farce (gadgets et argent de l'atelier, position de la silhouette de l'auteur chez l'hôte) ;
+  la tache arrive par la réplication du tapis, les gouttes, la chute ou le KO seulement chez le joueur visé.
 
 ## 4 septies. Multijoueur coopératif
 
@@ -343,13 +351,16 @@ test, limites) : [Assets/RugWash/Documentation/MULTIPLAYER.md](Assets/RugWash/Do
     la partie. Steam (lancé et connecté avant le jeu) est initialisé dès le menu principal : une invitation acceptée pendant
     une partie solo sauvegarde la partie puis rejoint le salon.
   - **Réseau local** : « Héberger sur ce PC » ou « Rejoindre » une adresse IPv4:port (port UDP 7777 à autoriser chez l'hôte).
-- **Progression personnelle** (v0.1.2) : chaque joueur garde **sa** carrière (argent, réputation, achats, produits, RugDex,
-  commandes livrées), sauvegardée chez lui. L'hôte la valide pendant la partie (achats payés avec l'argent de l'invité,
-  récompense complète versée à chaque joueur présent) ; elle n'est jamais remplacée par celle de l'hôte. L'atelier
-  (tapis, aire de lavage, robot, machines, palier de décor, tableau des commandes) est celui de l'hôte et n'est sauvegardé
-  que chez lui. Chaque joueur montre sa propre apparence (menu « Personnage »).
-- **Arrivée d'un invité** : « Connexion à l'atelier de l'hôte — synchronisation… » (contrôles coupés) jusqu'à réception de
-  l'atelier et de sa carrière validée ; le HUD affiche ensuite directement ses propres valeurs.
+- **Sauvegardes en ligne** (mission de corrections) : pendant une session hébergée, tout le monde joue avec l'**économie de
+  la sauvegarde de l'hôte** (argent, réputation, outils, améliorations, produits). Les achats d'un invité s'appliquent à
+  l'atelier de l'hôte et sont payés avec son argent ; la récompense d'une livraison est versée une fois, chez l'hôte. La
+  sauvegarde personnelle de l'invité n'est **jamais modifiée** (seuls ses réglages et son apparence sont enregistrés) : en
+  quittant la session, il retrouve exactement sa progression. Chaque joueur montre sa propre apparence (menu « Personnage »).
+- **Arrivée d'un invité** : versions du jeu et du protocole comparées (message clair sinon) ; « Connexion à l'atelier de
+  l'hôte — synchronisation… » (contrôles coupés) jusqu'à réception de l'atelier et de son économie, puis un message rappelle
+  que la sauvegarde de l'invité reste intacte.
+- **Crash ou perte de réseau** : la silhouette d'un joueur disparu est retirée en 10 s au plus ; s'il revient, il retrouve
+  un seul personnage (jamais de doublon), sans rien dupliquer dans l'économie.
 - **Autres joueurs** : même modèle d'outil détaillé que le sien, posé sur le point qu'ils visent, jet depuis leur buse.
 - Tout ce qui compte est validé par l'hôte : nettoyage (les invités voient leur effet immédiatement, puis se recalent sur
   l'hôte), commandes, livraison et paiement (une seule fois), achats, robot. Chaque joueur garde sa caméra, ses contrôles et
@@ -523,7 +534,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel : 216 tests EditMode et 127 / 127 tests PlayMode réussis (v0.1.2 jalon 6), et 32 / 32 vérifications multijoueur (scénario du jalon 1 ; scénario mis à jour pour les jalons 3 à 6 non encore exécuté) (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel (v0.1.2 jalon 7) : 223 / 223 tests EditMode, 127 / 127 tests PlayMode, benchmark du jeu compilé 15 / 15 et 43 / 43 vérifications multijoueur entre deux processus (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

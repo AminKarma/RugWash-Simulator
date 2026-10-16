@@ -155,9 +155,10 @@ namespace RugWash.Save
         }
 
         /// <summary>
-        /// Multijoueur, côté invité : la progression de carrière reste celle de CE joueur (argent, réputation, améliorations,
-        /// produits, RugDex, commandes livrées), validée par l'hôte puis sauvegardée ici. L'atelier de l'hôte (aire de
-        /// lavage, sol, robot, tableau des commandes) n'est jamais écrit dans la sauvegarde de l'invité.
+        /// Multijoueur, côté invité (règle des sauvegardes) : pendant la session, ce joueur utilise l'économie de l'hôte
+        /// (argent, réputation, achats, produits, détergent) et l'atelier de l'hôte. Rien de tout cela n'est écrit dans SA
+        /// sauvegarde : seules ses préférences (paramètres) le sont. Sa progression personnelle reste celle du disque et
+        /// revient telle quelle au prochain chargement — même après un crash ou une déconnexion.
         /// </summary>
         public bool GuestCareerMode { get; set; }
 
@@ -165,7 +166,9 @@ namespace RugWash.Save
         void Capture()
         {
             Current.settings = settings.Current.Clone();
-            if (workshop != null && !GuestCareerMode) workshop.Capture(Current.workshop ??= new WorkshopSaveData());
+            // Invité en ligne : la progression personnelle (chargée du disque, jamais modifiée) est réécrite telle quelle.
+            if (GuestCareerMode) return;
+            if (workshop != null) workshop.Capture(Current.workshop ??= new WorkshopSaveData());
             if (products != null)
             {
                 Current.products = new System.Collections.Generic.List<ProductStockData>();
@@ -184,8 +187,6 @@ namespace RugWash.Save
             foreach (string id in Current.upgrades)
                 if (!upgrades.IsKnown(id) && !kept.Contains(id)) kept.Add(id);
             Current.upgrades = kept;
-            // Invité : ses commandes livrées sont ajoutées à sa liste (OnOrderFinished), le tableau de l'hôte n'est pas copié.
-            if (GuestCareerMode) return;
             Current.completedOrders = new System.Collections.Generic.List<string>(orders.Book.CompletedIds());
             Current.completedOrders.RemoveAll(Orders.MissionKey.IsGenerated);
             if (!orders.Missions.IsInitialized) return;
@@ -231,14 +232,12 @@ namespace RugWash.Save
 
         void OnOrderFinished(OrderResult result)
         {
+            // Invité : la livraison appartient à la session de l'hôte (payée et sauvegardée chez lui).
+            if (GuestCareerMode) return;
             if (result.Accepted)
             {
                 Current.ordersDelivered++;
                 Current.totalEarned += result.Reward;
-                // Invité : la commande de session livrée entre dans SON historique de carrière.
-                if (GuestCareerMode && result.Order != null && !Orders.MissionKey.IsGenerated(result.Order.id)
-                    && !Current.completedOrders.Contains(result.Order.id))
-                    Current.completedOrders.Add(result.Order.id);
             }
             SaveNow("commande livrée");
         }

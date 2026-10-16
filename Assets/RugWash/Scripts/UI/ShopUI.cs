@@ -31,13 +31,18 @@ namespace RugWash.UI
         [SerializeField] Button workshopTabButton;
         [Tooltip("Onglet « Farces » : gadgets de sabotage humoristique (v0.1.2), optionnel.")]
         [SerializeField] Button pranksTabButton;
+        [Tooltip("Onglet « Améliorations » (réservoirs, puissance, accessoires), séparé de l'onglet « Outils », optionnel.")]
+        [SerializeField] Button upgradesTabButton;
 
         public enum Tab
         {
+            /// <summary>Outils à acheter (onglet « Outils » ; « Matériel » sans onglet Améliorations).</summary>
             Equipment,
             Workshop,
             Products,
             Pranks,
+            /// <summary>Améliorations du matériel (réservoirs, puissance, accessoires).</summary>
+            Upgrades,
         }
 
         /// <summary>Onglet affiché.</summary>
@@ -94,6 +99,7 @@ namespace RugWash.UI
             productsTabButton.onClick.AddListener(() => ShowTab(Tab.Products));
             if (workshopTabButton != null) workshopTabButton.onClick.AddListener(() => ShowTab(Tab.Workshop));
             if (pranksTabButton != null) pranksTabButton.onClick.AddListener(() => ShowTab(Tab.Pranks));
+            if (upgradesTabButton != null) upgradesTabButton.onClick.AddListener(() => ShowTab(Tab.Upgrades));
             shop.WalletManager.Wallet.Changed += OnWalletChanged;
             panel.SetActive(false);
         }
@@ -145,19 +151,21 @@ namespace RugWash.UI
             if (tab == Tab.Products && shop.Products == null) tab = Tab.Equipment;
             if (tab == Tab.Workshop && workshopTabButton == null) tab = Tab.Equipment;
             if (tab == Tab.Pranks && pranksTabButton == null) tab = Tab.Equipment;
+            if (tab == Tab.Upgrades && upgradesTabButton == null) tab = Tab.Equipment;
             CurrentTab = tab;
             ShowingProducts = tab == Tab.Products;
             messageLabel.text = string.Empty;
             Refresh();
         }
 
-        // Ordre des onglets à l'écran : Matériel, Atelier, Farces, Produits (onglets présents seulement).
+        // Ordre des onglets à l'écran : Outils, Améliorations, Atelier, Farces, Produits (onglets présents seulement).
         readonly List<Tab> tabOrder = new List<Tab>();
 
         List<Tab> TabOrder()
         {
             tabOrder.Clear();
             tabOrder.Add(Tab.Equipment);
+            if (upgradesTabButton != null) tabOrder.Add(Tab.Upgrades);
             if (workshopTabButton != null) tabOrder.Add(Tab.Workshop);
             if (pranksTabButton != null) tabOrder.Add(Tab.Pranks);
             if (shop.Products != null) tabOrder.Add(Tab.Products);
@@ -169,11 +177,14 @@ namespace RugWash.UI
         {
             bool workshop = workshopTabButton != null && upgrade.IsWorkshopItem;
             bool prank = pranksTabButton != null && upgrade.IsPrankItem;
+            bool tool = upgrade.effect == UpgradeEffect.UnlockTool;
+            bool split = upgradesTabButton != null;
             switch (CurrentTab)
             {
                 case Tab.Workshop: return workshop;
                 case Tab.Pranks: return prank;
-                default: return !workshop && !prank;
+                case Tab.Upgrades: return !workshop && !prank && !tool;
+                default: return !workshop && !prank && (!split || tool);
             }
         }
 
@@ -202,6 +213,7 @@ namespace RugWash.UI
             productsTabButton.interactable = CurrentTab != Tab.Products && shop.Products != null;
             if (workshopTabButton != null) workshopTabButton.interactable = CurrentTab != Tab.Workshop;
             if (pranksTabButton != null) pranksTabButton.interactable = CurrentTab != Tab.Pranks;
+            if (upgradesTabButton != null) upgradesTabButton.interactable = CurrentTab != Tab.Upgrades;
             if (ShowingProducts)
             {
                 RefreshProducts();

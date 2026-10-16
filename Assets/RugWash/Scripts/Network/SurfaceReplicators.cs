@@ -41,6 +41,9 @@ namespace RugWash.Network
             public int Epoch;
             public bool NeedsSnapshot = true;
             public Action<RugCleaningController> OnLoaded;
+            /// <summary>Correction lente en cours : lignes restant à envoyer (par tranches).</summary>
+            public RectInt SlowPending;
+            public bool SlowActive;
         }
 
         readonly List<Entry> entries = new List<Entry>();
@@ -133,6 +136,7 @@ namespace RugWash.Network
             if (entry.NeedsSnapshot)
             {
                 entry.NeedsSnapshot = false;
+                entry.SlowActive = false;
                 entry.Surface.Grid.TryConsumeNetworkDirtyRect(out _);
                 entry.Surface.Grid.TryConsumeSlowNetworkRect(out _);
                 WriteSnapshot(entry, writer);
@@ -157,6 +161,54 @@ namespace RugWash.Network
             SurfaceCellCodec.Write(writer, entry.Surface.Grid, rect);
             return true;
         }
+
+        /// <summary>
+        /// Mission de corrections (2.10) : démarre une correction lente de la surface (zone modifiée par la seule simulation
+        /// lente depuis la précédente). Elle est ensuite envoyée par tranches de lignes (<see cref="TryWriteSlowChunk"/>) au
+        /// lieu d'un seul message : avec beaucoup de mousse, la zone couvrait les grilles entières et leur compression prenait
+        /// plus de 10 ms dans une seule image chez l'hôte (lecture et réencodage autant chez les invités).
+        /// </summary>
+        public void BeginSlowCorrection(int index)
+        {
+            var entry = entries[index];
+            var grid = entry.Surface.Grid;
+            if (grid == null || entry.NeedsSnapshot || !grid.TryConsumeSlowNetworkRect(out RectInt slow)) return;
+            if (!entry.SlowActive)
+            {
+                entry.SlowPending = slow;
+                entry.SlowActive = true;
+                return;
+            }
+            // Cycle précédent pas fini (envois très lents) : la nouvelle zone s'y ajoute.
+            var pending = entry.SlowPending;
+            int xMin = Mathf.Min(pending.xMin, slow.xMin), yMin = Mathf.Min(pending.yMin, slow.yMin);
+            entry.SlowPending = new RectInt(xMin, yMin, Mathf.Max(pending.xMax, slow.xMax) - xMin, Mathf.Max(pending.yMax, slow.yMax) - yMin);
+        }
+
+        /// <summary>
+        /// Écrit la tranche suivante de la correction lente en cours (au plus <paramref name="cellBudget"/> cellules, au moins
+        /// une ligne), avec les valeurs actuelles de l'hôte. Retourne le nombre de cellules écrites (0 : rien en cours).
+        /// </summary>
+        public int TryWriteSlowChunk(int index, ByteWriter writer, int cellBudget)
+        {
+            var entry = entries[index];
+            var grid = entry.Surface.Grid;
+            if (!entry.SlowActive || grid == null || entry.NeedsSnapshot) return 0;
+            var pending = entry.SlowPending;
+            int rows = Mathf.Clamp(cellBudget / Mathf.Max(1, pending.width), 1, pending.height);
+            var chunk = new RectInt(pending.xMin, pending.yMin, pending.width, rows);
+            entry.SlowPending = new RectInt(pending.xMin, pending.yMin + rows, pending.width, pending.height - rows);
+            if (entry.SlowPending.height <= 0) entry.SlowActive = false;
+            writer.Byte(SurfaceMessage.Delta);
+            writer.Byte(entry.Id);
+            writer.UShort(entry.Epoch);
+            Acks.Write(writer);
+            SurfaceCellCodec.Write(writer, grid, chunk);
+            return chunk.width * chunk.height;
+        }
+
+        /// <summary>Une correction lente est en cours d'envoi pour cette surface.</summary>
+        public bool SlowCorrectionPending(int index) => entries[index].SlowActive;
 
         public int SurfaceCount => entries.Count;
 

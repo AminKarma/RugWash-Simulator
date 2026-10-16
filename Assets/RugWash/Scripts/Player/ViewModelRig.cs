@@ -10,6 +10,8 @@ namespace RugWash.Player
     /// à chaque changement. L'intensité du balancement est réglable (0 = désactivé) ; elle ne touche pas la visée.
     /// Les outils animent leur propre modèle par-dessus (brossage, recul…).
     /// </summary>
+    // Entre la caméra (20) et la visée des outils (50) : la buse est à sa place affichée quand le jet est émis.
+    [DefaultExecutionOrder(30)]
     [DisallowMultipleComponent]
     public sealed class ViewModelRig : MonoBehaviour
     {
@@ -89,7 +91,7 @@ namespace RugWash.Player
             hasEquippedOnce = true;
         }
 
-        void LateUpdate()
+        void Update()
         {
             float dt = Time.deltaTime;
             if (dt <= 0f) return;

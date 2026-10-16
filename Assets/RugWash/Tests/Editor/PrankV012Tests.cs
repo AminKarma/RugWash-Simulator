@@ -125,7 +125,9 @@ namespace RugWash.Tests
                 Assert.GreaterOrEqual(settings.cooldownSeconds, 10f, $"{gadget} : pas de rafale.");
                 Assert.IsTrue(DirtTypes.IsPrank(settings.stainType));
             }
-            Assert.IsFalse(tuning.blaster.affectsPlayers, "Le fusil-jouet ne vise jamais un joueur.");
+            Assert.IsTrue(tuning.blaster.affectsPlayers, "Mission de corrections : le fusil met un joueur KO.");
+            Assert.AreEqual(5f, tuning.blasterKnockSeconds, 1e-4f, "KO de 5 s, puis relevé automatique.");
+            Assert.LessOrEqual(tuning.blasterImpulse, 12f, "Élan exagéré mais borné.");
             Assert.Greater(tuning.blaster.costPerUse, 0, "Coût par tir.");
             Assert.Greater(tuning.knockProtectionSeconds, tuning.knockSeconds + 5f, "Protection après un coup de batte.");
             Assert.LessOrEqual(tuning.knockSeconds, 3f, "Chute courte.");

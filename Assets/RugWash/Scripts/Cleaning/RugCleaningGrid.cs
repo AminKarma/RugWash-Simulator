@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace RugWash.Cleaning
@@ -21,7 +22,9 @@ namespace RugWash.Cleaning
     /// Grille de nettoyage d'un tapis : source de vérité du gameplay.
     /// Maintient des totaux incrémentaux (pas de parcours complet par frame) et trois rectangles de cellules modifiées :
     /// rendu, réplication réseau rapide (opérations des outils) et réplication lente (simulation lente : mousse qui retombe,
-    /// séchage — reproduite par chaque poste, l'hôte ne la corrige qu'à basse fréquence).
+    /// séchage — reproduite par chaque poste, l'hôte ne la corrige qu'à basse fréquence). Pour le rendu, l'étendue modifiée
+    /// est aussi suivie ligne par ligne (<see cref="ConsumeDirtyRows"/>) : la simulation lente avance ligne après ligne et
+    /// repasse du bas au haut de la grille ; un seul rectangle englobant couvrait alors toute la grille (réencodage complet).
     /// </summary>
     public sealed class RugCleaningGrid
     {
@@ -33,6 +36,8 @@ namespace RugWash.Cleaning
         double totalDirt, totalMoisture, totalFoam, totalResidue, totalWear;
         int dirtyMinX, dirtyMinY, dirtyMaxX, dirtyMaxY;
         bool hasDirtyRect;
+        /// <summary>Rendu : colonnes modifiées de chaque ligne (min, max inclus) ; max &lt; 0 = ligne intacte.</summary>
+        readonly int[] rowDirtyMin, rowDirtyMax;
         int netMinX, netMinY, netMaxX, netMaxY;
         bool hasNetDirtyRect;
         int slowMinX, slowMinY, slowMaxX, slowMaxY;
@@ -58,6 +63,9 @@ namespace RugWash.Cleaning
             Height = height;
             SizeMeters = sizeMeters;
             cells = new RugCell[width * height];
+            rowDirtyMin = new int[height];
+            rowDirtyMax = new int[height];
+            for (int y = 0; y < height; y++) rowDirtyMax[y] = -1;
         }
 
         public float TotalDirt => (float)totalDirt;
@@ -344,7 +352,49 @@ namespace RugWash.Cleaning
             }
             rect = new RectInt(dirtyMinX, dirtyMinY, dirtyMaxX - dirtyMinX + 1, dirtyMaxY - dirtyMinY + 1);
             hasDirtyRect = false;
+            ClearDirtyRows(dirtyMinY, dirtyMaxY);
             return true;
+        }
+
+        /// <summary>Étendue modifiée d'une ligne, pour le rendu.</summary>
+        public readonly struct RowSpan
+        {
+            public readonly int Y, XMin, XMax;
+
+            public RowSpan(int y, int xMin, int xMax)
+            {
+                Y = y;
+                XMin = xMin;
+                XMax = xMax;
+            }
+
+            public int Width => XMax - XMin + 1;
+        }
+
+        /// <summary>
+        /// Rendu : récupère puis réinitialise les étendues modifiées ligne par ligne (seules les cellules réellement touchées
+        /// sont réencodées, même quand des lignes éloignées ont changé). Retourne le nombre de cellules concernées.
+        /// </summary>
+        public int ConsumeDirtyRows(List<RowSpan> spans)
+        {
+            spans.Clear();
+            if (!hasDirtyRect) return 0;
+            int count = 0;
+            for (int y = dirtyMinY; y <= dirtyMaxY; y++)
+            {
+                if (rowDirtyMax[y] < 0) continue;
+                var span = new RowSpan(y, rowDirtyMin[y], rowDirtyMax[y]);
+                spans.Add(span);
+                count += span.Width;
+            }
+            hasDirtyRect = false;
+            ClearDirtyRows(dirtyMinY, dirtyMaxY);
+            return count;
+        }
+
+        void ClearDirtyRows(int minY, int maxY)
+        {
+            for (int y = minY; y <= maxY; y++) rowDirtyMax[y] = -1;
         }
 
         /// <summary>Récupère puis réinitialise la zone modifiée depuis le dernier envoi réseau (indépendante du rendu).</summary>
@@ -418,6 +468,19 @@ namespace RugWash.Cleaning
                 netMinY = Mathf.Min(netMinY, minY);
                 netMaxX = Mathf.Max(netMaxX, maxX);
                 netMaxY = Mathf.Max(netMaxY, maxY);
+            }
+            for (int y = minY; y <= maxY; y++)
+            {
+                if (rowDirtyMax[y] < 0)
+                {
+                    rowDirtyMin[y] = minX;
+                    rowDirtyMax[y] = maxX;
+                }
+                else
+                {
+                    if (minX < rowDirtyMin[y]) rowDirtyMin[y] = minX;
+                    if (maxX > rowDirtyMax[y]) rowDirtyMax[y] = maxX;
+                }
             }
             if (!hasDirtyRect)
             {

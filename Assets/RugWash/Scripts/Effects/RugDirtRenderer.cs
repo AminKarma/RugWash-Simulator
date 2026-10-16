@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RugWash.Cleaning;
 using RugWash.Core;
 using Unity.Collections;
@@ -72,13 +73,18 @@ namespace RugWash.Effects
             UploadNow();
         }
 
+        readonly List<RugCleaningGrid.RowSpan> dirtyRows = new List<RugCleaningGrid.RowSpan>();
+
         /// <summary>Force l'encodage et l'envoi immédiat (avant une capture « avant/après »).</summary>
         public void UploadNow()
         {
-            if (grid == null || !grid.TryConsumeDirtyRect(out RectInt rect)) return;
+            if (grid == null) return;
+            // Mission de corrections (2.10) : seules les cellules modifiées de chaque ligne sont réencodées.
+            int changed = grid.ConsumeDirtyRows(dirtyRows);
+            if (changed == 0) return;
             long timer = Diagnostics.PerfStats.Begin();
-            Encode(rect);
-            Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.RendererEncode, timer, rect.width * rect.height);
+            foreach (var row in dirtyRows) Encode(row);
+            Diagnostics.PerfStats.End(Diagnostics.PerfStats.Slot.RendererEncode, timer, changed);
             timer = Diagnostics.PerfStats.Begin();
             controlA.Apply(false);
             controlB.Apply(false);
@@ -96,15 +102,15 @@ namespace RugWash.Effects
             UploadNow();
         }
 
-        void Encode(RectInt rect)
+        void Encode(RugCleaningGrid.RowSpan row)
         {
             NativeArray<Color32> a = controlA.GetPixelData<Color32>(0);
             NativeArray<Color32> b = controlB.GetPixelData<Color32>(0);
             NativeArray<Color32> c = controlC.GetPixelData<Color32>(0);
             NativeArray<Color32> d = controlD.GetPixelData<Color32>(0);
             int width = grid.Width;
-            for (int y = rect.yMin; y < rect.yMax; y++)
-            for (int x = rect.xMin; x < rect.xMax; x++)
+            int y = row.Y;
+            for (int x = row.XMin; x <= row.XMax; x++)
             {
                 RugCell cell = grid.GetCell(x, y);
                 int i = y * width + x;

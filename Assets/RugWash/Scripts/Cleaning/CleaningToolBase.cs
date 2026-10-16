@@ -66,7 +66,8 @@ namespace RugWash.Cleaning
         [Tooltip("Longueur du manche au repos (m).")]
         [SerializeField, Min(0f)] float reachShaftLength;
         [Tooltip("Allongement maximal du manche (m).")]
-        [SerializeField, Range(0f, 4f)] float maxReachExtension = 2f;
+        // Vue à la première personne : 0 (mission de corrections) — la tête restait sous le sol en visant de près.
+        [SerializeField, Range(0f, 4f)] float maxReachExtension;
 
         ToolPose pose;
         Vector3 aimTarget;

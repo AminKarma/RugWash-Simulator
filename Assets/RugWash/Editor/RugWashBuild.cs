@@ -11,6 +11,8 @@ namespace RugWash.Editor
     public static class RugWashBuild
     {
         public const string OutputDirectory = "Builds/Windows";
+        /// <summary>Build Development (profileur) réservé aux mesures : le build livré reste dans <see cref="OutputDirectory"/>.</summary>
+        public const string ProfilingOutputDirectory = "Builds/WindowsProfiling";
         public const string ExecutableName = "RugWashSimulator.exe";
 
         [MenuItem("RugWash/Build/Build Windows (64 bits)", priority = 100)]
@@ -37,7 +39,22 @@ namespace RugWash.Editor
             }
         }
 
-        public static BuildReport Build()
+        /// <summary>Build Development pour les captures du Profiler Unity (-executeMethod RugWash.Editor.RugWashBuild.BuildWindowsProfiling).</summary>
+        public static void BuildWindowsProfiling()
+        {
+            try
+            {
+                var report = Build(development: true);
+                EditorApplication.Exit(report.summary.result == BuildResult.Succeeded ? 0 : 1);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                EditorApplication.Exit(1);
+            }
+        }
+
+        public static BuildReport Build(bool development = false)
         {
             RugWashProjectBootstrapper.SyncBuildScenes();
             var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
@@ -46,13 +63,14 @@ namespace RugWash.Editor
 
             // Temps GPU par image disponible pour le benchmark (FrameTimingManager), coût négligeable.
             PlayerSettings.enableFrameTimingStats = true;
-            if (Directory.Exists(OutputDirectory)) Directory.Delete(OutputDirectory, true);
+            string output = development ? ProfilingOutputDirectory : OutputDirectory;
+            if (Directory.Exists(output)) Directory.Delete(output, true);
             var options = new BuildPlayerOptions
             {
                 scenes = scenes,
-                locationPathName = Path.Combine(OutputDirectory, ExecutableName),
+                locationPathName = Path.Combine(output, ExecutableName),
                 target = BuildTarget.StandaloneWindows64,
-                options = BuildOptions.None,
+                options = development ? BuildOptions.Development : BuildOptions.None,
             };
             var report = BuildPipeline.BuildPlayer(options);
             var summary = report.summary;

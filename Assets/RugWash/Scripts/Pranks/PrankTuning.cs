@@ -72,8 +72,25 @@ namespace RugWash.Pranks
         public Gadget blaster = new Gadget
         {
             kind = PrankGadget.Blaster, displayName = "Fusil à faux sang", upgradeId = "up_prank_blaster", range = 4.5f, cooldownSeconds = 12f,
-            costPerUse = 60, stainType = DirtType.FakeBlood, stainRadius = 0.07f, stainAmount = 0.6f, splats = 9, splatSpread = 0.35f, useSeconds = 0.5f,
+            costPerUse = 60, affectsPlayers = true, stainType = DirtType.FakeBlood, stainRadius = 0.07f, stainAmount = 0.6f, splats = 9,
+            splatSpread = 0.35f, useSeconds = 0.5f,
         };
+
+        /// <summary>
+        /// Version des valeurs par défaut (migration d'un asset existant vers les valeurs de la mission de corrections).
+        /// Initialisée à 1 : un asset enregistré avant l'apparition de ce champ le relit à 1 et sera migré ; un asset neuf
+        /// porte déjà les nouvelles valeurs (la migration ne change alors rien).
+        /// </summary>
+        public int defaultsVersion = 1;
+        public const int CurrentDefaults = 2;
+
+        [Header("Fusil sur un joueur : KO cartoon")]
+        [Tooltip("Durée du KO (s) : le joueur se relève ensuite automatiquement.")]
+        [Range(1f, 6f)] public float blasterKnockSeconds = 5f;
+        [Tooltip("Élan donné au corps (m/s), borné par la chute et le ragdoll.")]
+        [Min(0f)] public float blasterImpulse = 9f;
+        [Tooltip("Élan vertical ajouté (m/s) : le corps décolle un peu, effet exagéré.")]
+        [Min(0f)] public float blasterLift = 3f;
 
         [Header("Pipi sur un coéquipier : gouttes à l'écran")]
         [Range(0.1f, 0.85f)] public float splashIntensity = 0.55f;
@@ -84,7 +101,7 @@ namespace RugWash.Pranks
 
         [Header("Batte sur un coéquipier : chute comique")]
         [Range(0.5f, 3f)] public float knockSeconds = 1.4f;
-        [Min(0f)] public float knockImpulse = 3.5f;
+        [Min(0f)] public float knockImpulse = 6f;
         [Tooltip("Après un coup, le même joueur est protégé pendant ce délai (s).")]
         [Min(0f)] public float knockProtectionSeconds = 15f;
 
@@ -114,6 +131,20 @@ namespace RugWash.Pranks
         }
 
         public static readonly PrankGadget[] All = { PrankGadget.Pee, PrankGadget.Bat, PrankGadget.Blaster };
+
+        /// <summary>
+        /// Asset créé avant la mission de corrections : fusil sur les joueurs (KO de 5 s), chutes plus exagérées. Les valeurs
+        /// modifiées à la main depuis restent celles de l'utilisateur (seules les anciennes valeurs par défaut changent).
+        /// Vrai si l'asset a été modifié.
+        /// </summary>
+        public bool UpgradeDefaults()
+        {
+            if (defaultsVersion >= CurrentDefaults) return false;
+            blaster.affectsPlayers = true;
+            if (Mathf.Approximately(knockImpulse, 3.5f)) knockImpulse = 6f;
+            defaultsVersion = CurrentDefaults;
+            return true;
+        }
 
         /// <summary>
         /// Emplacement transmis par la silhouette pour un gadget en main (après les onze outils) : 12 batte, 13 fusil,

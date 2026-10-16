@@ -159,5 +159,38 @@ namespace RugWash.Tests
                 Object.DestroyImmediate(go);
             }
         }
+
+        // ------------------------------------------------------------------ Mission de corrections (2.10)
+
+        [Test]
+        public void DirtyRows_ReencodeOnlyTheTouchedCells_EvenWhenTheChangedRowsAreFarApart()
+        {
+            var grid = FoamedGrid();
+            var aging = Aging(0.2f);
+            // La simulation lente repasse du bas au haut de la grille : deux lignes éloignées dans la même image.
+            grid.ApplyRowTracked(2, ref aging, false);
+            grid.ApplyRowTracked(grid.Height - 3, ref aging, false);
+            var spans = new System.Collections.Generic.List<RugCleaningGrid.RowSpan>();
+            int cells = grid.ConsumeDirtyRows(spans);
+            Assert.AreEqual(2, spans.Count, "Deux lignes, pas tout ce qui les sépare.");
+            Assert.AreEqual(2 * grid.Width, cells, "Avant : le rectangle englobant couvrait toute la grille.");
+            Assert.AreEqual(2, spans[0].Y);
+            Assert.AreEqual(grid.Height - 3, spans[1].Y);
+            Assert.IsFalse(grid.TryConsumeDirtyRect(out _), "Consommé une seule fois.");
+
+            // Une opération d'outil (disque) : seules ses colonnes sur chaque ligne.
+            var soap = new SoapOperation { FoamPerSecond = 1f, DeltaTime = 0.1f };
+            grid.ApplyCircle(new Vector2(0.5f, 0.5f), 0.1f, 1f, ref soap);
+            cells = grid.ConsumeDirtyRows(spans);
+            Assert.Greater(spans.Count, 1);
+            Assert.Less(cells, grid.CellCount / 10, "Le disque, pas la grille.");
+            foreach (var span in spans) Assert.Less(span.Width, grid.Width, "Colonnes du disque seulement.");
+            Assert.AreEqual(0, grid.ConsumeDirtyRows(spans), "Rien de plus à réencoder.");
+
+            // L'ancien accès (rectangle) consomme aussi les lignes : jamais de double encodage.
+            grid.ApplyRowTracked(10, ref aging, false);
+            Assert.IsTrue(grid.TryConsumeDirtyRect(out _));
+            Assert.AreEqual(0, grid.ConsumeDirtyRows(spans));
+        }
     }
 }

@@ -7,6 +7,9 @@ namespace RugWash.Player
     /// Appliqué à la caméra elle-même : le rayon de visée part toujours du centre de la caméra, donc le réticule,
     /// le point d'impact et la zone nettoyée restent alignés. Intensité réglable (0 = désactivé).
     /// </summary>
+    // Après le déplacement du joueur (0), avant la visée des outils (50) : le rayon, la pose de l'outil et l'origine de ses
+    // effets partent de la caméra telle qu'elle est affichée (en LateUpdate, les particules étaient déjà émises).
+    [DefaultExecutionOrder(20)]
     [DisallowMultipleComponent]
     public sealed class CameraMotion : MonoBehaviour
     {
@@ -43,7 +46,7 @@ namespace RugWash.Player
             restRotation = transform.localRotation;
         }
 
-        void LateUpdate()
+        void Update()
         {
             float dt = Time.deltaTime;
             if (dt <= 0f || controller == null) return;

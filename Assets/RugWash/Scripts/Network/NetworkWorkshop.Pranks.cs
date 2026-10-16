@@ -80,12 +80,12 @@ namespace RugWash.Network
         {
             ulong sender = rpcParams.Receive.SenderClientId;
             var target1 = RpcTarget.Single(sender, RpcTargetUse.Temp);
-            if (game.Pranks == null || gadget < 1 || gadget > 3 || target > 1 || !careers.TryGetValue(sender, out var career) || AvatarOf(sender) == null)
+            if (game.Pranks == null || gadget < 1 || gadget > 3 || target > 1 || !syncedClients.Contains(sender) || AvatarOf(sender) == null)
             {
                 PrankResultRpc(gadget, (byte)PrankResult.Unavailable, false, target1);
                 return;
             }
-            var actor = new GuestPrankActor(this, sender, career);
+            var actor = new GuestPrankActor(this, sender);
             var request = new PrankRequest
             {
                 Gadget = (PrankGadget)gadget, Target = (PrankTarget)target, Point = point, Victim = victim,
@@ -93,7 +93,6 @@ namespace RugWash.Network
             };
             var result = game.Pranks.Execute(actor, request, out var outcome);
             PrankResultRpc(gadget, (byte)result, outcome.HitPlayer, target1);
-            if (actor.Spent) careerDirty.Add(sender);
         }
 
         [Rpc(SendTo.SpecifiedInParams)]
@@ -164,10 +163,10 @@ namespace RugWash.Network
             else SplashRpc(intensity, seconds, fadeSeconds, new FixedString64Bytes(from ?? string.Empty), RpcTarget.Single(clientId, RpcTargetUse.Temp));
         }
 
-        public void Knock(ulong clientId, Vector3 impulse, float seconds, string from)
+        public void Knock(ulong clientId, Vector3 impulse, float seconds, string from, PrankGadget cause)
         {
-            if (clientId == NetworkManager.LocalClientId) game.Gadgets.ReceiveKnock(impulse, seconds, from);
-            else KnockRpc(impulse, seconds, new FixedString64Bytes(from ?? string.Empty), RpcTarget.Single(clientId, RpcTargetUse.Temp));
+            if (clientId == NetworkManager.LocalClientId) game.Gadgets.ReceiveKnock(impulse, seconds, from, cause);
+            else KnockRpc(impulse, seconds, new FixedString64Bytes(from ?? string.Empty), (byte)cause, RpcTarget.Single(clientId, RpcTargetUse.Temp));
         }
 
         [Rpc(SendTo.SpecifiedInParams)]
@@ -178,26 +177,28 @@ namespace RugWash.Network
         }
 
         [Rpc(SendTo.SpecifiedInParams)]
-        void KnockRpc(Vector3 impulse, float seconds, FixedString64Bytes from, RpcParams rpcParams)
+        void KnockRpc(Vector3 impulse, float seconds, FixedString64Bytes from, byte cause, RpcParams rpcParams)
         {
-            game.Gadgets.ReceiveKnock(Vector3.ClampMagnitude(impulse, 8f), Mathf.Clamp(seconds, 0.5f, 3f), from.ToString());
+            // Valeurs bornées même venant de l'hôte : élan raisonnable, KO de 6 s au plus.
+            var gadget = cause == (byte)PrankGadget.Blaster ? PrankGadget.Blaster : PrankGadget.Bat;
+            game.Gadgets.ReceiveKnock(Vector3.ClampMagnitude(impulse, 12f), Mathf.Clamp(seconds, 0.5f, 6f), from.ToString(), gadget);
         }
 
-        /// <summary>Invité vu par l'autorité : carrière tenue par l'hôte, position de sa silhouette chez l'hôte.</summary>
+        /// <summary>
+        /// Invité vu par l'autorité : position de sa silhouette chez l'hôte ; gadgets et argent de l'économie de session
+        /// (achats et argent de l'atelier de l'hôte, règle des sauvegardes).
+        /// </summary>
         sealed class GuestPrankActor : IPrankActor
         {
             readonly NetworkWorkshop owner;
             readonly ulong id;
-            readonly PlayerCareer career;
 
-            public GuestPrankActor(NetworkWorkshop owner, ulong id, PlayerCareer career)
+            public GuestPrankActor(NetworkWorkshop owner, ulong id)
             {
                 this.owner = owner;
                 this.id = id;
-                this.career = career;
             }
 
-            public bool Spent { get; private set; }
             public ulong Id => id;
             public string Name => owner.session?.NameOf(id) ?? "Un joueur";
 
@@ -216,18 +217,12 @@ namespace RugWash.Network
             public bool Owns(PrankGadget gadget)
             {
                 var settings = owner.game.Pranks.Tuning.Get(gadget);
-                return settings != null && career.Upgrades.Contains(settings.upgradeId);
+                return settings != null && owner.game.Upgrades.OwnsGadget(settings.upgradeId);
             }
 
-            public int Money => career.Money;
+            public int Money => owner.game.Wallet.Balance;
 
-            public bool TrySpend(int amount)
-            {
-                if (amount < 0 || career.Money < amount) return false;
-                career.Money -= amount;
-                Spent = true;
-                return true;
-            }
+            public bool TrySpend(int amount) => amount >= 0 && owner.game.Wallet.Wallet.TrySpend(amount);
         }
     }
 }

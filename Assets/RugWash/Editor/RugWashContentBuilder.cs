@@ -142,6 +142,7 @@ namespace RugWash.Editor
             EnsureToolRumble(content.Bucket, 0.06f, 0.02f);
             content.Tuning = LoadOrCreate<CleaningTuning>(TuningPath, out _);
             content.Pranks = LoadOrCreate<RugWash.Pranks.PrankTuning>(PrankTuningPath, out _);
+            if (content.Pranks.UpgradeDefaults()) EditorUtility.SetDirty(content.Pranks);
 
             EnsureMaterials(content);
             content.Oriental = EnsureRug(OrientalRugPath, "oriental", "Tapis oriental à médaillon", RugPileType.Oriental,
@@ -403,7 +404,7 @@ namespace RugWash.Editor
                 "Chute comique d'un coéquipier (relevé immédiat avec E, puis 15 s de protection) ou petite tache de faux sang. Recharge 20 s.",
                 4000, UpgradeEffect.PrankGadget, 1f, "bat", null), 12));
             c.Upgrades.Add(Reputation(EnsureUpgrade("up_prank_blaster", "Fusil à pompe de farces et attrapes",
-                "Jouet à embout orange : éclaboussures de faux sang de théâtre sur le tapis, nettoyables. Jamais sur un joueur. 60 € par tir.",
+                BlasterDescription,
                 6500, UpgradeEffect.PrankGadget, 1f, "blaster", null), 20));
         }
 
@@ -420,10 +421,25 @@ namespace RugWash.Editor
             return upgrade;
         }
 
+        const string BlasterDescription =
+            "Jouet à embout orange : faux sang de théâtre sur le tapis, ou KO cartoon de 5 s pour un coéquipier. 60 € par tir.";
+
+        /// <summary>Descriptions d'origine remplacées (si elles n'ont pas été modifiées à la main) par celles d'aujourd'hui.</summary>
+        static readonly Dictionary<string, (string old, string now)> UpdatedDescriptions = new Dictionary<string, (string, string)>
+        {
+            { "up_prank_blaster", ("Jouet à embout orange : éclaboussures de faux sang de théâtre sur le tapis, nettoyables. Jamais sur un joueur. 60 € par tir.",
+                BlasterDescription) },
+        };
+
         static UpgradeDefinition EnsureUpgrade(string id, string name, string description, int price, UpgradeEffect effect, float value,
             string toolId, UpgradeDefinition prerequisite)
         {
             var upgrade = LoadOrCreate<UpgradeDefinition>($"{RugWashPaths.UpgradeDefinitions}/{id}.asset", out bool created);
+            if (!created && UpdatedDescriptions.TryGetValue(id, out var update) && upgrade.description == update.old)
+            {
+                upgrade.description = update.now;
+                EditorUtility.SetDirty(upgrade);
+            }
             // Les améliorations d'un outil à acheter exigent l'outil (aussi pour un asset existant).
             if (effect != UpgradeEffect.UnlockTool && prerequisite == null && toolUnlocks != null && toolId != null
                 && toolUnlocks.TryGetValue(toolId, out var unlock)) prerequisite = unlock;

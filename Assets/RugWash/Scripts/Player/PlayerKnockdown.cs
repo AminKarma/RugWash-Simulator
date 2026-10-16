@@ -4,6 +4,17 @@ using UnityEngine;
 
 namespace RugWash.Player
 {
+    /// <summary>Origine d'une chute (valeurs figées : réseau).</summary>
+    public enum KnockCause : byte
+    {
+        /// <summary>Glissade sur la mousse.</summary>
+        Fall = 0,
+        /// <summary>Coup de batte (farce).</summary>
+        Bat = 1,
+        /// <summary>Fusil de farces : KO cartoon, la tête éclate (silhouette vue par les autres).</summary>
+        Blaster = 2,
+    }
+
     /// <summary>
     /// Chute contrôlée du joueur local (v0.1.2) : contrôles coupés, le corps glisse selon l'élan reçu (borné), la caméra
     /// tombe au sol en s'inclinant, puis le joueur se relève. La capsule de collision reste debout : impossible de passer
@@ -31,9 +42,10 @@ namespace RugWash.Player
 
         [Header("Chute")]
         [Tooltip("Élan maximal transmis au corps (m/s) : pas de projection excessive.")]
-        [SerializeField, Min(0f)] float maxImpulse = 6f;
+        [SerializeField, Min(0f)] float maxImpulse = 10f;
         [SerializeField, Range(0.5f, 5f)] float minDuration = 1f;
-        [SerializeField, Range(0.5f, 6f)] float maxDuration = 3f;
+        [Tooltip("Durée maximale d'une chute (le KO du fusil dure 5 s) : jamais d'état bloqué.")]
+        [SerializeField, Range(0.5f, 8f)] float maxDuration = 6f;
         [SerializeField, Range(0.1f, 1f)] float fallSeconds = 0.35f;
         [SerializeField, Range(0.2f, 1.5f)] float getUpSeconds = 0.6f;
         [Tooltip("Hauteur des yeux une fois à terre.")]
@@ -55,6 +67,8 @@ namespace RugWash.Player
         float eyeDrop = 1.3f;
 
         public bool IsDown => phase != Phase.Up;
+        /// <summary>Origine de la chute en cours (ou de la dernière).</summary>
+        public KnockCause Cause { get; private set; }
         /// <summary>Avancement visuel de la chute (0 debout, 1 à terre).</summary>
         public float FallAmount { get; private set; }
         public int KnockdownCount { get; private set; }
@@ -71,6 +85,8 @@ namespace RugWash.Player
         /// <summary>Relève le joueur plus tôt (« Interagir ») ; faux si c'est trop tôt.</summary>
         public bool TryQuickRecover()
         {
+            // KO du fusil : relevé automatique à la fin du délai (pas de relevé anticipé).
+            if (Cause == KnockCause.Blaster) return false;
             if (!CanQuickRecover(phase == Phase.Down, timer + fallSeconds, quickRecoverAfter)) return false;
             Next(Phase.GettingUp);
             return true;
@@ -83,9 +99,10 @@ namespace RugWash.Player
         }
 
         /// <summary>Fait chuter le joueur ; faux s'il est déjà à terre. Élan et durée sont bornés.</summary>
-        public bool Knockdown(Vector3 impulse, float seconds, string message = null)
+        public bool Knockdown(Vector3 impulse, float seconds, string message = null, KnockCause cause = KnockCause.Fall)
         {
             if (IsDown || controller == null) return false;
+            Cause = cause;
             impulse = Vector3.ClampMagnitude(impulse, maxImpulse);
             duration = Mathf.Clamp(seconds, minDuration, maxDuration);
             var horizontal = new Vector3(impulse.x, 0f, impulse.z);
@@ -187,7 +204,8 @@ namespace RugWash.Player
             if (surface == null || !surface.TrySampleCell(hit.point, out RugCell cell)) return;
             if (!ShouldSlip(true, true, horizontal.magnitude, cell.Foam, slipMinSpeed, slipFoam)) return;
             slipReadyAt = Time.time + slipCooldown;
-            Knockdown(horizontal * 0.8f + Vector3.up, slipDuration, "Glissade sur la mousse ! (évitez de courir dessus)");
+            // Réaction exagérée (mission de corrections) : les pieds partent, le corps est projeté ; élan borné par maxImpulse.
+            Knockdown(horizontal * 1.4f + Vector3.up * 2f, slipDuration, "Glissade sur la mousse ! (évitez de courir dessus)", KnockCause.Fall);
         }
     }
 }

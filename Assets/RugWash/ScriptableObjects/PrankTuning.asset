@@ -52,7 +52,7 @@ MonoBehaviour:
     cooldownSeconds: 12
     costPerUse: 60
     affectsRug: 1
-    affectsPlayers: 0
+    affectsPlayers: 1
     stainType: 13
     stainRadius: 0.07
     stainAmount: 0.6
@@ -60,12 +60,16 @@ MonoBehaviour:
     splats: 9
     splatSpread: 0.35
     useSeconds: 0.5
+  defaultsVersion: 2
+  blasterKnockSeconds: 5
+  blasterImpulse: 9
+  blasterLift: 3
   splashIntensity: 0.55
   splashSeconds: 6
   splashFadeSeconds: 2.5
   splashProtectionSeconds: 20
   knockSeconds: 1.4
-  knockImpulse: 3.5
+  knockImpulse: 6
   knockProtectionSeconds: 15
   globalCooldownSeconds: 3
   rugCapFraction: 0.15

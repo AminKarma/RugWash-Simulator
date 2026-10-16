@@ -451,3 +451,212 @@ Farces).
 `-Step multiplayer`) : farces entre deux processus (demande d'un invité, gouttes et chute chez un invité, effets vus par
 les autres, protocole `rugwash-coop-7`) ; le scénario automatique à deux processus ne couvre pas encore les farces.
 Steam en réel : inchangé (non testé).
+
+## 19. Update v0.1.2 — jalon 7 (intégration et tests finaux)
+
+Exécutions réelles du 15/10/2026 sur le code final : chaîne `compile`, `bootstrap`, `scene`, `test`, `playmode`, puis
+`build`, `benchmark` (jeu compilé, plein écran) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
+connexion directe sur la même machine).
+
+| Vérification | Résultat |
+|---|---|
+| Compilation, contenu, scènes | ✅ 0 erreur |
+| Tests EditMode | ✅ **223 / 223** (216 + 7 `IntegrationV012Tests` : sauvegardes v0, v1, v2, v3 migrées sans perte, nouvelle partie, version future refusée, v4 relue à l'identique) |
+| Tests PlayMode | ✅ **127 / 127** |
+| Build Windows | ✅ |
+| Benchmark du jeu compilé (RTX 5060, i7-8700K, 1920×1080, Ultra) | ✅ **15 / 15** contrôles ; 192 à 205 FPS de moyenne selon le scénario, 1 % bas 85 à 100 FPS, 0 à 5 passages du ramasse-miettes ; session de 3 commandes : objets 1239 → 1239, particules 36 → 36, mémoire gérée +0,5 Mo |
+| Coopératif à deux processus | ✅ **43 / 43** (20 hôte, 20 invité, 3 comparaisons : tapis identique, carrière de l'invité identique, missions identiques) |
+
+**Scénario multijoueur étendu** (jalon 7) : en plus des vérifications des jalons 1 à 4 (arrivée et HUD, nettoyage
+partagé, mousse au repos à 3,8 Ko/s, livraison payée une fois, carrière de l'invité, achats, robot, carrière forgée
+ignorée, sauvegardes), il vérifie maintenant :
+- l'atelier de l'hôte chez l'invité (palier de décor 2 et souffleur affichés, sans être dans la carrière de l'invité) ;
+- l'apparence choisie par l'invité visible sur sa silhouette chez l'hôte ;
+- un pipi de l'invité sur l'hôte : demande validée par l'hôte (portée mesurée depuis la silhouette de l'invité),
+  gouttes sur l'écran de l'hôte ;
+- un coup de batte de l'hôte sur l'invité : chute chez l'invité, ragdoll vu par l'hôte, relevé et contrôles rendus.
+
+**Défaut trouvé et corrigé** : le test PlayMode du pipi visait un point fixe, au bord du tapis le plus petit, et
+mesurait la tache avec la saleté déjà présente ; il vise maintenant le centre réel du tapis et compare avec la quantité
+ajoutée mesurée par l'autorité (il réussissait seul, échouait selon l'ordre des tests).
+
+### Critères d'acceptation de l'update v0.1.2
+
+| Critère | Statut | Preuve |
+|---|---|---|
+| HUD correct dès l'arrivée dans une session | ✅ | multijoueur « HUD initialisé dès l'arrivée… » |
+| Outils distants avec les modèles détaillés | ✅ | `VALIDATION.md` § 13, PlayMode |
+| Progression personnelle jamais remplacée par celle de l'hôte | ✅ | multijoueur (carrières, sauvegarde de l'invité) |
+| Le jet d'eau part de l'outil ; extrémité alignée sur la cible | ✅ | § 13 (PlayMode) |
+| Mousse sans croissance incontrôlée | ✅ | benchmark (objets et particules stables), § 14 |
+| Salissures de sol limitées à la zone autorisée | ✅ | § 13 |
+| Plus de tapis d'entraînement | ✅ | § 13, benchmark « kit de départ » |
+| Zone ≥ 25 % propre avant une commande ; tapis salis au-delà de 40 % | ✅ | § 13 |
+| Tapis fini sous 1 % | ✅ | § 13, benchmark |
+| Ordinateur : Missions et Boutique | ✅ | § 15 |
+| Missions progressives avec la réputation | ✅ | § 15, multijoueur (missions identiques) |
+| Nouvelle partie : brosse, détergent, seau | ✅ | benchmark, `IntegrationV012Tests` |
+| Détergent consommé, réserve 4 L remplie par bidons de 40 L | ✅ | § 15 |
+| Poils / débris : outils adaptés | ✅ | § 16 |
+| Raclette, monobrosse, bottes, robot : fonction réelle | ✅ | § 16 |
+| Robot à acheter, limité à la zone | ✅ | § 16, multijoueur |
+| Farces : salissures / effets temporaires et nettoyables | ✅ | § 18 |
+| Farces très chères, avec recharges, sans détruire la progression | ✅ | § 18 |
+| Améliorations de la base sauvegardées selon la bonne propriété | ✅ | § 17, multijoueur (atelier de l'hôte) |
+| Personnalisation sauvegardée par joueur et visible en multijoueur | ✅ | § 17, multijoueur (apparence) |
+| Ragdoll terminé correctement, joueur jamais bloqué | ✅ | § 17, § 18, multijoueur (relevé) |
+| Musique : volume dédié, pas de superposition | ✅ | § 17 |
+| Le projet compile ; tests consignés honnêtement | ✅ | ce document |
+
+**Non testé** : Steam en réel (salons, invitations, transport Steam), deux machines distinctes via Internet, plus de deux
+joueurs simultanés, reconnexion automatique entre deux processus (la reconnexion est manuelle, par bouton).
+
+## 20. Mission de corrections et d'optimisation (bugfix, sans nouvelle fonctionnalité)
+
+Exécutions réelles du 15 au 16/10/2026, sur une seule machine : **NVIDIA GeForce RTX 5060, Intel Core i7-8700K
+(6 cœurs / 12 fils, 3,7 GHz), 32 Go**, Windows 11, Direct3D 11, 1920×1080 plein écran fenêtré. Aucun autre PC n'a été
+utilisé : les résultats « PC moins puissant » ci-dessous sont des **approximations par limitation de ressources**, pas des
+mesures sur ces machines. Rapport complet (constats, causes, corrections) : `RAPPORT_CORRECTIFS.md`.
+
+### 20.1 Tests automatisés
+
+| Vérification | Résultat |
+|---|---|
+| Compilation, contenu, scènes | ✅ 0 erreur |
+| Tests EditMode | ✅ **229 / 229** |
+| Tests PlayMode | ✅ **133 / 133** (suite complète) ; après le dernier correctif (bords de recontamination), 12 / 12 tests ciblés dont le nouveau `DirtyWashArea_RecontaminatesOneBorderAtATime_…` |
+| Build Windows | ✅ |
+| Coopératif à deux processus (hôte, invité, puis invité « revenu » après un crash) | ✅ **52 / 52** (21 hôte, 20 invité, 6 invité revenu, 5 comparaisons : tapis identique, économie identique après l'achat, missions identiques, économie reçue par l'invité revenu, sauvegarde de l'hôte relue après sa fermeture brutale) |
+| Benchmark du jeu compilé (protocole complet, Ultra) | ✅ **15 / 15** contrôles ; 197 à 205 FPS de moyenne selon le scénario, 1 % bas 123 à 145 FPS ; session de 3 commandes : objets 1241 → 1241, particules 36 → 36, mémoire gérée +0,6 Mo |
+
+Nouveaux tests de la mission : `BugfixSessionTests` (données de connexion compatibles, message de versions, ancienne
+connexion du même joueur), `QualityTierTests` (un pipeline par niveau, niveaux bas réellement moins coûteux, Ultra
+inchangé), `BugfixPlayModeTests` (sauvegarde de l'invité jamais écrite avec l'économie de l'hôte, KO du fusil de 5 s sans
+relevé anticipé ni second KO, tête qui éclate puis revient chez la silhouette distante, barre d'outils), `PerformanceRulesTests`
+(`DirtyRows_…`), `PerformancePlayModeTests` (`SlowCorrection_WithLotsOfFoam_…`), et les tests existants adaptés aux
+comportements demandés (raclette, fusil, tête des outils, onglets de la boutique, barre d'outils).
+
+### 20.2 Sauvegardes et multijoueur (scénario à deux processus)
+
+Rôles : un hôte (300 €, 11 achats dont palier de décor 2, souffleur, batte, pipi), un invité (1 500 €, réputation 2,
+8 achats personnels, dont des bottes que l'hôte n'a pas), puis le même invité relancé après un crash (même identité).
+
+| Vérification | Résultat |
+|---|---|
+| L'invité voit et utilise l'argent, la réputation et l'équipement de l'hôte (pas les siens) | ✅ |
+| Achat de l'invité appliqué à l'atelier de l'hôte, payé avec l'argent de l'atelier ; achat impossible refusé sans débit | ✅ |
+| Récompense de livraison versée une seule fois, dans l'économie de l'hôte | ✅ |
+| Sauvegarde personnelle de l'invité inchangée pendant la session, après son crash et après la fin de la session | ✅ (1 500 €, réputation 2, 8 achats) |
+| Crash de l'invité (processus tué) : silhouette retirée par l'hôte | ✅ (9,7 s) |
+| Reconnexion du même joueur : un seul personnage, ni argent ni achat en double, économie reçue telle quelle | ✅ |
+| Hôte fermé brutalement : l'invité revient au menu avec un message ; sauvegarde de l'hôte relue intacte | ✅ |
+
+**Défaut trouvé pendant ces tests** : après le crash d'un invité, l'hôte n'acceptait plus aucune connexion (le joueur ne
+pouvait pas revenir). Cause : bogue d'Unity Transport sous Windows (tampons de réception perdus après des erreurs ICMP) ;
+correctif local décrit dans `MULTIPLAYER.md` § 6. Reconnexion vérifiée après correctif.
+
+### 20.3 Protocole de benchmark (reproductible)
+
+Jeu compilé (`-Step build`), plein écran 1920×1080, synchronisation verticale coupée, sauvegarde isolée dans un dossier
+temporaire, GPU vérifié inoccupé avant chaque mesure (mesure annulée au-delà de 35 % d'utilisation). Commandes :
+
+```
+./Tools/RugWash-CI.ps1 -Step benchmark                                      # protocole complet (contrôles + scénarios)
+./Tools/RugWash-CI.ps1 -Step benchmark -BenchmarkMode foam                  # diagnostic de la mousse
+./Tools/RugWash-CI.ps1 -Step benchmark -BenchmarkMode graphics              # un réglage graphique désactivé à la fois
+./Tools/RugWash-CI.ps1 -Step benchmark -BenchmarkMode quick -Quality 2      # scénarios représentatifs, niveau « Medium »
+./Tools/RugWash-CI.ps1 -Step benchmark -BenchmarkMode quick -Quality 2 -RenderScale 2   # charge GPU ×4 (approximation)
+./Tools/RugWash-CI.ps1 -Step benchmark -BenchmarkMode quick -Quality 2 -CpuAffinity 3   # 2 fils CPU (approximation)
+./Tools/RugWash-CI.ps1 -Step build -Development ; ./Tools/RugWash-CI.ps1 -Step benchmark -Development -BenchmarkMode foam
+                                                                            # captures du Profiler Unity + analyse
+```
+
+Chaque scénario rapporte : FPS moyen, 1 % bas, temps d'image moyen et 95e centile, à-coups (image > 2 × la médiane),
+temps GPU, temps CPU du fil principal et du fil de rendu (FrameTimingManager), temps par système du jeu, particules
+vivantes, collectes et croissance du tas géré. Les compteurs de rendu du profileur (lots, SetPass) restent indisponibles
+dans ces builds (valeur -1 dans les rapports). Les FPS de cette machine varient de quelques pour cent d'une exécution à
+l'autre : les comparaisons sont faites coup sur coup, deux fois pour les niveaux de qualité.
+
+### 20.4 Mousse : diagnostic (2.10)
+
+**Solo, build livré, Ultra** (même vue, mousse remise avant chaque mesure ; FPS / 1 % bas / GPU ms / fil principal ms) :
+
+| Scénario | Avant correction | Après correction |
+|---|---|---|
+| Aucune mousse, vue d'ensemble | 195 / 135 / 4,4 / 2,1 | 197 / 129 / 4,4 / 2,0 |
+| Peu (15 % du tapis) | 199 / 154 / 4,3 / 2,1 | 203 / 142 / 4,2 / 2,0 |
+| Beaucoup (tapis, aire de lavage et sol couverts) | 196 / 153 / 4,0 / 2,4 | 200 / 120 / 4,0 / 2,3 |
+| Beaucoup, vue rapprochée (tapis plein écran) | 195 / 122 / 4,2 / 2,3 | 203 / 136 / 4,2 / 2,2 |
+| Beaucoup + canon à mousse | 196 / 126 / 3,7 / 2,8 | 193 / 124 / 3,9 / 2,8 |
+| Idem, rendu des particules masqué (diagnostic) | 194 / 139 / 3,8 / 2,8 | 198 / 129 / 3,8 / 2,6 |
+| Canon à bout portant (particules près de la caméra) | 189 / 131 / 4,0 / 2,8 | 198 / 134 / 3,9 / 2,7 |
+| Rinçage d'un tapis couvert (ruissellement) | 188 / 126 / 4,1 / 2,7 | 196 / 132 / 4,0 / 2,5 |
+
+**Profiler Unity** (build Development, captures par scénario analysées par `RugWashProfileAnalysis`) : le jeu attend la
+carte graphique (`DXGI.WaitOnSwapChain` 1,5 à 2,3 ms par image) ; la mousse **ne change pas le temps GPU** (le shader du
+tapis calcule la mousse à coût constant, sans transparence ni surdessin ; masquer les particules ne change rien) ; son coût
+est côté CPU : `RugDirtRenderer.LateUpdate` 0,18 à 0,25 ms et `RugCleaningController.Update` 0,15 ms par image avec les
+trois surfaces couvertes, `PlayerToolController.Update` 0,37 ms en pulvérisant ; allocations 0,1 à 0,2 Ko par image, aucune
+collecte du ramasse-miettes pendant les mesures.
+
+**Multijoueur (deux processus, mousse sur le tapis, l'aire de lavage et le sol)** — la cause réelle des ralentissements :
+
+| Mesure (6 s) | Avant correction | Après correction |
+|---|---|---|
+| Hôte : pire coût d'écriture réseau dans une image | **13,5 ms** | **3,3 ms** |
+| Hôte : pire image / médiane, à-coups | 18,8 / 8,3 ms, 2 | 11,5 / 8,3 ms, **0** |
+| Invité : pire coût de lecture réseau dans une image | **9,3 ms** | **3,1 ms** |
+| Hôte : pire réencodage des surfaces dans une image | 6,6 ms | 2,4 ms |
+| Invité : pire réencodage des surfaces dans une image | **7,6 ms** | **3,3 ms** |
+| Invité : pire image / médiane, à-coups | 19,5 / 8,3 ms, 1 | 8,8 / 8,3 ms, **0** |
+| Débit réseau (mousse couvrant tout) | 41,3 Ko/s | 10,8 Ko/s |
+
+Causes : (1) toutes les 2 s, l'hôte envoyait d'un bloc la correction de la simulation lente — avec beaucoup de mousse, les
+grilles entières (~60 000 cellules), compressées dans une seule image ; l'invité les lisait et réencodait d'un bloc ;
+(2) le rendu réencodait un rectangle englobant : quand la simulation lente repasse du bas au haut d'une grille, ce
+rectangle couvrait toute la grille ; (3) une aire de lavage sale (le ruissellement d'un tapis moussé rincé y dépose eau
+sale et mousse) resalit le tapis posé toutes les 0,4 s sur ses quatre bords à la fois : le rectangle modifié couvrait tout
+le tapis, renvoyé en entier aux invités. Corrections : correction lente envoyée par tranches de lignes (4 096 cellules au
+plus par envoi, toutes surfaces confondues ; un cycle complet en ~1 s, toujours une fois toutes les 2 s) ; suivi des lignes
+modifiées pour le rendu ; un bord recontaminé à la fois, à tour de rôle (même quantité moyenne). Même résultat (tests :
+l'invité converge exactement, le tapis se salit toujours), mousse et effets inchangés. Mesures intermédiaires (hôte, pire
+écriture) : 13,5 ms → 7,8 ms après les tranches → 3,3 ms après les bords.
+
+### 20.5 Niveaux de qualité et PC moins puissants (2.11)
+
+**Constat** : les six niveaux de qualité utilisaient le même pipeline URP (MSAA 4×, occlusion ambiante pleine résolution,
+ombres 2048, HDR) ; « Moyen » ne réduisait presque rien. **Balayage des réglages** (Ultra, scénario de rinçage d'un tapis
+couvert de mousse, 1080p) : SSAO −0,55 ms GPU, ombres du projecteur −0,38 ms, échelle de rendu ×0,75 −0,8 ms, MSAA 4× −0,12 ms,
+bloom −0,3 ms, post-traitement complet −0,4 ms (sur 4,2 ms). À 1080p, cette carte est si peu chargée qu'elle abaisse ses
+fréquences : les écarts y sont faibles ; la charge ×4 ci-dessous est plus parlante.
+
+Paliers créés (Ultra = pipeline d'origine, inchangé) : **Bas** (Very Low, Low) : sans MSAA, sans occlusion ambiante, sans
+ombre de projecteur, échelle de rendu 0,85 ; **Moyen** : sans MSAA, occlusion à mi-résolution (échantillons et flou réduits),
+ombres 1024 ; **Élevé** : MSAA 2×, occlusion à mi-résolution (qualité d'Ultra), ombres 2048 ; **Ultra** (Very High, Ultra).
+
+Résultats (FPS moyen / 1 % bas / GPU ms, moyenne de deux exécutions pour 1080p) :
+
+| Niveau | Repos | Rinçage tapis moussé | Canon à mousse | Mousse, vue rapprochée | Tour de l'atelier |
+|---|---|---|---|---|---|
+| Bas (1080p) | 203 / 147 / 3,6 | 204 / 148 / 3,1 | 206 / 130 / 2,9 | 211 / 158 / 3,2 | 207 / 145 / 3,1 |
+| Moyen (1080p) | 199 / 134 / 4,0 | 200 / 141 / 3,6 | 204 / 147 / 3,4 | 202 / 146 / 3,7 | 203 / 151 / 3,4 |
+| Élevé (1080p) | 193 / 112 / 4,3 | 194 / 124 / 3,9 | 193 / 110 / 3,9 | 196 / 114 / 4,1 | 192 / 117 / 3,7 |
+| Ultra (1080p) | 195 / 144 / 4,4 | 200 / 147 / 3,9 | 204 / 148 / 3,7 | 203 / 150 / 4,1 | 201 / 150 / 3,7 |
+| Moyen, charge GPU ×4 | 200 / 134 / 4,9 | 186 / 110 / 5,3 | 189 / 112 / 5,2 | 185 / 119 / 5,3 | 207 / 140 / 4,6 |
+| Élevé, charge GPU ×4 | 192 / 121 / 5,2 | 154 / 99 / 6,4 | 160 / 104 / 6,2 | 152 / 98 / 6,5 | 197 / 118 / 4,9 |
+| Ultra, charge GPU ×4 | 162 / 102 / 6,2 | 125 / 89 / 7,9 | 126 / 91 / 7,8 | 122 / 92 / 8,1 | 188 / 106 / 5,2 |
+| Moyen, 2 fils CPU (fil principal ms) | 226 / 158 / 2,3 | 223 / 141 / 2,9 | 230 / 162 / 3,0 | 230 / 158 / 2,6 | 226 / 136 / 2,4 |
+| Ultra, 2 fils CPU (fil principal ms) | 227 / 162 / 2,3 | 222 / 150 / 2,9 | 225 / 148 / 3,0 | 230 / 159 / 2,5 | 229 / 164 / 2,5 |
+
+Avant la révision du palier Élevé (occlusion pleine résolution), il coûtait autant qu'Ultra sous charge ×4 (126 FPS,
+7,8 ms GPU dans les scènes de mousse).
+
+**Lecture** : le jeu n'est limité ni par le CPU (2 fils suffisent ici) ni par la mousse ; il l'est par le coût GPU par
+pixel (occlusion ambiante, MSAA, ombres, post-traitement). **Cible proposée pour « Moyen »** : 60 FPS stables en 1080p sur
+une carte d'environ un quart des performances de cette RTX 5060 (ordre de grandeur d'une GTX 1650). Sous la charge ×4,
+« Moyen » reste à 185 à 189 FPS de moyenne dans les scènes de mousse, ce qui laisse une marge, **mais ce n'est pas une mesure
+sur une GTX 1650** : charge ×4 ne reproduit ni la bande passante mémoire, ni le pilote, ni un CPU plus lent. À vérifier sur
+une vraie machine moins puissante (voir limites).
+
+**Limites** : une seule machine ; charge GPU ×4 et affinité CPU sont des approximations ; le niveau par défaut d'une
+nouvelle installation reste Ultra (le joueur choisit « Moyen » dans Paramètres) ; aucune détection automatique du matériel.
