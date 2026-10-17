@@ -27,10 +27,12 @@ Material:
     m_Floats:
     - _Band: 0.02
     - _Fill: 1
-    - _MaxY: -0.035
-    - _MinY: -0.195
+    - _MaxY: -0.062
+    - _MinY: -0.196
     m_Colors:
     - _EmptyColor: {r: 0.8, g: 0.9, b: 0.82, a: 0.35}
-    - _LiquidColor: {r: 0.2, g: 0.62, b: 0.32, a: 0.94}
+    - _LiquidColor: {r: 0.16, g: 0.58, b: 0.27, a: 0.88}
+    - _SurfaceColor: {r: 0.42, g: 0.85, b: 0.5, a: 0.95}
+    - _Wobble: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

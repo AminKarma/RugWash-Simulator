@@ -20,3 +20,5 @@ MonoBehaviour:
   value: 1.35
   targetToolId: brush
   prerequisite: {fileID: 0}
+  requiredReputation: 0
+  level: 1

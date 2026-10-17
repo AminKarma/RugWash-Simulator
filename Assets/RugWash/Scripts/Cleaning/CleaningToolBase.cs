@@ -45,6 +45,8 @@ namespace RugWash.Cleaning
         [SerializeField] protected ToolDefinition definition;
         [Tooltip("Modèle tenu en main (enfant de la caméra).")]
         [SerializeField] protected Transform viewModel;
+        [Tooltip("Finition dorée du modèle au niveau maximal (optionnelle).")]
+        [SerializeField] Effects.GoldenToolSkin goldenSkin;
         [Tooltip("Son en boucle de l'outil (optionnel).")]
         [SerializeField] protected CleaningAudioController toolAudio;
         [Tooltip("Effet joué quand une zone devient propre (optionnel).")]
@@ -94,6 +96,24 @@ namespace RugWash.Cleaning
 
         /// <summary>Multiplicateur de puissance issu des améliorations (1 = aucune).</summary>
         public float PowerMultiplier { get; set; } = 1f;
+        /// <summary>Modèle tenu en main (icône 3D de l'outil, grande mise à jour).</summary>
+        public Transform ViewModel => viewModel;
+        /// <summary>Niveau de l'outil (améliorations par niveaux achetées) et dernier niveau proposé (grande mise à jour).</summary>
+        public int Level { get; set; }
+        public int MaxLevel { get; set; }
+
+        /// <summary>Niveau maximal atteint : l'outil est doré (finition du modèle à la première personne).</summary>
+        public bool IsGolden
+        {
+            get => golden;
+            set
+            {
+                golden = value;
+                if (goldenSkin != null) goldenSkin.SetGolden(value);
+            }
+        }
+
+        bool golden;
         /// <summary>Multiplicateur du rayon de la zone traitée issu des améliorations (1 = aucune).</summary>
         public float RadiusMultiplier { get; set; } = 1f;
         /// <summary>Multiplicateur de consommation issu des améliorations (1 = aucune).</summary>

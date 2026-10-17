@@ -99,6 +99,12 @@ namespace RugWash.Pranks
         [Tooltip("Pendant ce délai après des gouttes, le même joueur ne peut pas en recevoir d'autres (s).")]
         [Min(0f)] public float splashProtectionSeconds = 20f;
 
+        [Header("Batte : frappe (grande mise à jour)")]
+        [Tooltip("Délai minimal entre deux coups de batte, dans le vide ou non (s) ; vérifié aussi par l'autorité.")]
+        [Range(0.25f, 1.5f)] public float batSwingInterval = 0.45f;
+        [Tooltip("Instant du coup dans le mouvement (part de sa durée) : la cible est cherchée à ce moment-là.")]
+        [Range(0.1f, 0.8f)] public float batImpactFraction = 0.38f;
+
         [Header("Batte sur un coéquipier : chute comique")]
         [Range(0.5f, 3f)] public float knockSeconds = 1.4f;
         [Min(0f)] public float knockImpulse = 6f;

@@ -42,9 +42,14 @@ namespace RugWash.Pranks
         [SerializeField] LayerMask aimMask = ~0;
         [Header("Modèles tenus en main")]
         [SerializeField] Transform batModel;
+        /// <summary>Modèles tenus en main (icônes 3D des gadgets, grande mise à jour).</summary>
+        public Transform BatModel => batModel;
+        public Transform BlasterModel => blasterModel;
         [SerializeField] Transform blasterModel;
         [Tooltip("Bouche du fusil (bouffée, origine du tir).")]
         [SerializeField] Transform blasterTip;
+        [Tooltip("Inventaire (grande mise à jour) : batte et fusil doivent être portés ; le pipi, jamais limité. Optionnel.")]
+        [SerializeField] PlayerInventory inventory;
 
         readonly float[] readyAt = new float[4];
         readonly PrankRequest[] pending = new PrankRequest[4];
@@ -76,6 +81,17 @@ namespace RugWash.Pranks
 
         public event Action<PrankGadget> EquippedChanged;
         public event Action<string> Message;
+        /// <summary>Un coup de batte part (même dans le vide) : les autres joueurs voient le geste (réseau).</summary>
+        public event Action Swung;
+
+        // Batte (grande mise à jour) : le mouvement part toujours ; la cible est cherchée à l'impact.
+        float nextSwingAt, impactTimer, bounce;
+        bool impactPending;
+        /// <summary>Coups de batte partis, et coups partis dans le vide (sans cible : aucune recharge).</summary>
+        public int Swings { get; private set; }
+        public int MissedSwings { get; private set; }
+        /// <summary>Un coup de batte est en cours (son impact n'est pas encore résolu).</summary>
+        public bool SwingPending => impactPending;
 
         public bool IsConfigured(out string missing)
         {
@@ -104,20 +120,41 @@ namespace RugWash.Pranks
 
         void OnEnable()
         {
-            if (tools != null) tools.ResumeRequested += Unequip;
+            if (tools != null)
+            {
+                tools.ResumeRequested += Unequip;
+                tools.GadgetRequested += OnGadgetRequested;
+            }
             if (upgrades != null) upgrades.Changed += OnUpgradesChanged;
+            if (inventory != null) inventory.Changed += OnUpgradesChanged;
         }
 
         void OnDisable()
         {
-            if (tools != null) tools.ResumeRequested -= Unequip;
+            if (tools != null)
+            {
+                tools.ResumeRequested -= Unequip;
+                tools.GadgetRequested -= OnGadgetRequested;
+            }
             if (upgrades != null) upgrades.Changed -= OnUpgradesChanged;
+            if (inventory != null) inventory.Changed -= OnUpgradesChanged;
+        }
+
+        void OnGadgetRequested(PrankGadget gadget)
+        {
+            if (gadget != Equipped) Equip(gadget);
         }
 
         void OnUpgradesChanged()
         {
-            if (Equipped != PrankGadget.None && !Owns(Equipped)) Unequip();
+            if (Equipped != PrankGadget.None && !IsAtHand(Equipped)) Unequip();
         }
+
+        /// <summary>
+        /// Gadget utilisable maintenant : acheté et porté (inventaire). Le pipi n'occupe jamais d'emplacement : acheté, il est
+        /// toujours disponible.
+        /// </summary>
+        public bool IsAtHand(PrankGadget gadget) => Owns(gadget) && (inventory == null || inventory.IsCarried(gadget));
 
         public bool Owns(PrankGadget gadget)
         {
@@ -150,7 +187,7 @@ namespace RugWash.Pranks
                 int index = start + step;
                 if (index > PrankTuning.All.Length) break;
                 var candidate = (PrankGadget)index;
-                if (Owns(candidate))
+                if (IsAtHand(candidate) || (PlayerInventory.AutomationCarriesOnSelect && Owns(candidate)))
                 {
                     Equip(candidate);
                     return;
@@ -172,6 +209,11 @@ namespace RugWash.Pranks
                 Message?.Invoke(PrankRules.Describe(PrankResult.NotOwned, Name(gadget)));
                 return false;
             }
+            if (!IsAtHand(gadget) && !(inventory != null && inventory.CarryGadgetForAutomation(gadget)))
+            {
+                Message?.Invoke($"{Name(gadget)} est au casier : prenez-le au casier (4 emplacements d'inventaire)");
+                return false;
+            }
             Equipped = gadget;
             tools.Suspended = true;
             ShowModels();
@@ -184,6 +226,7 @@ namespace RugWash.Pranks
             if (Equipped == PrankGadget.None) return;
             Equipped = PrankGadget.None;
             animTimer = 0f;
+            impactPending = false;
             ShowModels();
             tools.Suspended = false;
             EquippedChanged?.Invoke(PrankGadget.None);
@@ -209,6 +252,11 @@ namespace RugWash.Pranks
         void Update()
         {
             Animate(Time.deltaTime);
+            if (impactPending)
+            {
+                impactTimer -= Time.deltaTime;
+                if (impactTimer <= 0f) ResolveBatImpact();
+            }
             if (gameState == null || !gameState.IsGameplayActive) return;
             if (input.GadgetPressed) CycleNext();
             if (Equipped == PrankGadget.None || (knockdown != null && knockdown.IsDown)) return;
@@ -221,6 +269,7 @@ namespace RugWash.Pranks
             var gadget = Equipped;
             var settings = tuning.Get(gadget);
             if (settings == null) return false;
+            if (gadget == PrankGadget.Bat) return Swing(settings);
             float remaining = CooldownRemaining(gadget);
             if (remaining > 0f) return Refuse(gadget, PrankResult.Cooldown, remaining);
             if (settings.costPerUse > 0 && wallet.Balance < settings.costPerUse) return Refuse(gadget, PrankResult.InsufficientFunds, 0f);
@@ -241,6 +290,62 @@ namespace RugWash.Pranks
             return result == PrankResult.Done;
         }
 
+        /// <summary>
+        /// Coup de batte : le mouvement et son sifflement partent toujours, même sans personne devant (coups dans le vide
+        /// enchaînables, au rythme du mouvement). La cible est cherchée au moment de l'impact, dans l'axe de visée et à portée :
+        /// l'animation, la portée et la zone touchée coïncident. La recharge ne démarre que si le coup touche.
+        /// </summary>
+        bool Swing(PrankTuning.Gadget settings)
+        {
+            if (Time.time < nextSwingAt || impactPending) return false;
+            nextSwingAt = Time.time + Mathf.Max(tuning.batSwingInterval, settings.useSeconds);
+            StartAnimation(settings);
+            bounce = 0f;
+            impactPending = true;
+            impactTimer = settings.useSeconds * tuning.batImpactFraction;
+            Swings++;
+            effects.PlaySwing(EffectOrigin(PrankGadget.Bat));
+            Swung?.Invoke();
+            return true;
+        }
+
+        void ResolveBatImpact()
+        {
+            impactPending = false;
+            var settings = tuning.Get(PrankGadget.Bat);
+            if (Equipped != PrankGadget.Bat || settings == null || (knockdown != null && knockdown.IsDown)) return;
+            if (!TryTarget(settings, out PrankRequest request, out _) )
+            {
+                // Dans le vide : rien à valider, aucune recharge, aucun message.
+                MissedSwings++;
+                LastResult = PrankResult.NoTarget;
+                return;
+            }
+            float remaining = CooldownRemaining(PrankGadget.Bat);
+            if (remaining > 0f)
+            {
+                // Coup qui atteint une cible pendant la recharge : sans effet (le geste reste visible).
+                LastResult = PrankResult.Cooldown;
+                Message?.Invoke($"{Name(PrankGadget.Bat)} : coup sans effet, recharge encore {Mathf.CeilToInt(remaining)} s");
+                return;
+            }
+            LastRequest = request;
+            if (Remote != null)
+            {
+                pending[(int)PrankGadget.Bat] = request;
+                readyAt[(int)PrankGadget.Bat] = Time.time + settings.cooldownSeconds;
+                Remote.RequestPrank(request);
+                return;
+            }
+            var result = service.Execute(actor, request, out PrankOutcome outcome);
+            OnResult(PrankGadget.Bat, result, outcome);
+        }
+
+        /// <summary>Zones de lavage (grande mise à jour) : tapis des autres zones, reconnus par le gestionnaire de commandes.</summary>
+        public Orders.OrderManager Orders { get; set; }
+
+        bool IsOrderRug(RugCleaningController surface) => Orders != null && Orders.RugOf(Orders.BayOf(surface)) == surface;
+
         bool TryTarget(PrankTuning.Gadget settings, out PrankRequest request, out PrankResult problem)
         {
             var ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
@@ -252,7 +357,8 @@ namespace RugWash.Pranks
             if (Physics.Raycast(ray, out RaycastHit hit, 8f, aimMask, QueryTriggerInteraction.Ignore))
             {
                 var surface = hit.collider.GetComponentInParent<RugCleaningController>();
-                if (surface != null && surface == rug && rug.IsLoaded)
+                // Tapis d'une commande (zone 1 ou 2) ; l'aire et le sol ne sont pas des cibles de farce.
+                if (surface != null && surface.IsLoaded && surface.Kind == SurfaceKind.Rug && (surface == rug || IsOrderRug(surface)))
                 {
                     rugHit = true;
                     rugDistance = hit.distance;
@@ -315,6 +421,12 @@ namespace RugWash.Pranks
             LastResult = result;
             readyAt[(int)gadget] = Time.time + settings.cooldownSeconds;
             effects.Play(gadget, EffectOrigin(gadget), outcome.Point, outcome.HitPlayer, settings.useSeconds);
+            if (gadget == PrankGadget.Bat)
+            {
+                // Retour d'impact : la batte rebondit, et le joueur sait qu'il a touché.
+                bounce = 1f;
+                Message?.Invoke(outcome.HitPlayer ? "Touché !" : "Coup de batte sur le tapis");
+            }
         }
 
         /// <summary>Invité : l'hôte a répondu à la dernière demande pour ce gadget.</summary>
@@ -349,9 +461,14 @@ namespace RugWash.Pranks
             float t = 1f - animTimer / Mathf.Max(0.01f, animDuration);
             if (Equipped == PrankGadget.Bat && batModel != null)
             {
-                // Élan puis coup en travers de l'écran, retour en position.
-                float swing = t < 0.35f ? Mathf.SmoothStep(0f, 1f, t / 0.35f) : Mathf.SmoothStep(1f, 0f, (t - 0.35f) / 0.65f);
-                batModel.localRotation = batRest * Quaternion.Euler(swing * 70f, -swing * 85f, swing * 25f);
+                // Armé en arrière, coup rapide en travers de l'écran (impact vers 38 %), puis retour en position. Un coup
+                // qui touche rebondit (la tête de la batte repart en arrière d'un coup sec).
+                float strike = tuning != null ? tuning.batImpactFraction : 0.38f;
+                float swing = t < strike ? -0.25f * Mathf.Sin(t / strike * Mathf.PI) + Mathf.SmoothStep(0f, 1f, t / strike)
+                    : Mathf.SmoothStep(1f, 0f, (t - strike) / (1f - strike));
+                bounce = Mathf.MoveTowards(bounce, 0f, dt * 6f);
+                swing -= bounce * 0.35f;
+                batModel.localRotation = batRest * Quaternion.Euler(swing * 70f, -swing * 95f, swing * 30f);
             }
             else if (Equipped == PrankGadget.Blaster && blasterModel != null)
             {

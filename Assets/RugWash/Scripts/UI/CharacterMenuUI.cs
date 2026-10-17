@@ -65,7 +65,8 @@ namespace RugWash.UI
         public bool Open()
         {
             if (IsOpen) return false;
-            Look = CharacterPalette.Clamp(save != null ? save.Current.character : CharacterPalette.Default);
+            // L'apparence appartient au profil du joueur (commune à tous ses emplacements).
+            Look = CharacterPalette.Clamp(save != null ? save.Profile.character : CharacterPalette.Default);
             if (texture == null)
             {
                 texture = new RenderTexture(512, 768, 16, RenderTextureFormat.ARGB32) { name = "CharacterPreview", antiAliasing = 2 };
@@ -87,10 +88,10 @@ namespace RugWash.UI
             panel.SetActive(false);
             IsOpen = false;
             previewCamera.enabled = false;
-            if (save != null && !save.Current.character.Equals(Look))
+            if (save != null && !save.Profile.character.Equals(Look))
             {
-                save.Current.character = Look;
-                save.SaveNow("personnage");
+                save.Profile.character = Look;
+                save.SaveProfile();
             }
         }
 

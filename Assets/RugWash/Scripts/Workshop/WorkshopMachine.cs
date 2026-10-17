@@ -168,7 +168,9 @@ namespace RugWash.Workshop
             }
             if (running) return $"{displayName} : cycle déjà en cours";
             if (rug == null || !rug.IsLoaded) return $"{displayName} : aucun tapis sur l'aire de lavage";
-            string order = orders != null && orders.ActiveOrder != null ? orders.ActiveOrder.id : null;
+            // Machine d'appoint de la zone 1 : la commande du tapis posé sur son aire (pas celle de la zone 2).
+            var current = orders != null ? orders.OrderOn(rug) : null;
+            string order = current != null ? current.id : null;
             if (order == null) return $"{displayName} : acceptez d'abord une commande";
             if (order == usedForOrder) return $"{displayName} : déjà utilisée pour cette commande (un cycle par commande)";
             usedForOrder = order;

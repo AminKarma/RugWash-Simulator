@@ -28,7 +28,15 @@ et voit le motif d'origine réapparaître progressivement.
 > crash et reconnexion sans personnage fantôme, versions vérifiées, outils et jet corrigés, fusil (KO cartoon de 5 s),
 > raclette, barre d'outils et boutique, mousse sans à-coups en ligne, niveaux de qualité réellement allégés — rapport :
 > [Assets/RugWash/Documentation/RAPPORT_CORRECTIFS.md](Assets/RugWash/Documentation/RAPPORT_CORRECTIFS.md), `VALIDATION.md` § 20.
-> Build Windows produit et vérifié automatiquement.
+> Build Windows produit et vérifié automatiquement (avant la grande mise à jour).
+> **Grande mise à jour** (phases 1 à 7) : six emplacements de sauvegarde (3 solo, 3 multijoueur) et profil du joueur,
+> inventaire à 4 emplacements et casier, batte retravaillée, **agrandissement de l'atelier avec une deuxième zone de
+> lavage**, **machine à laver** (cycle de 15 min), améliorations d'outil à 3 niveaux et **outils dorés**, tapis presque
+> noirs et progression des missions avec **difficulté réglable**, **chat textuel**, **chat vocal de proximité**,
+> expulsion et partie ouverte/fermée, flacon translucide au liquide qui ballotte, **icônes 3D des outils**, boutique sans
+> débordement, **4 préréglages graphiques** et synchronisation verticale indépendante — détail, tests et limites :
+> [Assets/RugWash/Documentation/GRANDE_MISE_A_JOUR.md](Assets/RugWash/Documentation/GRANDE_MISE_A_JOUR.md) (aucun build ni
+> benchmark lancé pour cette mise à jour).
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
 > Voir [Assets/RugWash/Documentation/PRODUCTION.md](Assets/RugWash/Documentation/PRODUCTION.md) pour le suivi détaillé.
@@ -76,7 +84,9 @@ fenêtre des touches) suivent le dernier périphérique utilisé, le curseur est
 | Courir | Maj gauche (maintenue) | Clic du stick gauche (LS · L3) : la course dure jusqu'à l'arrêt |
 | Regarder | Souris | Stick droit |
 | Utiliser l'outil | Clic gauche (maintenu) | RT · R2 (maintenue) |
-| Outil suivant / précédent | Molette, ou 1–9 et 0 (rangée du haut ou pavé numérique) ; le 11ᵉ outil (monobrosse) à la molette | RB / LB · R1 / L1 (les outils pas encore achetés sont sautés) |
+| Outil suivant / précédent | Molette, ou 1–4 (les quatre emplacements de l'inventaire ; le reste est au casier) | RB / LB · R1 / L1 (objets portés seulement) |
+| Chat écrit (en ligne) | Entrée (Entrée envoie, Échap annule) | — (lecture seulement) |
+| Parler (chat vocal en ligne, mode « appuyer pour parler ») | V (maintenue) | — |
 | Interagir (postes, caniveau, ordinateur, robot aspirateur ou sa base, machines de l'atelier) | E | A · Croix |
 | Scanner la saleté (surligne les zones encore sales, puis recharge) | R | Y · Triangle |
 | Gadget de farce suivant / ranger (gadgets achetés, v0.1.2) | G | Croix haut |
@@ -92,10 +102,14 @@ fenêtre des touches) suivent le dernier périphérique utilisé, le curseur est
 Dans les menus, la fenêtre ouverte reçoit le focus (premier élément, ou celui laissé à la fermeture d'une fenêtre ouverte
 par-dessus) et les listes défilent jusqu'à l'élément sélectionné.
 
-**Paramètres** (menu principal ou pause → « Paramètres », trois onglets) — chaque option est réellement appliquée :
-- **Général** : volumes général / effets / interface / **musique** (0 % = muette), résolution, mode d'affichage (plein écran, plein écran fenêtré,
-  fenêtré), niveau de qualité (Bas, Moyen, Élevé et Ultra n'ont pas le même coût : MSAA, occlusion ambiante, ombres, échelle
-  de rendu — « Moyen » pour un PC moins puissant, voir `VALIDATION.md` § 20.5) ;
+**Paramètres** (menu principal ou pause → « Paramètres », quatre onglets) — chaque option est réellement appliquée :
+- **Général** : volumes général / effets / interface / **musique** (0 % = muette), **difficulté des missions** (Détendu,
+  Normal, Exigeant : nouvelles missions), résolution, mode d'affichage (plein écran, plein écran fenêtré, fenêtré),
+  **chat vocal** (micro : appuyer pour parler, toujours ouvert, coupé ; volume des voix des autres) ;
+- **Graphismes** (grande mise à jour) : qualité en **4 préréglages** (Très bas, Bas, Moyen, Ultra — ils changent vraiment le
+  rendu : échelle de rendu, ombres, occlusion ambiante, MSAA, HDR), **synchronisation verticale** (indépendante du
+  préréglage), **limite d'images** (sans effet avec la synchronisation, affiché comme tel), post-traitement ; état du ray
+  tracing affiché (non proposé : le moteur de rendu URP n'en offre pas) ;
 - **Commandes** : sensibilité de la souris, inversion de l'axe vertical (souris et stick), **balancement** de la caméra et des
   outils (0 % = désactivé), **vitesse de la caméra au stick** (30–360 °/s), **zone morte des sticks** (2–50 %),
   **vibrations** (intensité, 0 = désactivées) ;
@@ -482,8 +496,15 @@ maximal), l'ajouter à `ScriptableObjects/ProductLibrary`. Il apparaît dans la 
 
 ## 8. Sauvegarde
 
-Fichier JSON local : `%USERPROFILE%\AppData\LocalLow\RugWash Studio\RugWash Simulator\rugwash_save.json`
-(`Application.persistentDataPath`).
+Grande mise à jour : dossier `%USERPROFILE%\AppData\LocalLow\RugWash Studio\RugWash Simulator\` (`Application.persistentDataPath`) :
+- `rugwash_profile.json` : **profil du joueur** (niveau et expérience, paramètres, apparence, derniers emplacements) ;
+- `rugwash_solo_1..3.json` et `rugwash_multi_1..3.json` : **six emplacements** (format v5), jamais mélangés ; aperçu
+  (temps de jeu, dernière session, progression) dans l'écran des emplacements ; un emplacement multijoueur reçoit une seule
+  fois la progression de l'hôte à la première arrivée, puis reste indépendant ;
+- l'ancienne `rugwash_save.json` est reprise dans « Solo 1 » puis renommée `.migrated`.
+Section `workshop` : en plus, aire de la zone 2 (`workSurface2`) et machine à laver (`washer` : commande, temps restant,
+état du tapis). Les commandes posées dans les zones de lavage ne sont pas sauvegardées (abandonnées en quittant) ; celle
+dont le tapis est dans la machine à laver l'est. Le format ci-dessous est celui d'avant (v1), conservé pour mémoire.
 
 ```json
 {
@@ -534,7 +555,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel (v0.1.2 jalon 7) : 223 / 223 tests EditMode, 127 / 127 tests PlayMode, benchmark du jeu compilé 15 / 15 et 43 / 43 vérifications multijoueur entre deux processus (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel (grande mise à jour) : 260 / 260 tests EditMode et 156 / 156 tests PlayMode. Le benchmark du jeu compilé (15 / 15) et les 43 / 43 vérifications multijoueur entre deux processus datent de v0.1.2 jalon 7 : ils n'ont pas été relancés pour la grande mise à jour (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

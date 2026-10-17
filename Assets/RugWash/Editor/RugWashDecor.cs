@@ -208,6 +208,30 @@ namespace RugWash.Editor
             return root.gameObject;
         }
 
+        /// <summary>
+        /// Casier métallique (grande mise à jour) contre le mur du fond, à droite de l'armoire à outils : corps, porte à
+        /// charnière (animée à l'ouverture), aérations, poignée, étiquette. Retourne la racine (collider d'interaction) et la porte.
+        /// </summary>
+        public static (GameObject root, Transform door) Locker(Transform parent, RugWashContentBuilder.Content c, MeshStore m)
+        {
+            // Entre l'horloge et l'armoire à outils : rien d'autre au sol ici (les cartons du cagibi sont dans le coin droit).
+            var root = Group("Locker", parent, new Vector3(1.85f, 0f, HalfZ - 0.33f), 180f);
+            Prop("Locker_Body", root, Rounded(m, new Vector3(0.82f, 1.9f, 0.5f), 0.02f), c["DarkMetal"], new Vector3(0f, 0.95f, 0f));
+            Prop("Locker_Plinth", root, Rounded(m, new Vector3(0.84f, 0.08f, 0.52f), 0.01f), c["Steel"], new Vector3(0f, 0.04f, 0f));
+            // Porte : pivot sur la charnière gauche (vue de face), le panneau est décalé vers la droite.
+            var hinge = Group("Locker_DoorHinge", root, new Vector3(-0.39f, 0.97f, 0.26f));
+            Prop("Locker_Door", hinge, Rounded(m, new Vector3(0.78f, 1.78f, 0.03f), 0.012f), c["SafetyYellow"], new Vector3(0.39f, 0f, 0f));
+            for (int i = 0; i < 4; i++)
+                Prop("Locker_Vent", hinge, Rounded(m, new Vector3(0.42f, 0.02f, 0.012f), 0.004f), c["DarkMetal"], new Vector3(0.39f, 0.68f - i * 0.06f, 0.02f));
+            Prop("Locker_Handle", hinge, Rounded(m, new Vector3(0.03f, 0.2f, 0.035f), 0.01f), c["Chrome"], new Vector3(0.7f, 0f, 0.035f));
+            Prop("Locker_Label", hinge, Rounded(m, new Vector3(0.3f, 0.09f, 0.008f), 0.004f), c["Wood"], new Vector3(0.39f, 0.4f, 0.02f));
+            RugWashSceneBuilder.CreateSign(root, "Locker_Sign", "CASIER", new Vector3(0f, 2.05f, 0.27f), Quaternion.Euler(0f, 180f, 0f), m, c);
+            var collider = root.gameObject.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 0.95f, 0.02f);
+            collider.size = new Vector3(0.84f, 1.9f, 0.54f);
+            return (root.gameObject, hinge);
+        }
+
         public static GameObject OrderDesk(Transform parent, RugWashContentBuilder.Content c, MeshStore m)
         {
             var root = Group("OrderDesk", parent, new Vector3(4.3f, 0f, -3.7f));
@@ -388,7 +412,7 @@ namespace RugWash.Editor
             mesh.alignment = TextAlignment.Center;
             mesh.fontStyle = FontStyle.Bold;
             mesh.color = color;
-            go.GetComponent<MeshRenderer>().sharedMaterial = UIFont.material;
+            DepthTestedText(mesh);
         }
     }
 }

@@ -63,7 +63,8 @@ namespace RugWash.UI
 
         void Show(OrderResult result)
         {
-            titleLabel.text = $"{result.Order.title} — {result.Order.clientName}";
+            string zone = orders.UnlockedBayCount > 1 ? $" · {OrderManager.BayLabel(result.Bay).ToLowerInvariant()}" : string.Empty;
+            titleLabel.text = $"{result.Order.title} — {result.Order.clientName}{zone}";
             gradeLabel.text = OrderEvaluator.GradeLabel(result.Grade);
             gradeLabel.color = GradeColor(result.Grade);
             scoreLabel.text = $"Score : {result.Score:0}/100 · durée {OrderEvaluator.FormatTime(result.ElapsedSeconds)}";

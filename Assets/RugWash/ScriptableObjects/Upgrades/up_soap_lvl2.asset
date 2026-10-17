@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d333a16da8f21469968da14f880b1f, type: 3}
+  m_Name: up_soap_lvl2
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
+  id: up_soap_lvl2
+  displayName: "Pulv\xE9risateur de d\xE9tergent \u2014 niveau 2"
+  description: "Pi\xE8ces professionnelles : 25 % de puissance en plus."
+  price: 350
+  effect: 4
+  value: 1.25
+  targetToolId: soap
+  prerequisite: {fileID: 11400000, guid: 1abe5a65752b6bb4f9cd7efa2acb7982, type: 2}
+  requiredReputation: 8
+  level: 2

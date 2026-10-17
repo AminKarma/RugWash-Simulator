@@ -95,7 +95,7 @@ namespace RugWash.Tests
         public void Migration_V3WithProgress_KeepsTheTidyWorkshop()
         {
             Assert.AreEqual(SaveMigration.Outcome.Migrated, SaveMigration.TryParse("{\"version\":3,\"profileId\":\"p\",\"money\":10}", out var started));
-            Assert.AreEqual(4, started.version);
+            Assert.AreEqual(SaveMigration.CurrentVersion, started.version);
             CollectionAssert.Contains(started.upgrades, "up_base_1", "Une partie commencée garde l'atelier qu'elle avait.");
             Assert.AreEqual(SaveMigration.Outcome.Migrated, SaveMigration.TryParse("{\"version\":3,\"profileId\":\"p\"}", out var fresh));
             CollectionAssert.DoesNotContain(fresh.upgrades, "up_base_1", "Nouvelle partie : le cagibi.");

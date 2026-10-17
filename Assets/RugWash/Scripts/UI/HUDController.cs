@@ -43,14 +43,35 @@ namespace RugWash.UI
         PlayerToolController tools;
         PlayerInteractor interactor;
         PlayerInputReader input;
-        RugCleaningController rug;
+        RugCleaningController defaultRug;
         GameStateManager gameState;
         WalletManager wallet;
         ReputationManager reputation;
         OrderManager orders;
         DirtScanner scanner;
-        WorkSurface workSurface;
+        WorkSurface workSurface, extraWorkSurface, lastAlertSurface;
         bool workSurfaceWasClean = true;
+        int lastAlertKey = int.MinValue;
+        Workshop.WashingMachine washer;
+        readonly System.Text.StringBuilder otherWork = new System.Text.StringBuilder();
+        RugCleaningController lastWearRug;
+
+        /// <summary>
+        /// Tapis suivi par le HUD : celui de la zone de lavage où se trouve le joueur (grande mise à jour : plusieurs zones),
+        /// sinon le tapis de la zone 1.
+        /// </summary>
+        RugCleaningController CurrentRug => orders != null && orders.BayCount > 0 ? orders.CurrentRug : defaultRug;
+
+        /// <summary>Aire de lavage de la zone courante.</summary>
+        WorkSurface CurrentWorkSurface
+        {
+            get
+            {
+                if (orders == null || orders.BayCount < 2) return workSurface;
+                var surface = orders.WorkSurfaceOf(orders.CurrentBay);
+                return surface != null ? surface : workSurface;
+            }
+        }
         ProductStockBook products;
         ProductDefinition lastProduct;
         float lastWear;
@@ -99,7 +120,7 @@ namespace RugWash.UI
             tools = toolController;
             interactor = playerInteractor;
             input = inputReader;
-            rug = rugController;
+            defaultRug = rugController;
             gameState = state;
 
             interactor.Interacted += ShowToast;
@@ -109,7 +130,7 @@ namespace RugWash.UI
             gameState.ModalsChanged += RefreshVisibility;
             toastLabel.text = string.Empty;
             cleanlinessBaseColor = cleanlinessFill.color;
-            displayedCleanliness = rug != null ? rug.Cleanliness01 : 0f;
+            displayedCleanliness = CurrentRug != null ? CurrentRug.Cleanliness01 : 0f;
             RefreshVisibility();
             RefreshAll(force: true);
         }
@@ -123,6 +144,23 @@ namespace RugWash.UI
             wallet.Wallet.Changed += OnWalletChanged;
             reputation.Changed += OnReputationChanged;
             RefreshEconomy();
+        }
+
+        Save.SaveManager profileSource;
+
+        /// <summary>Niveau du joueur (profil, commun à tous les emplacements) : affiché sous l'argent ; message à chaque gain.</summary>
+        public void BindProfile(Save.SaveManager save)
+        {
+            profileSource = save;
+            if (save == null) return;
+            save.ExperienceGained += OnExperienceGained;
+            RefreshEconomy();
+        }
+
+        void OnExperienceGained(int amount, int level, bool levelUp)
+        {
+            RefreshEconomy();
+            ShowToast(levelUp ? $"Niveau {level} atteint ! (+{amount} XP)" : $"+{amount} XP");
         }
 
         /// <summary>Gadgets de farce (v0.1.2) : nom, recharge et coût à la place de l'outil quand un gadget est en main.</summary>
@@ -154,32 +192,56 @@ namespace RugWash.UI
         /// Indicateur permanent de l'aire de lavage (zone de nettoyage) : propreté, recontamination du tapis au-delà du seuil
         /// de saleté, et blocage des nouvelles commandes sous la propreté minimale.
         /// </summary>
-        public void BindWorkSurface(WorkSurface surface)
+        public void BindWorkSurface(WorkSurface surface, WorkSurface extra = null)
         {
             workSurface = surface;
             workSurface.StatusChanged += OnWorkSurfaceChanged;
             workSurface.Contaminated += OnContaminated;
-            OnWorkSurfaceChanged(workSurface.Status);
+            // Zone de lavage 2 (agrandissement) : l'alerte suit l'aire de la zone où se trouve le joueur.
+            extraWorkSurface = extra;
+            if (extraWorkSurface != null)
+            {
+                extraWorkSurface.StatusChanged += OnWorkSurfaceChanged;
+                extraWorkSurface.Contaminated += OnContaminated;
+            }
+            RefreshWorkSurface(force: true);
         }
 
-        void OnWorkSurfaceChanged(WorkSurfaceStatus status)
+        /// <summary>Machine à laver (grande mise à jour) : temps restant rappelé sous la commande en cours.</summary>
+        public void BindWasher(Workshop.WashingMachine machine) => washer = machine;
+
+        void OnWorkSurfaceChanged(WorkSurfaceStatus status) => RefreshWorkSurface(force: false);
+
+        /// <summary>Alerte de l'aire de la zone courante, réécrite seulement si son état affiché change.</summary>
+        void RefreshWorkSurface(bool force)
         {
-            workSurfaceLabel.text = DescribeWorkSurface(status);
-            if (status.IsClean && !workSurfaceWasClean) ShowToast("Aire de lavage propre");
+            var surface = CurrentWorkSurface;
+            if (surface == null) return;
+            var status = surface.Status;
+            bool multiple = orders != null && orders.UnlockedBayCount > 1;
+            int key = loadingMessage != null ? -1
+                : (status.IsClean ? 1 : 0) | (surface.AllowsNewOrder ? 2 : 0) | (surface.ContaminatesRug ? 4 : 0) | (multiple ? 8 : 0)
+                  | (status.CleanlinessPercent << 4) | (orders != null ? orders.BayOf(surface.Surface) << 12 : 0);
+            if (!force && key == lastAlertKey && surface == lastAlertSurface) return;
+            if (surface == lastAlertSurface && status.IsClean && !workSurfaceWasClean) ShowToast("Aire de lavage propre");
+            lastAlertKey = key;
+            lastAlertSurface = surface;
             workSurfaceWasClean = status.IsClean;
+            workSurfaceLabel.text = DescribeWorkSurface(surface, status, multiple);
         }
 
-        string DescribeWorkSurface(in WorkSurfaceStatus status)
+        string DescribeWorkSurface(WorkSurface surface, in WorkSurfaceStatus status, bool multiple)
         {
-            if (loadingMessage != null || workSurface == null || workSurface.Surface == null || workSurface.Surface.Grid == null) return string.Empty;
-            if (status.IsClean) return "Aire de lavage : propre";
-            const string how = "rincez (outil 4) puis balayez vers le caniveau (outil 7)";
-            if (!workSurface.AllowsNewOrder)
-                return $"Aire de lavage trop sale : {status.CleanlinessPercent} % propre ({workSurface.MinCleanlinessPercent} % requis " +
+            if (loadingMessage != null || surface == null || surface.Surface == null || surface.Surface.Grid == null) return string.Empty;
+            string area = multiple && orders != null ? $"Aire de lavage ({OrderManager.BayLabel(orders.BayOf(surface.Surface)).ToLowerInvariant()})" : "Aire de lavage";
+            if (status.IsClean) return $"{area} : propre";
+            const string how = "rincez (lance ou seau) puis balayez ou raclez vers le caniveau";
+            if (!surface.AllowsNewOrder)
+                return $"{area} trop sale : {status.CleanlinessPercent} % propre ({surface.MinCleanlinessPercent} % requis " +
                        $"pour une nouvelle commande) — {how}";
-            if (workSurface.ContaminatesRug)
-                return $"Aire de lavage sale : {status.CleanlinessPercent} % propre — le tapis posé dessus se salit ! {how}";
-            return $"Aire de lavage : {status.CleanlinessPercent} % propre — {how}";
+            if (surface.ContaminatesRug)
+                return $"{area} sale : {status.CleanlinessPercent} % propre — le tapis posé dessus se salit ! {how}";
+            return $"{area} : {status.CleanlinessPercent} % propre — {how}";
         }
 
         void OnContaminated(float amount) =>
@@ -220,8 +282,16 @@ namespace RugWash.UI
         /// </summary>
         void CheckFiberWear()
         {
-            if (rug == null || rug.Grid == null || rug.Fragility <= 0f) return;
-            float wear = rug.Grid.AverageWear;
+            var watched = CurrentRug;
+            if (watched == null || watched.Grid == null || watched.Fragility <= 0f) return;
+            float wear = watched.Grid.AverageWear;
+            // Changement de zone : la nouvelle usure sert de référence (pas d'alerte pour l'usure de l'autre tapis).
+            if (watched != lastWearRug)
+            {
+                lastWearRug = watched;
+                lastWear = wear;
+                return;
+            }
             if (wear > lastWear + 0.0005f && Time.unscaledTime >= nextWearWarning)
             {
                 ShowToast($"Attention : fibres abîmées ({wear * 100f:0.#} %) — humidifiez ou savonnez avant de brosser");
@@ -239,7 +309,7 @@ namespace RugWash.UI
         {
             loadingMessage = string.IsNullOrEmpty(message) ? null : message;
             RefreshVisibility();
-            if (workSurface != null) workSurfaceLabel.text = DescribeWorkSurface(workSurface.Status);
+            RefreshWorkSurface(force: true);
             lastCleanPercent = int.MinValue;
             if (tools != null) RefreshAll(force: true);
         }
@@ -283,20 +353,43 @@ namespace RugWash.UI
         void RefreshEconomy()
         {
             if (wallet == null) return;
-            economyLabel.text = $"{WalletManager.Format(wallet.Balance)}\nRéputation {reputation.Points}";
-            var order = orders.ActiveOrder;
+            economyLabel.text = $"{WalletManager.Format(wallet.Balance)}\nRéputation {reputation.Points}" +
+                                (profileSource != null ? $" · niveau {profileSource.Profile.Level}" : string.Empty);
+            int bay = orders.CurrentBay;
+            var order = orders.OrderOf(bay);
             string interact = input != null ? input.Label("Interact") : "E";
-            bool finished = rug != null && rug.IsFinished;
-            orderLabel.text = order == null
-                ? $"Aucune commande — missions sur l'ordinateur ({interact})"
-                : $"{order.title} · " + (finished ? "tapis terminé" : $"objectif {order.objectives.targetCleanliness * 100f:0} %") +
-                  $" · {OrderEvaluator.FormatTime(orders.ElapsedSeconds)}\n" +
-                  $"Livrer sur l'ordinateur, application Missions ({interact})";
+            var bayRug = orders.RugOf(bay);
+            bool finished = bayRug != null && bayRug.IsFinished;
+            string zone = orders.UnlockedBayCount > 1 ? $"{OrderManager.BayLabel(bay)} · " : string.Empty;
+            orderLabel.text = (order == null
+                ? $"{zone}Aucune commande — missions sur l'ordinateur ({interact})"
+                : $"{zone}{order.title} · " + (finished ? "tapis terminé" : $"objectif {order.objectives.targetCleanliness * 100f:0} %") +
+                  $" · {OrderEvaluator.FormatTime(orders.ElapsedOf(bay))}\n" +
+                  $"Livrer sur l'ordinateur, application Missions ({interact})") + OtherWork(bay);
+        }
+
+        /// <summary>Les autres zones occupées et la machine à laver, sur une ligne (vide s'il n'y a rien d'autre en cours).</summary>
+        string OtherWork(int currentBay)
+        {
+            otherWork.Clear();
+            for (int i = 0; i < orders.BayCount; i++)
+            {
+                var other = orders.OrderOf(i);
+                if (i == currentBay || other == null) continue;
+                var otherRug = orders.RugOf(i);
+                otherWork.Append(otherWork.Length == 0 ? "\n" : " · ").Append(OrderManager.BayLabel(i)).Append(" : ").Append(other.title);
+                if (otherRug != null && otherRug.Grid != null) otherWork.Append(' ').Append(Mathf.FloorToInt(otherRug.Cleanliness01 * 100f)).Append(" %");
+            }
+            if (washer != null && washer.State != Workshop.WasherState.Free)
+                otherWork.Append(otherWork.Length == 0 ? "\n" : " · ").Append("Machine à laver : ")
+                    .Append(washer.State == Workshop.WasherState.Done ? "terminé, à récupérer" : Workshop.WasherRules.Format(washer.Remaining));
+            return otherWork.Length == 0 ? string.Empty : otherWork.ToString();
         }
 
         void OnDestroy()
         {
             if (input != null && input.Monitor != null) input.Monitor.SchemeChanged -= OnSchemeChanged;
+            if (profileSource != null) profileSource.ExperienceGained -= OnExperienceGained;
             if (interactor != null) interactor.Interacted -= ShowToast;
             if (tools != null) tools.LockedToolRequested -= OnLockedToolRequested;
             if (products != null)
@@ -308,6 +401,11 @@ namespace RugWash.UI
             {
                 workSurface.StatusChanged -= OnWorkSurfaceChanged;
                 workSurface.Contaminated -= OnContaminated;
+            }
+            if (extraWorkSurface != null)
+            {
+                extraWorkSurface.StatusChanged -= OnWorkSurfaceChanged;
+                extraWorkSurface.Contaminated -= OnContaminated;
             }
             if (wallet != null && wallet.Wallet != null) wallet.Wallet.Changed -= OnWalletChanged;
             if (reputation != null) reputation.Changed -= OnReputationChanged;
@@ -349,7 +447,7 @@ namespace RugWash.UI
             // Barres : mises à jour chaque frame (pas d'allocation), lissées vers la valeur réelle.
             float dt = Time.unscaledDeltaTime;
             float smoothing = 1f - Mathf.Exp(-barSmoothing * dt);
-            float cleanliness = rug != null ? rug.Cleanliness01 : 0f;
+            float cleanliness = CurrentRug != null ? CurrentRug.Cleanliness01 : 0f;
             if (cleanliness > displayedCleanliness + 0.0005f) gainFlash = Mathf.Max(gainFlash, 0.45f);
             displayedCleanliness = cleanliness < displayedCleanliness ? cleanliness : Mathf.Lerp(displayedCleanliness, cleanliness, smoothing);
             cleanlinessFill.fillAmount = displayedCleanliness;
@@ -404,6 +502,9 @@ namespace RugWash.UI
                 first = false;
                 playersBuilder.Append(avatar.DisplayName);
                 if (avatar.OwnerClientId == Unity.Netcode.NetworkManager.ServerClientId) playersBuilder.Append(" (hôte)");
+                // Chat vocal : qui parle (le joueur local d'après son micro, les autres d'après les trames reçues).
+                bool speaking = avatar.IsOwner ? voiceSource != null && voiceSource.IsSpeaking : avatar.Voice != null && avatar.Voice.IsSpeaking;
+                if (speaking) playersBuilder.Append(" « parle »");
             }
             var manager = workshop.NetworkManager;
             if (manager != null && !manager.IsServer && manager.NetworkConfig.NetworkTransport != null)
@@ -413,22 +514,27 @@ namespace RugWash.UI
         }
 
         readonly System.Text.StringBuilder playersBuilder = new System.Text.StringBuilder();
+        Network.VoiceChat voiceSource;
+
+        /// <summary>Chat vocal du joueur local : indicateur « parle » dans la liste des joueurs.</summary>
+        public void BindVoice(Network.VoiceChat voice) => voiceSource = voice;
 
         void RefreshAll(bool force)
         {
             RefreshEconomy();
+            RefreshWorkSurface(force);
             RefreshPlayers();
             CheckFiberWear();
             var tool = tools.ActiveTool;
 
-            bool hasRug = rug != null && rug.IsLoaded;
-            int percent = loadingMessage != null ? -2 : hasRug ? Mathf.FloorToInt(rug.Cleanliness01 * 100f) : -1;
+            bool hasRug = CurrentRug != null && CurrentRug.IsLoaded;
+            int percent = loadingMessage != null ? -2 : hasRug ? Mathf.FloorToInt(CurrentRug.Cleanliness01 * 100f) : -1;
             if (force || percent != lastCleanPercent)
             {
                 lastCleanPercent = percent;
                 cleanlinessLabel.text = loadingMessage != null ? "Synchronisation avec l'hôte…"
                     : !hasRug ? "Aucun tapis — acceptez une mission sur l'ordinateur"
-                    : rug.IsFinished ? "Propreté du tapis : 100 % — terminé" : $"Propreté du tapis : {percent} %";
+                    : CurrentRug.IsFinished ? "Propreté du tapis : 100 % — terminé" : $"Propreté du tapis : {percent} %";
             }
 
 
@@ -446,7 +552,10 @@ namespace RugWash.UI
                 }
                 else
                 {
-                    toolNameLabel.text = tool != null ? tool.Definition.displayName : "Aucun outil";
+                    // Niveau affiché dès le premier niveau acheté ; « ★ » au niveau maximal (outil doré).
+                    toolNameLabel.text = tool == null ? "Aucun outil"
+                        : tool.Level > 0 ? $"{tool.Definition.displayName} · niv. {tool.Level}/{tool.MaxLevel}{(tool.IsGolden ? " ★" : string.Empty)}"
+                        : tool.Definition.displayName;
                     resourceBar.SetActive(tool != null && tool.GetResourceFraction() >= 0f);
                     hintLabel.text = BuildHint(tool);
                 }
@@ -480,6 +589,14 @@ namespace RugWash.UI
             }
         }
 
+        /// <summary>Tapis d'une commande (d'une zone de lavage), par opposition à l'aire ou au sol.</summary>
+        bool IsOrderRug(RugCleaningController surface)
+        {
+            if (surface == null) return false;
+            if (orders == null) return surface == defaultRug;
+            return orders.RugOf(orders.BayOf(surface)) == surface;
+        }
+
         string BuildPrompt(CleaningToolBase tool)
         {
             if (loadingMessage != null) return loadingMessage;
@@ -489,7 +606,7 @@ namespace RugWash.UI
             string block = tool?.GetBlockReason();
             if (block != null) return block;
             // « Trop loin » seulement en visant le tapis de la commande, ou en utilisant l'outil (le sol est aussi nettoyable).
-            if (tool != null && tool.IsTargetOutOfRange && (tool.IsUsing || tools.CurrentAim.Rug == rug)) return "Trop loin — rapprochez-vous";
+            if (tool != null && tool.IsTargetOutOfRange && (tool.IsUsing || IsOrderRug(tools.CurrentAim.Rug))) return "Trop loin — rapprochez-vous";
             return string.Empty;
         }
 
@@ -497,7 +614,7 @@ namespace RugWash.UI
         string BuildGadgetHint()
         {
             string use = input.Scheme == InputScheme.Gamepad ? input.Label("Use") : "Clic gauche";
-            string back = input.Scheme == InputScheme.Gamepad ? $"{input.Label("ToolPrevious")} / {input.Label("ToolNext")}" : "1-0 / molette";
+            string back = input.Scheme == InputScheme.Gamepad ? $"{input.Label("ToolPrevious")} / {input.Label("ToolNext")}" : "1-4 / molette";
             return $"{use} : {gadgets.ActionVerb}   ·   {input.Label("Gadget")} : gadget suivant / ranger   ·   {back} : outils   ·   " +
                    $"{input.Label("Interact")} : interagir";
         }
@@ -512,7 +629,7 @@ namespace RugWash.UI
             if (input.Scheme == InputScheme.Gamepad)
                 return $"{input.Label("Use")} : {verb}   ·   {input.Label("ToolPrevious")} / {input.Label("ToolNext")} : outils   ·   " +
                        common + $"{input.Label("Pause")} : pause";
-            return $"Clic gauche : {verb}   ·   1-0 / molette : outils   ·   " + common + "Échap : pause";
+            return $"Clic gauche : {verb}   ·   1-4 / molette : inventaire   ·   " + common + "Échap : pause";
         }
     }
 }

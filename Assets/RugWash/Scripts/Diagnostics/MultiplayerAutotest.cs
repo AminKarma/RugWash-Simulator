@@ -19,18 +19,26 @@ namespace RugWash.Diagnostics
     /// <summary>
     /// Vérification automatique du multijoueur entre processus du jeu compilé (connexion directe locale). Lancée par
     /// <c>-rugwash-mp-test host|guest|guest2 -rugwash-mp-port N -rugwash-mp-report fichier.json</c> ; sans ces arguments,
-    /// rien n'est créé. Scénario : l'hôte et un invité jouent ensemble avec l'économie de l'hôte ; l'invité « crashe »
-    /// (processus tué) ; le même joueur se reconnecte (guest2, même identité, même dossier de sauvegarde) ; l'hôte se ferme
-    /// brutalement. Chaque rôle écrit un rapport ; l'étape « multiplayer » de RugWash-CI les compare et relit les sauvegardes.
+    /// rien n'est créé. Scénario (grande mise à jour : progression propre à chaque joueur) : l'invité arrive pour la première
+    /// fois sur son emplacement multijoueur, sa progression de départ est copiée depuis l'hôte, puis chacun a la sienne (achats
+    /// et récompenses dans SA carrière, jamais dans celle de l'autre) ; chat textuel dans les deux sens ; l'invité « crashe »
+    /// (processus tué) ; le même joueur se reconnecte (guest2, même identité, même dossier) et retrouve SA progression (rien
+    /// n'est recopié) ; l'hôte se ferme brutalement. La sauvegarde solo de l'invité n'est jamais touchée. Chaque rôle écrit un
+    /// rapport ; l'étape « multiplayer » de RugWash-CI les compare et relit les sauvegardes.
     /// </summary>
     public static class MultiplayerAutotest
     {
         public const string Argument = "-rugwash-mp-test";
         public const int HostStartMoney = 300;
+        /// <summary>Progression SOLO de l'invité : jamais utilisée ni modifiée par une partie en ligne (emplacements séparés).</summary>
         public const int GuestStartMoney = 1500;
         public const int GuestStartReputation = 2;
-        /// <summary>Achat personnel de l'invité (pas dans l'atelier de l'hôte) : il ne doit pas exister pendant la session.</summary>
+        /// <summary>Achat de la partie solo de l'invité : absent de sa progression multijoueur (copiée depuis l'hôte).</summary>
         public const string GuestOnlyUpgrade = "up_boots";
+        /// <summary>Emplacement multijoueur utilisé par les deux joueurs pendant le test.</summary>
+        public static readonly SaveSlot Slot = new SaveSlot(SaveMode.Multiplayer, 1);
+        public const string ChatFromGuest = "Bonjour depuis l'invité";
+        public const string ChatFromHost = "Bienvenue dans l'atelier";
         /// <summary>Apparence choisie par l'invité (menu Personnage) : l'hôte doit la voir sur sa silhouette.</summary>
         public static readonly CharacterLook GuestLook = new CharacterLook { outfit = 3, cap = 2, gloves = 1 };
 
@@ -54,11 +62,21 @@ namespace RugWash.Diagnostics
             bool reconnecting = role == "guest2";
             string sandbox = Path.Combine(Application.temporaryCachePath, $"mp-save-{(role == "host" ? "host" : "guest")}");
             SaveManager.DirectoryOverride = sandbox;
+            SaveSlots.Selected = Slot;
+            Player.PlayerInventory.AutomationCarriesOnSelect = true;
             if (!reconnecting)
             {
                 if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
                 Directory.CreateDirectory(sandbox);
-                new SaveFileStore(sandbox, SaveManager.DefaultFileName).Save(Seed(role == "host"), out _);
+                if (role == "host") new SaveFileStore(sandbox, Slot.FileName).Save(Seed(true), out _);
+                else
+                {
+                    // Invité : une partie SOLO (qui ne doit jamais changer) et un emplacement multijoueur encore vierge ; son
+                    // apparence est dans son profil (commun à ses emplacements).
+                    new SaveFileStore(sandbox, SaveManager.DefaultFileName).Save(Seed(false), out _);
+                    var profile = new PlayerProfile { character = GuestLook, lastMultiSlot = Slot.Index };
+                    new ProfileStore(sandbox).Save(profile, out _);
+                }
             }
 
             var go = new GameObject("[MultiplayerAutotest]");
@@ -68,8 +86,8 @@ namespace RugWash.Diagnostics
         }
 
         /// <summary>
-        /// Sauvegardes de départ, différentes pour l'hôte et l'invité (argent, réputation, achats, apparence) : pendant la
-        /// session, tout le monde doit utiliser celle de l'hôte, et celle de l'invité ne doit jamais changer.
+        /// Sauvegardes de départ : l'emplacement multijoueur de l'hôte, et la partie SOLO de l'invité (argent, réputation, achats
+        /// différents de ceux de l'hôte) — elle ne doit jamais changer pendant une partie en ligne.
         /// </summary>
         public static SaveData Seed(bool host)
         {
@@ -77,6 +95,7 @@ namespace RugWash.Diagnostics
             {
                 money = host ? HostStartMoney : GuestStartMoney, reputation = host ? 0 : GuestStartReputation,
                 upgrades = new List<string>(SaveMigration.LegacyToolUnlocks), detergentStock = SaveMigration.LegacyDetergentStock,
+                mode = host ? Slot.ModeKey : SaveSlot.KeyOf(SaveMode.Solo), slotIndex = host ? Slot.Index : 1, multiplayerInitialized = host,
             };
             seeded.upgrades.AddRange(SaveMigration.LegacyWorkshopUnlocks);
             seeded.upgrades.AddRange(SaveMigration.LegacyDecorUnlocks);
@@ -89,7 +108,7 @@ namespace RugWash.Diagnostics
             return seeded;
         }
 
-        /// <summary>La sauvegarde de l'invité est-elle exactement celle de départ (argent, réputation, achats, livraisons) ?</summary>
+        /// <summary>La partie SOLO de l'invité est-elle exactement celle de départ (argent, réputation, achats, livraisons) ?</summary>
         public static bool GuestSaveUntouched(SaveData data, out string detail)
         {
             var seed = Seed(false);
@@ -100,7 +119,7 @@ namespace RugWash.Diagnostics
             }
             var expected = new HashSet<string>(seed.upgrades);
             bool same = data.money == seed.money && data.reputation == seed.reputation && expected.SetEquals(data.upgrades)
-                && data.completedOrders.Count == 0 && data.ordersDelivered == 0 && data.character.Equals(GuestLook)
+                && data.completedOrders.Count == 0 && data.ordersDelivered == 0
                 && string.IsNullOrEmpty(data.workshop.workSurface);
             detail = $"{data.money} €, réputation {data.reputation}, achats {data.upgrades.Count}, livraisons {data.ordersDelivered}, " +
                      $"aire de lavage « {data.workshop.workSurface.Length} car. »";
@@ -368,7 +387,20 @@ namespace RugWash.Diagnostics
             return total;
         }
 
-        SaveData ReadOwnSave() => new SaveFileStore(saveFolder, SaveManager.DefaultFileName).Load().Data;
+        /// <summary>Emplacement multijoueur de ce joueur (sa progression en ligne).</summary>
+        SaveData ReadOwnSave() => new SaveFileStore(saveFolder, MultiplayerAutotest.Slot.FileName).Load().Data;
+        /// <summary>Partie solo de ce joueur : jamais modifiée par le jeu en ligne.</summary>
+        SaveData ReadSoloSave() => new SaveFileStore(saveFolder, SaveManager.DefaultFileName).Load().Data;
+
+        /// <summary>Chat : une ligne de ce joueur, reçue (après nettoyage et rediffusion par l'hôte).</summary>
+        static bool ChatContains(string sender, string text)
+        {
+            var workshop = NetworkWorkshop.Instance;
+            if (workshop == null) return false;
+            foreach (var line in workshop.Chat.Lines)
+                if (!line.System && line.Sender == sender && line.Text == text) return true;
+            return false;
+        }
 
         IEnumerator JoinHost()
         {
@@ -408,6 +440,17 @@ namespace RugWash.Diagnostics
                 if (id != NetworkWorkshop.Instance.NetworkManager.LocalClientId) guestId = id;
             Record("Économie de l'hôte inchangée par l'arrivée de l'invité", game.Wallet.Balance == MultiplayerAutotest.HostStartMoney
                 && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.GuestOnlyUpgrade), $"{game.Wallet.Balance} €, {game.Upgrades.OwnedIds.Count} achat(s)");
+            yield return WaitFor(() => NetworkWorkshop.Instance.CareerOf(guestId) != null, 30f);
+            var arrival = NetworkWorkshop.Instance.CareerOf(guestId);
+            Record("Première arrivée de l'invité : progression de départ copiée depuis l'hôte (une seule fois)",
+                arrival != null && NetworkWorkshop.Instance.WasInitialSync(guestId) && arrival.Money == MultiplayerAutotest.HostStartMoney
+                && arrival.Upgrades.Contains("up_base_2") && !arrival.Upgrades.Contains(MultiplayerAutotest.GuestOnlyUpgrade),
+                arrival != null ? $"{arrival.Money} €, {arrival.Upgrades.Count} achat(s)" : "carrière absente");
+
+            // Chat : message de l'invité reçu (nom de la session, pas celui qu'il annoncerait), puis réponse de l'hôte.
+            yield return WaitFor(() => ChatContains("Invité", MultiplayerAutotest.ChatFromGuest), 40f);
+            Record("Chat : message de l'invité reçu par l'hôte", ChatContains("Invité", MultiplayerAutotest.ChatFromGuest));
+            NetworkWorkshop.Instance.SendChat(MultiplayerAutotest.ChatFromHost);
 
             var order = game.Orders.Book.Orders[0];
             // Gains suivis à chaque variation du solde : un double paiement serait vu même si un achat suit.
@@ -474,9 +517,12 @@ namespace RugWash.Diagnostics
             yield return new WaitForSeconds(4f);
             Record("Livraison demandée par l'invité, validée par l'hôte", delivered != null && delivered.Accepted,
                 delivered == null ? "aucune" : $"note {OrderEvaluator.GradeLabel(delivered.Grade)}");
-            Record("Récompense versée une seule fois, dans l'économie de l'hôte (deux demandes de livraison)",
+            Record("Récompense versée une seule fois dans la carrière de l'hôte (deux demandes de livraison)",
                 delivered != null && positiveChanges == 1 && gained == delivered.Reward && balanceAtDelivery == MultiplayerAutotest.HostStartMoney + delivered.Reward,
                 delivered == null ? "-" : $"{positiveChanges} versement(s), {gained} € pour {delivered.Reward} € ; solde à la livraison {balanceAtDelivery} €");
+            var rewarded = NetworkWorkshop.Instance.CareerOf(guestId);
+            Record("Récompense aussi versée à l'invité présent, dans SA carrière", delivered != null && rewarded != null
+                && rewarded.Money == MultiplayerAutotest.HostStartMoney + delivered.Reward, rewarded != null ? $"{rewarded.Money} €" : "-");
             values["argentApresLivraison"] = balanceAtDelivery.ToString();
             values["missionsTableau"] = GeneratedOffers(game);
             Record("Trois missions générées proposées sur le tableau de l'hôte", game.Orders.Missions.Offers.Count == 3, values["missionsTableau"]);
@@ -487,17 +533,22 @@ namespace RugWash.Diagnostics
             pad.ApplyRect(new RectInt(0, 0, pad.Width, 6), 1f, ref debris);
             pad.ApplyRect(new RectInt(0, pad.Height - 6, pad.Width, 6), 1f, ref debris);
 
-            // Achat demandé par l'invité : appliqué à l'atelier de l'hôte, payé avec l'argent de l'atelier.
+            // Achat demandé par l'invité : payé avec SA carrière ; ni l'argent ni les achats de l'hôte ne changent.
             var bought = game.Upgrades.Catalog[0];
-            yield return WaitFor(() => purchaseSeen != null, 40f);
-            Record("Achat de l'invité appliqué à l'atelier de l'hôte, payé avec l'argent de l'atelier",
-                purchaseSeen != null && balanceAtPurchase == balanceAtDelivery - bought.price,
-                $"{bought.displayName} : {balanceAtDelivery} € → {balanceAtPurchase} €");
-            int afterPurchase = balanceAtPurchase;
-            values["argentApresAchat"] = afterPurchase.ToString();
+            bool hostOwnedBefore = game.Upgrades.IsOwned(bought);
+            int hostBalance = game.Wallet.Balance;
+            yield return WaitFor(() => { var c = NetworkWorkshop.Instance.CareerOf(guestId); return c != null && c.Upgrades.Contains(bought.id); }, 40f);
+            var afterBuy = NetworkWorkshop.Instance.CareerOf(guestId);
+            Record("Achat de l'invité payé avec SA carrière (validé par l'hôte)", afterBuy != null && afterBuy.Upgrades.Contains(bought.id)
+                && afterBuy.Money == MultiplayerAutotest.HostStartMoney + (delivered != null ? delivered.Reward : 0) - bought.price,
+                afterBuy != null ? $"{bought.displayName} : invité {afterBuy.Money} €" : "-");
+            Record("Achat de l'invité : argent et achats de l'hôte inchangés", game.Wallet.Balance == hostBalance && game.Upgrades.IsOwned(bought) == hostOwnedBefore,
+                $"hôte {game.Wallet.Balance} €");
+            values["argentInviteTenuParHote"] = afterBuy != null ? afterBuy.Money.ToString() : "-";
             yield return new WaitForSeconds(4f);
-            Record("Achat impossible demandé par l'invité : refusé, rien n'est débité", game.Wallet.Balance == afterPurchase
-                && !game.Upgrades.OwnedIds.Contains("up_base_4"), $"{game.Wallet.Balance} €");
+            var afterRefusal = NetworkWorkshop.Instance.CareerOf(guestId);
+            Record("Achat impossible demandé par l'invité : refusé, rien n'est débité", afterRefusal != null && afterBuy != null
+                && afterRefusal.Money == afterBuy.Money && !afterRefusal.Upgrades.Contains("up_base_4"), afterRefusal != null ? $"{afterRefusal.Money} €" : "-");
 
             yield return WaitFor(() => robotSeenActive, 40f);
             Record("Robot démarré à la demande de l'invité", robotSeenActive, game.Robot.Mode.ToString());
@@ -538,8 +589,17 @@ namespace RugWash.Diagnostics
             yield return new WaitForSeconds(3f);
             Record("Crash puis reconnexion de l'invité : un seul personnage par joueur (aucun fantôme)", AvatarCount() == 2 && guestAvatar == null,
                 $"{AvatarCount()} joueur(s), anciennes connexions fermées par reconnexion : {session.StaleConnectionsEvicted}");
-            Record("Reconnexion : ni argent ni achat dupliqué dans l'économie de l'atelier", game.Wallet.Balance == moneyBeforeCrash
+            Record("Reconnexion : ni argent ni achat dupliqué chez l'hôte", game.Wallet.Balance == moneyBeforeCrash
                 && game.Upgrades.OwnedIds.Count == ownedBeforeCrash, $"{game.Wallet.Balance} €, {game.Upgrades.OwnedIds.Count} achat(s)");
+            ulong returnedId = 0;
+            foreach (ulong id in NetworkWorkshop.Instance.NetworkManager.ConnectedClientsIds)
+                if (id != NetworkWorkshop.Instance.NetworkManager.LocalClientId) returnedId = id;
+            yield return WaitFor(() => NetworkWorkshop.Instance.CareerOf(returnedId) != null, 20f);
+            var returned = NetworkWorkshop.Instance.CareerOf(returnedId);
+            Record("Reconnexion : l'invité garde SA progression (aucune nouvelle copie depuis l'hôte)", returned != null
+                && !NetworkWorkshop.Instance.WasInitialSync(returnedId) && returned.Upgrades.Contains(bought.id),
+                returned != null ? $"{returned.Money} €" : "-");
+            values["argentInviteApresReconnexion"] = returned != null ? returned.Money.ToString() : "-";
             Record("Partie de l'hôte toujours en cours après le crash de l'invité", session.InSession && session.State == SessionState.InGame,
                 session.State.ToString());
 
@@ -547,10 +607,11 @@ namespace RugWash.Diagnostics
             values["fpsMoyenNettoyage"] = Invariant(AverageFps(), "0");
             game.SaveSystem.SaveNow("fin du test multijoueur");
             var data = ReadOwnSave();
-            Record("Économie de la session sauvegardée chez l'hôte (argent, achat de l'invité)", data != null && data.money == game.Wallet.Balance
-                && data.upgrades.Contains(bought.id) && data.completedOrders.Contains(order.id), data != null ? $"{data.money} €, achats {data.upgrades.Count}" : "illisible");
+            Record("Sauvegarde de l'hôte : SA carrière (récompense comprise, sans l'achat de l'invité)", data != null && data.money == game.Wallet.Balance
+                && data.upgrades.Contains(bought.id) == hostOwnedBefore && data.completedOrders.Contains(order.id) && data.mode == MultiplayerAutotest.Slot.ModeKey,
+                data != null ? $"{data.money} €, achats {data.upgrades.Count}, emplacement {data.mode} {data.slotIndex}" : "illisible");
             values["argentFinalHote"] = game.Wallet.Balance.ToString();
-            values["fichierSauvegardeHote"] = Path.Combine(saveFolder, SaveManager.DefaultFileName);
+            values["fichierSauvegardeHote"] = Path.Combine(saveFolder, MultiplayerAutotest.Slot.FileName);
             // Laisse l'invité revenu vérifier ce qu'il voit, puis fermeture brutale de l'hôte (crash simulé).
             yield return new WaitForSeconds(6f);
             crashAtEnd = true;
@@ -569,13 +630,20 @@ namespace RugWash.Diagnostics
             Record("Le tapis est une réplique (l'hôte fait autorité)", game.Rug.IsReplica);
             Record("État de chargement affiché à l'arrivée (contrôles coupés)", NetworkWorkshop.Instance.ShowedLoading);
             string expectedMoney = Economy.WalletManager.Format(MultiplayerAutotest.HostStartMoney);
-            Record("Session : argent et réputation de l'atelier de l'hôte affichés (pas ceux de la sauvegarde de l'invité)",
+            Record("Première partie sur l'emplacement multijoueur : progression de départ copiée depuis l'hôte",
                 !game.GameState.Synchronizing && !game.Hud.IsLoading && game.Wallet.Balance == MultiplayerAutotest.HostStartMoney
-                && game.Reputation.Points == 0 && game.Hud.EconomyText.Contains(expectedMoney),
+                && game.Reputation.Points == 0 && game.Hud.EconomyText.Contains(expectedMoney) && !game.SaveSystem.NeedsInitialSync,
                 $"HUD « {game.Hud.EconomyText.Replace('\n', ' ')} » {GameplayState()}");
-            Record("Session : équipement de l'atelier de l'hôte (pas les achats personnels de l'invité)",
+            Record("Copie de départ : équipement de l'hôte, sans les achats de la partie solo de l'invité",
                 game.Upgrades.OwnedIds.Contains("up_base_2") && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.GuestOnlyUpgrade),
                 $"{game.Upgrades.OwnedIds.Count} achat(s)");
+            var firstSave = ReadOwnSave();
+            Record("Emplacement multijoueur marqué « initialisé » et sauvegardé (jamais recopié ensuite)",
+                firstSave != null && firstSave.multiplayerInitialized && firstSave.mode == MultiplayerAutotest.Slot.ModeKey,
+                firstSave != null ? $"{firstSave.mode} {firstSave.slotIndex}, {firstSave.money} €" : "illisible");
+            NetworkWorkshop.Instance.SendChat(MultiplayerAutotest.ChatFromGuest);
+            yield return WaitFor(() => ChatContains("Hôte", MultiplayerAutotest.ChatFromHost), 60f);
+            Record("Chat : réponse de l'hôte reçue par l'invité", ChatContains("Hôte", MultiplayerAutotest.ChatFromHost));
 
             yield return WaitFor(() => AvatarCount() >= 2, 20f);
             NetworkPlayerAvatar hostAvatar = null;
@@ -613,8 +681,8 @@ namespace RugWash.Diagnostics
                 game.Orders.LastResult != null ? OrderEvaluator.GradeLabel(game.Orders.LastResult.Grade) : "-");
             int reward = game.Orders.LastResult != null ? game.Orders.LastResult.Reward : 0;
             yield return WaitFor(() => game.Wallet.Balance == MultiplayerAutotest.HostStartMoney + reward, 20f);
-            Record("Récompense dans l'argent de l'atelier, vue par l'invité (une fois)", reward > 0 && game.Wallet.Balance == MultiplayerAutotest.HostStartMoney + reward,
-                $"{game.Wallet.Balance} € (atelier {MultiplayerAutotest.HostStartMoney} + {reward})");
+            Record("Récompense dans la carrière de l'invité (une fois)", reward > 0 && game.Wallet.Balance == MultiplayerAutotest.HostStartMoney + reward,
+                $"{game.Wallet.Balance} € (départ {MultiplayerAutotest.HostStartMoney} + {reward})");
             game.Results.BackToWorkshop();
             yield return null;
 
@@ -622,7 +690,7 @@ namespace RugWash.Diagnostics
             int moneyBeforePurchase = game.Wallet.Balance;
             var request = game.Shop.TryPurchase(upgrade);
             yield return WaitFor(() => game.Upgrades.IsOwned(upgrade) && game.Wallet.Balance == moneyBeforePurchase - upgrade.price, 30f);
-            Record("Achat demandé à l'hôte, disponible dans la session, payé avec l'argent de l'atelier", request == Economy.PurchaseResult.Requested
+            Record("Achat validé par l'hôte, payé avec l'argent de l'invité", request == Economy.PurchaseResult.Requested
                 && game.Upgrades.IsOwned(upgrade) && game.Wallet.Balance == moneyBeforePurchase - upgrade.price,
                 $"{upgrade.displayName} : {moneyBeforePurchase} € → {game.Wallet.Balance} €");
             values["argentApresAchatVuParInvite"] = game.Wallet.Balance.ToString();
@@ -674,9 +742,13 @@ namespace RugWash.Diagnostics
             values["octetsOperationsEnvoyes"] = NetworkWorkshop.Instance.OperationBytesSent.ToString();
             values["fpsMoyenNettoyage"] = Invariant(AverageFps(), "0");
 
-            // Pendant la session, rien n'a été écrit dans la sauvegarde personnelle (même pas la livraison ni l'achat).
-            bool untouched = MultiplayerAutotest.GuestSaveUntouched(ReadOwnSave(), out string detail);
-            Record("Sauvegarde personnelle de l'invité inchangée pendant la session", untouched, detail);
+            // Progression en ligne sauvegardée dans l'emplacement multijoueur de l'invité ; sa partie solo n'est jamais touchée.
+            var online = ReadOwnSave();
+            Record("Sauvegarde multijoueur de l'invité : SA carrière (achat et récompense), jamais l'atelier de l'hôte",
+                online != null && online.money == game.Wallet.Balance && online.upgrades.Contains(upgrade.id) && string.IsNullOrEmpty(online.workshop.workSurface),
+                online != null ? $"{online.money} €, achats {online.upgrades.Count}" : "illisible");
+            bool untouched = MultiplayerAutotest.GuestSaveUntouched(ReadSoloSave(), out string detail);
+            Record("Partie solo de l'invité inchangée pendant la session en ligne", untouched, detail);
             // Crash simulé : le processus est tué en pleine partie (guest2 = le même joueur qui revient).
             crashAtEnd = true;
         }
@@ -693,8 +765,11 @@ namespace RugWash.Diagnostics
 
         IEnumerator RunReconnectedGuest()
         {
-            bool intact = MultiplayerAutotest.GuestSaveUntouched(ReadOwnSave(), out string detail);
-            Record("Après le crash : sauvegarde personnelle intacte et lisible", intact, detail);
+            var saved = ReadOwnSave();
+            Record("Après le crash : sauvegarde multijoueur lisible (progression de l'invité)", saved != null && saved.multiplayerInitialized,
+                saved != null ? $"{saved.money} €" : "illisible");
+            bool intact = MultiplayerAutotest.GuestSaveUntouched(ReadSoloSave(), out string detail);
+            Record("Après le crash : partie solo intacte", intact, detail);
             yield return OpenMenuSession("Invité");
             if (session == null) yield break;
             Debug.Log($"[RugWash test] {Time.realtimeSinceStartup:0.0} s : reconnexion vers 127.0.0.1:{port}");
@@ -704,17 +779,20 @@ namespace RugWash.Diagnostics
             if (game == null) { fatal = "reconnexion"; yield break; }
             yield return new WaitForSeconds(3f);
             Record("Reconnexion : un seul personnage par joueur (aucun fantôme vu)", AvatarCount() == 2, $"{AvatarCount()} joueur(s)");
-            Record("Reconnexion : économie de l'atelier reçue telle quelle (achat de la session présent, rien en double)",
-                game.Upgrades.IsOwned(game.Upgrades.Catalog[0]) && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.GuestOnlyUpgrade),
-                $"{game.Wallet.Balance} €, {game.Upgrades.OwnedIds.Count} achat(s)");
+            Record("Reconnexion : SA progression retrouvée (achat présent, rien recopié depuis l'hôte)",
+                game.Upgrades.IsOwned(game.Upgrades.Catalog[0]) && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.GuestOnlyUpgrade)
+                && saved != null && game.Wallet.Balance == saved.money, $"{game.Wallet.Balance} €, {game.Upgrades.OwnedIds.Count} achat(s)");
             values["argentVuApresReconnexion"] = game.Wallet.Balance.ToString();
 
             // L'hôte se ferme brutalement : retour au menu avec un message, sauvegarde personnelle intacte.
             yield return WaitFor(() => !session.InSession && SceneManager.GetActiveScene().name == MultiplayerSession.MainMenuScene, 60f);
             Record("Hôte fermé brutalement : retour au menu avec un message", !session.InSession
                 && SceneManager.GetActiveScene().name == MultiplayerSession.MainMenuScene && !string.IsNullOrEmpty(session.Message), session.Message);
-            intact = MultiplayerAutotest.GuestSaveUntouched(ReadOwnSave(), out detail);
-            Record("Après la fin de la session : sauvegarde personnelle de l'invité intacte", intact, detail);
+            var final = ReadOwnSave();
+            Record("Après la fin de la session : progression multijoueur de l'invité conservée", final != null && saved != null && final.money == saved.money,
+                final != null ? $"{final.money} €" : "illisible");
+            intact = MultiplayerAutotest.GuestSaveUntouched(ReadSoloSave(), out detail);
+            Record("Après la fin de la session : partie solo de l'invité intacte", intact, detail);
         }
 
         /// <summary>Missions générées du tableau (identifiants triés) : identiques chez l'hôte et chez l'invité.</summary>

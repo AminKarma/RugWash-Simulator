@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using RugWash.Core;
 using RugWash.Network;
+using RugWash.Save;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -38,6 +39,13 @@ namespace RugWash.UI
         [SerializeField] Button reconnectButton;
         [SerializeField] Text messageLabel;
         [SerializeField] Button closeButton;
+        [Header("Partie réservée au Premium (grande mise à jour)")]
+        [SerializeField] Button premiumButton;
+        [SerializeField] Text premiumLabel;
+        [SerializeField] Text premiumNote;
+        [Header("Emplacement de sauvegarde multijoueur")]
+        [SerializeField] Text slotLabel;
+        [SerializeField] Button slotButton;
 
         static readonly Color Ok = new Color(0.55f, 0.95f, 0.6f);
         static readonly Color Warn = new Color(1f, 0.6f, 0.45f);
@@ -45,6 +53,53 @@ namespace RugWash.UI
         readonly List<ListRowView> lobbyRows = new List<ListRowView>();
         List<LobbySummary> lobbies = new List<LobbySummary>();
         MultiplayerSession session;
+        SaveManager save;
+        SaveSlotsUI saveSlots;
+
+        /// <summary>Emplacement multijoueur utilisé pour héberger ou rejoindre (jamais un emplacement solo).</summary>
+        public SaveSlot ChosenSlot { get; private set; } = new SaveSlot(SaveMode.Multiplayer, 1);
+        public Button SlotButton => slotButton;
+        public string SlotText => slotLabel.text;
+
+        /// <summary>Relie la fenêtre aux sauvegardes : emplacement multijoueur choisi, rappelé d'une partie à l'autre.</summary>
+        public void BindSaves(SaveManager saveManager, SaveSlotsUI slots)
+        {
+            save = saveManager;
+            saveSlots = slots;
+            if (save != null) ChosenSlot = save.Profile.LastSlot(SaveMode.Multiplayer);
+            slotButton.onClick.AddListener(() =>
+            {
+                if (saveSlots == null) return;
+                saveSlots.Highlighted = ChosenSlot;
+                saveSlots.Open(SaveMode.Multiplayer);
+            });
+        }
+
+        /// <summary>Emplacement multijoueur choisi dans la fenêtre des emplacements.</summary>
+        public void SetSlot(SaveSlot slot)
+        {
+            if (slot.Mode != SaveMode.Multiplayer) return;
+            ChosenSlot = slot;
+            if (save != null)
+            {
+                save.Profile.lastMultiSlot = slot.Index;
+                save.SaveProfile();
+            }
+            RefreshSlot();
+        }
+
+        void RefreshSlot()
+        {
+            var summary = SaveSlots.ReadSummary(ChosenSlot);
+            string state = !summary.Exists ? "vide : progression de départ copiée depuis l'hôte à la première partie"
+                : !summary.Readable ? summary.Problem
+                : !summary.Data.multiplayerInitialized ? "pas encore jouée : progression copiée depuis l'hôte à la première partie"
+                : $"{Economy.WalletManager.Format(summary.Data.money)} · réputation {summary.Data.reputation} · {summary.PlayTimeText}";
+            slotLabel.text = $"Sauvegarde : {ChosenSlot.DisplayName} — {state}";
+        }
+
+        /// <summary>Avant d'héberger ou de rejoindre : l'atelier chargera cet emplacement.</summary>
+        void UseChosenSlot() => SaveSlots.Selected = ChosenSlot;
 
         public bool IsOpen { get; private set; }
         public MultiplayerSession Session => session;
@@ -60,10 +115,12 @@ namespace RugWash.UI
         {
             missing = panel == null ? nameof(panel) : content == null ? nameof(content) : steamStatusLabel == null ? nameof(steamStatusLabel)
                 : createFriendsButton == null || createPublicButton == null ? "createButtons" : searchButton == null ? nameof(searchButton)
+                : premiumButton == null || premiumLabel == null || premiumNote == null ? nameof(premiumButton)
                 : lobbyListRoot == null || lobbyRowTemplate == null ? "lobbyList" : lobbyMembersLabel == null ? nameof(lobbyMembersLabel)
                 : inviteButton == null || startButton == null || leaveLobbyButton == null ? "lobbyButtons"
                 : nameField == null || addressField == null ? "fields" : hostDirectButton == null || joinDirectButton == null ? "directButtons"
-                : reconnectButton == null ? nameof(reconnectButton) : messageLabel == null ? nameof(messageLabel) : closeButton == null ? nameof(closeButton) : null;
+                : reconnectButton == null ? nameof(reconnectButton) : messageLabel == null ? nameof(messageLabel) : closeButton == null ? nameof(closeButton)
+                : slotLabel == null || slotButton == null ? "slot" : null;
             return missing == null;
         }
 
@@ -71,6 +128,11 @@ namespace RugWash.UI
         {
             if (!IsConfigured(out _)) return;
             lobbyRowTemplate.gameObject.SetActive(false);
+            premiumButton.onClick.AddListener(() =>
+            {
+                session.SetPremiumOnly(!session.PremiumOnly);
+                Refresh();
+            });
             createFriendsButton.onClick.AddListener(() => Run(() => session.CreateSteamLobby(false)));
             createPublicButton.onClick.AddListener(() => Run(() => session.CreateSteamLobby(true)));
             searchButton.onClick.AddListener(() => Run(session.SearchSteamLobbies));
@@ -100,6 +162,7 @@ namespace RugWash.UI
             session.EnsureSteam();
             panel.SetActive(true);
             IsOpen = true;
+            RefreshSlot();
             Refresh();
             return true;
         }
@@ -122,6 +185,7 @@ namespace RugWash.UI
         void Run(System.Action action)
         {
             ApplyName();
+            UseChosenSlot();
             action();
             Refresh();
         }
@@ -134,6 +198,7 @@ namespace RugWash.UI
         public void HostDirect()
         {
             ApplyName();
+            UseChosenSlot();
             if (!session.HostDirect(content.defaultPort)) Show(session.Message, false);
             Refresh();
         }
@@ -141,6 +206,7 @@ namespace RugWash.UI
         public void JoinDirect()
         {
             ApplyName();
+            UseChosenSlot();
             if (!SessionRules.TryParseAddress(addressField.text, content.defaultPort, out string address, out ushort port))
             {
                 Show("Adresse invalide : indiquez une adresse IPv4, éventuellement suivie de « :port » (ex. 192.168.1.20:7777).", false);
@@ -184,7 +250,15 @@ namespace RugWash.UI
             hostDirectButton.interactable = !session.InSession && !inLobby && !busy;
             joinDirectButton.interactable = hostDirectButton.interactable;
             nameField.interactable = !steamReady && !session.InSession;
+            slotButton.interactable = !session.InSession && !busy;
             reconnectButton.gameObject.SetActive(session.CanReconnect && session.LastEndedWithError);
+            // Premium : seulement si la propriété peut vraiment être vérifiée par Steam ; sinon l'option est grisée et expliquée.
+            bool premiumAvailable = session.PremiumAvailable;
+            premiumButton.interactable = premiumAvailable && (!inLobby || owner);
+            premiumLabel.text = session.PremiumOnly ? "Premium uniquement : oui" : "Premium uniquement : non";
+            premiumNote.text = premiumAvailable
+                ? "Si activé, l'hôte fait vérifier par Steam que chaque joueur qui rejoint possède l'édition Premium."
+                : session.PremiumUnavailableReason;
 
             var members = new StringBuilder();
             if (inLobby)

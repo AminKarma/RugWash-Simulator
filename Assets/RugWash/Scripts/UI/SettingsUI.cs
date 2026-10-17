@@ -36,6 +36,17 @@ namespace RugWash.UI
         [SerializeField] StepperView resolutionStepper;
         [SerializeField] StepperView displayModeStepper;
         [SerializeField] StepperView qualityStepper;
+        [Tooltip("Difficulté des missions générées (grande mise à jour).")]
+        [SerializeField] StepperView difficultyStepper;
+        [Header("Graphismes (grande mise à jour)")]
+        [SerializeField] StepperView vSyncStepper;
+        [SerializeField] StepperView frameCapStepper;
+        [SerializeField] StepperView postProcessStepper;
+        [SerializeField] Text graphicsInfoLabel;
+        [Tooltip("Chat vocal en ligne : micro et volume des voix (grande mise à jour).")]
+        [SerializeField] StepperView voiceModeStepper;
+        [SerializeField] Slider voiceVolumeSlider;
+        [SerializeField] Text voiceVolumeValue;
         [SerializeField] Transform rebindRoot;
         [SerializeField] RebindRowView rebindTemplate;
         [SerializeField] Button resetBindingsButton;
@@ -79,6 +90,10 @@ namespace RugWash.UI
         public Slider VibrationSlider => vibrationSlider;
         public StepperView InvertYStepper => invertYStepper;
         public StepperView QualityStepper => qualityStepper;
+        public StepperView DifficultyStepper => difficultyStepper;
+        public StepperView VSyncStepper => vSyncStepper;
+        public StepperView FrameCapStepper => frameCapStepper;
+        public string GraphicsInfo => graphicsInfoLabel.text;
         public Button CloseButton => closeButton;
         public IReadOnlyList<Button> TabButtons => tabButtons;
         public int CurrentTab { get; private set; }
@@ -94,6 +109,13 @@ namespace RugWash.UI
                 : resolutionStepper == null || !resolutionStepper.IsConfigured ? nameof(resolutionStepper)
                 : displayModeStepper == null || !displayModeStepper.IsConfigured ? nameof(displayModeStepper)
                 : qualityStepper == null || !qualityStepper.IsConfigured ? nameof(qualityStepper)
+                : difficultyStepper == null || !difficultyStepper.IsConfigured ? nameof(difficultyStepper)
+                : vSyncStepper == null || !vSyncStepper.IsConfigured ? nameof(vSyncStepper)
+                : frameCapStepper == null || !frameCapStepper.IsConfigured ? nameof(frameCapStepper)
+                : postProcessStepper == null || !postProcessStepper.IsConfigured ? nameof(postProcessStepper)
+                : graphicsInfoLabel == null ? nameof(graphicsInfoLabel)
+                : voiceModeStepper == null || !voiceModeStepper.IsConfigured ? nameof(voiceModeStepper)
+                : voiceVolumeSlider == null || voiceVolumeValue == null ? nameof(voiceVolumeSlider)
                 : rebindRoot == null ? nameof(rebindRoot) : rebindTemplate == null ? nameof(rebindTemplate)
                 : resetBindingsButton == null ? nameof(resetBindingsButton) : closeButton == null ? nameof(closeButton)
                 : messageLabel == null ? nameof(messageLabel)
@@ -133,6 +155,28 @@ namespace RugWash.UI
             resolutionStepper.Stepped += StepResolution;
             displayModeStepper.Stepped += StepDisplayMode;
             qualityStepper.Stepped += StepQuality;
+            vSyncStepper.Stepped += _ => { settings.SetVSync(!settings.Current.vSync); RefreshValues(); };
+            frameCapStepper.Stepped += direction =>
+            {
+                // Avec la synchronisation verticale, la limite n'a pas d'effet : elle ne change pas (cohérence affichée).
+                if (settings.Current.vSync) return;
+                settings.SetFrameRateCap(SettingsRules.StepCap(settings.Current.frameRateCap, direction));
+                RefreshValues();
+            };
+            postProcessStepper.Stepped += _ => { settings.SetPostProcessing(!settings.Current.postProcessing); RefreshValues(); };
+            voiceModeStepper.Stepped += direction =>
+            {
+                settings.SetVoiceMode((settings.Current.voiceMode + direction + 3) % 3);
+                RefreshValues();
+            };
+            voiceVolumeSlider.minValue = 0f;
+            voiceVolumeSlider.maxValue = 1f;
+            voiceVolumeSlider.onValueChanged.AddListener(v => { settings.SetVoiceVolume(v); RefreshLabels(); });
+            difficultyStepper.Stepped += direction =>
+            {
+                settings.SetMissionDifficulty(Mathf.Clamp(settings.Current.missionDifficulty + direction, 0, 2));
+                RefreshValues();
+            };
             resetBindingsButton.onClick.AddListener(ResetBindings);
             closeButton.onClick.AddListener(Close);
             for (int i = 0; i < tabButtons.Count; i++)
@@ -249,9 +293,15 @@ namespace RugWash.UI
             var resolution = settings.EffectiveResolution;
             resolutionStepper.SetValue($"{resolution.x} × {resolution.y}");
             displayModeStepper.SetValue(SettingsManager.DisplayModeLabel(settings.EffectiveDisplayMode));
-            var names = SettingsManager.QualityNames;
-            int quality = settings.EffectiveQualityLevel;
-            qualityStepper.SetValue(quality >= 0 && quality < names.Length ? names[quality] : "—");
+            int preset = settings.EffectivePreset;
+            qualityStepper.SetValue(SettingsRules.PresetNames[preset]);
+            vSyncStepper.SetValue(s.vSync ? "Activée" : "Désactivée");
+            frameCapStepper.SetValue(SettingsRules.FrameRateLabel(s.vSync, s.frameRateCap));
+            postProcessStepper.SetValue(s.postProcessing ? "Activé" : "Désactivé");
+            graphicsInfoLabel.text = SettingsRules.PresetDescriptions[preset] + "\n" + SettingsManager.RayTracingStatus;
+            difficultyStepper.SetValue(Orders.MissionGenerator.DifficultyLabel(s.missionDifficulty));
+            voiceModeStepper.SetValue(SettingsManager.VoiceModeLabel(s.voiceMode));
+            voiceVolumeSlider.SetValueWithoutNotify(s.voiceVolume);
             RefreshLabels();
             RefreshBindings();
         }
@@ -260,6 +310,7 @@ namespace RugWash.UI
         {
             var s = settings.Current;
             masterValue.text = $"{s.masterVolume * 100f:0} %";
+            voiceVolumeValue.text = s.voiceVolume <= 0f ? "Coupées" : $"{s.voiceVolume * 100f:0} %";
             effectsValue.text = $"{s.effectsVolume * 100f:0} %";
             interfaceValue.text = $"{s.interfaceVolume * 100f:0} %";
             if (musicValue != null) musicValue.text = s.musicVolume <= 0.001f ? "Muette" : $"{s.musicVolume * 100f:0} %";
@@ -310,9 +361,8 @@ namespace RugWash.UI
 
         void StepQuality(int direction)
         {
-            int count = SettingsManager.QualityNames.Length;
-            if (count == 0) return;
-            settings.SetQualityLevel((settings.EffectiveQualityLevel + direction + count) % count);
+            int count = SettingsRules.PresetLevels.Length;
+            settings.SetQualityPreset((settings.EffectivePreset + direction + count) % count);
             RefreshValues();
         }
 

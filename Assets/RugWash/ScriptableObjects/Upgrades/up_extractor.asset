@@ -20,3 +20,5 @@ MonoBehaviour:
   value: 1.4
   targetToolId: extractor
   prerequisite: {fileID: 11400000, guid: e2cb4b58bbeb54e4d9afed3caacd0f80, type: 2}
+  requiredReputation: 0
+  level: 1

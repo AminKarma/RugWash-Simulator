@@ -334,6 +334,30 @@ Rapport complet : `RAPPORT_CORRECTIFS.md`. Exécutions : `VALIDATION.md` § 20.
 | 2.11 Paliers de rendu réels (Bas, Moyen, Élevé ; Ultra inchangé) ; protocole de benchmark reproductible | Mesuré sur une seule machine (charge GPU ×4 et 2 fils CPU en approximation) | `QualityTierTests`, `VALIDATION.md` § 20.5 |
 | PC moins puissants réels, deux machines, Internet, Steam | **Non testé** | — |
 
+## Grande mise à jour (phases 1 à 7)
+
+Détail, limites et tests manuels : `GRANDE_MISE_A_JOUR.md`. Exécutions : `VALIDATION.md` § 21. Aucun build ni benchmark
+lancé (consigne : seulement sur demande).
+
+| Élément | Statut | Preuve |
+|---|---|---|
+| Profil du joueur, 3 emplacements solo + 3 multijoueur, aperçu, migration de l'ancienne sauvegarde | Testé (EditMode + PlayMode) | `SaveSlotsTests`, `SaveSlotsPlayModeTests`, `SaveAndMenuPlayModeTests` |
+| Emplacement multijoueur : copie unique de la progression de l'hôte, puis indépendante | Testé (PlayMode, réplique) ; **deux instances non testées** | `BugfixPlayModeTests`, `MultiplayerAutotest` mis à jour (non lancé) |
+| Inventaire à 4 emplacements, casier | Testé (EditMode + PlayMode) | `InventoryRulesTests`, `InventoryPlayModeTests` |
+| Batte : coups dans le vide sans recharge, cible à l'impact, recharge vérifiée par l'autorité, geste visible en ligne | Testé (PlayMode) ; geste en ligne non vu | `BatPlayModeTests` |
+| Agrandissement : annexe, deuxième zone de lavage (deux commandes, livraison par zone) | Testé (PlayMode) | `ExtensionPlayModeTests` |
+| Machine à laver (15 min, états, temps sûr, sauvegarde, réplique invité) | Testé (EditMode + PlayMode) | `WorkshopExtensionTests`, `ExtensionPlayModeTests` |
+| Améliorations d'outil à 3 niveaux, outil doré (vue, barre, masque des silhouettes) | Testé (PlayMode) ; silhouette dorée chez un autre joueur non vue | `ToolLevelsPlayModeTests` |
+| Missions : progression par taille et saleté, tapis presque noirs (crasse), grand tapis, difficulté réglable | Testé (EditMode) | `MissionProgressionTests`, `ContentRulesTests` |
+| Chat textuel (nettoyage, cadence, nom de session) | Règles testées (EditMode) ; **deux instances non testées** | `SocialRulesTests` |
+| Chat vocal de proximité (micro Unity, μ-law, relais de l'hôte, source 3D, indicateur, coupures) | Codec et tampons testés (EditMode) ; **micro et deux instances non testés** | `SocialRulesTests`, `SocialPlayModeTests` |
+| Expulsion (confirmation, motif, retour impossible), partie ouverte/fermée | Règles testées (EditMode) ; **deux instances non testées** | `SocialRulesTests` |
+| Premium uniquement (vérification Steam réelle) | Implémenté ; **indisponible** (aucun DLC, App ID 480), option grisée et expliquée | `SocialRulesTests` (données de connexion) |
+| Flacon translucide, liquide en volume qui ballotte | Testé (PlayMode) ; rendu à vérifier à l'écran | `PresentationPlayModeTests`, `EconomyV012PlayModeTests` |
+| Icônes 3D des outils (barre, casier, boutique) | Testé (PlayMode) ; rendu à vérifier à l'écran | `PresentationPlayModeTests` |
+| Boutique sans débordement (une colonne, hauteur adaptée) | Testé (PlayMode) | `PresentationPlayModeTests` |
+| Options graphiques : 4 préréglages réels, V-Sync indépendant, limite d'images, post-traitement, ray tracing expliqué | Testé (EditMode + PlayMode) ; coût réel **non mesuré** (pas de benchmark) | `GraphicsSettingsTests`, `PresentationPlayModeTests` |
+
 ## Hors périmètre de la démo (documenté)
 
 | Élément | Statut |

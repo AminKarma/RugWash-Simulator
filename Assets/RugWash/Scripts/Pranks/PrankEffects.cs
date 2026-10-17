@@ -64,7 +64,7 @@ namespace RugWash.Pranks
                     Voice(origin, streamClip, 0.55f);
                     break;
                 case PrankGadget.Bat:
-                    Voice(origin, swingClip, 0.6f);
+                    // Le sifflement est joué au départ du mouvement (PlaySwing) ; ici, l'impact seulement.
                     if (hitPlayer) Voice(point, bonkClip, 0.8f);
                     else Burst(splashRed, point, 10, 1.2f);
                     break;
@@ -138,6 +138,16 @@ namespace RugWash.Pranks
                 }, 1);
             }
         }
+
+        /// <summary>Batte : sifflement du mouvement, joué à chaque coup — aussi dans le vide.</summary>
+        public void PlaySwing(Vector3 origin)
+        {
+            SwingsPlayed++;
+            Voice(origin, swingClip, 0.6f);
+        }
+
+        /// <summary>Coups de batte joués (tests, diagnostic).</summary>
+        public int SwingsPlayed { get; private set; }
 
         void Voice(Vector3 at, AudioClip clip, float volume)
         {

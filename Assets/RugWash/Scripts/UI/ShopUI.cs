@@ -245,10 +245,28 @@ namespace RugWash.UI
                 Color statusColor = owned ? Ok : check == PurchaseResult.Purchased ? Neutral : Warn;
                 // Le bouton reste cliquable si les fonds manquent : le refus est expliqué au joueur.
                 rows[i].Set(upgrade.displayName, details, status, statusColor, owned ? null : "Acheter", true, owned ? RowOwned : RowColor);
+                SetIcon(rows[i], IconOf(upgrade));
             }
         }
 
         bool HasDetergentRow => shop.Detergent != null;
+
+        Effects.ToolIconRenderer icons;
+
+        /// <summary>Icônes 3D des outils (grande mise à jour) : sur les outils à acheter et leurs améliorations.</summary>
+        public void BindIcons(Effects.ToolIconRenderer renderer) => icons = renderer;
+
+        static string IconOf(UpgradeDefinition upgrade)
+        {
+            if (upgrade == null || string.IsNullOrEmpty(upgrade.targetToolId) || upgrade.IsWorkshopItem) return null;
+            return upgrade.IsPrankItem ? $"prank:{upgrade.targetToolId}" : upgrade.targetToolId;
+        }
+
+        void SetIcon(ListRowView row, string id)
+        {
+            if (icons != null && !string.IsNullOrEmpty(id) && icons.TryGetIcon(id, out Rect uv)) row.SetIcon(icons.Atlas, uv);
+            else row.ClearIcon();
+        }
 
         void RefreshProducts()
         {
@@ -261,6 +279,7 @@ namespace RugWash.UI
                 var supply = shop.Detergent;
                 var check = shop.CheckDetergentCan();
                 rows[0].gameObject.SetActive(true);
+                rows[0].ClearIcon();
                 rows[0].Set($"Bidon de détergent {supply.CanLiters:0} L",
                     $"Le détergent de base : la réserve emportée ({supply.ReserveCapacity:0.#} L) se remplit au poste détergent à partir de ce stock.\n" +
                     $"Stock : {supply.Stock:0.#} / {supply.MaxStock:0} L · un bidon = {supply.CanLiters:0} L " +
@@ -278,6 +297,7 @@ namespace RugWash.UI
                                  $"Flacon de {product.packLiters:0.#} L · en stock : {book.StockOf(product):0.0} / {product.maxStock:0.#} L";
                 Color statusColor = check == ProductPurchaseResult.Purchased ? Neutral : Warn;
                 rows[i].Set(product.displayName, details, WalletManager.Format(product.packPrice), statusColor, "Acheter", true, RowColor);
+                rows[i].ClearIcon();
             }
         }
 

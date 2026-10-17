@@ -111,6 +111,17 @@ namespace RugWash.Core
             StateChanged?.Invoke(previous, next);
         }
 
+        /// <summary>
+        /// Atelier libre ou commande en cours (zones de lavage, grande mise à jour) : appliqué tout de suite pendant le jeu ;
+        /// pendant une pause, devient l'état de reprise ; l'écran de résultats et le menu ne sont pas interrompus.
+        /// </summary>
+        public void SetGameplayState(GameState next)
+        {
+            if (!GameStateRules.IsGameplay(next)) return;
+            if (State == GameState.Paused) stateBeforePause = next;
+            else if (GameStateRules.IsGameplay(State)) SetState(next);
+        }
+
         public bool Pause()
         {
             if (!GameStateRules.CanPause(State)) return false;

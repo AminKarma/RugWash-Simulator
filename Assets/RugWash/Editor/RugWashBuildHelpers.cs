@@ -271,6 +271,17 @@ namespace RugWash.Editor
 
         public static Font UIFont => Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
+        /// <summary>
+        /// Texte 3D du décor : matériau de la police dans l'éditeur, remplacé en jeu par le matériau testé en profondeur de
+        /// <see cref="RugWash.Effects.WorldText"/> (le matériau intégré des polices se voit à travers les murs).
+        /// </summary>
+        public static void DepthTestedText(TextMesh mesh)
+        {
+            mesh.GetComponent<MeshRenderer>().sharedMaterial = UIFont.material;
+            var text = mesh.gameObject.AddComponent<RugWash.Effects.WorldText>();
+            Wire(text, ("shader", Shader.Find("RugWash/World Text")));
+        }
+
         public static RectTransform CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax,
             Vector2 pivot, Vector2 anchoredPosition, Vector2 size)
         {

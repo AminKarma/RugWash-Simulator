@@ -32,8 +32,14 @@ namespace RugWash.UI
         [SerializeField] Text activeLabel;
         [SerializeField] Button deliverButton;
         [SerializeField] Button abandonButton;
+        [Tooltip("Zones de lavage (grande mise à jour) : passe à la commande de l'autre zone (visible avec deux commandes en cours).")]
+        [SerializeField] Button bayButton;
+        [SerializeField] Text bayButtonLabel;
         [SerializeField] Text messageLabel;
         [SerializeField] Button closeButton;
+
+        /// <summary>Zone dont la commande est affichée dans la section « en cours » (livrer, abandonner).</summary>
+        int selectedBay = -1;
 
         readonly List<ListRowView> rows = new List<ListRowView>();
         readonly List<OrderDefinition> display = new List<OrderDefinition>();
@@ -58,6 +64,9 @@ namespace RugWash.UI
         }
         public Button DeliverButton => deliverButton;
         public Button AbandonButton => abandonButton;
+        public Button BayButton => bayButton;
+        /// <summary>Zone visée par « Livrer » et « Abandonner ».</summary>
+        public int SelectedBay => ActiveBay();
         public string LastMessage => messageLabel.text;
 
         public bool IsConfigured(out string missing)
@@ -65,6 +74,7 @@ namespace RugWash.UI
             missing = panel == null ? nameof(panel) : headerLabel == null ? nameof(headerLabel) : listRoot == null ? nameof(listRoot)
                 : rowTemplate == null ? nameof(rowTemplate) : activeSection == null ? nameof(activeSection) : activeLabel == null ? nameof(activeLabel)
                 : deliverButton == null ? nameof(deliverButton) : abandonButton == null ? nameof(abandonButton)
+                : bayButton == null ? nameof(bayButton) : bayButtonLabel == null ? nameof(bayButtonLabel)
                 : messageLabel == null ? nameof(messageLabel) : closeButton == null ? nameof(closeButton) : null;
             return missing == null;
         }
@@ -78,6 +88,7 @@ namespace RugWash.UI
             closeButton.onClick.AddListener(Close);
             deliverButton.onClick.AddListener(Deliver);
             abandonButton.onClick.AddListener(Abandon);
+            bayButton.onClick.AddListener(NextBay);
             orders.Changed += RefreshIfOpen;
             panel.SetActive(false);
         }
@@ -91,6 +102,7 @@ namespace RugWash.UI
         {
             if (IsOpen || !gameState.IsGameplayActive) return false;
             messageLabel.text = string.Empty;
+            selectedBay = -1;
             panel.SetActive(true);
             IsOpen = true;
             gameState.PushModal();
@@ -119,10 +131,12 @@ namespace RugWash.UI
 
         void Refresh()
         {
+            // Une ligne par sujet (solde et réputation, missions, état de l'aire) : l'en-tête reste à gauche du titre.
             headerLabel.text = $"Solde : {WalletManager.Format(wallet.Balance)}     Réputation : {orders.Reputation}";
             if (orders.BoardReputation != orders.Reputation) headerLabel.text += $"     Tableau de l'hôte (réputation {orders.BoardReputation})";
             if (orders.Missions.IsInitialized || orders.IsReplica)
-                headerLabel.text += $"     Missions : niveau {MissionRules.TierFor(orders.BoardReputation) + 1}";
+                headerLabel.text += $"\nMissions : niveau {MissionRules.TierFor(orders.BoardReputation) + 1}" +
+                                    (orders.IsReplica ? string.Empty : $" · difficulté {MissionGenerator.DifficultyLabel(orders.CurrentMissionDifficulty).ToLowerInvariant()}");
             headerLabel.text += WorkAreaWarning();
             BuildDisplay();
             var list = display;
@@ -180,16 +194,23 @@ namespace RugWash.UI
             Color statusColor, background = RowColor;
             bool interactable = false;
             if (state == OrderState.Completed) { status = "Terminée"; statusColor = Ok; }
-            else if (state == OrderState.Active) { status = "En cours"; statusColor = Warn; background = RowActive; }
+            else if (state == OrderState.Active)
+            {
+                int bay = orders.BayOf(order);
+                status = orders.IsHeld(order) ? "En machine à laver" : orders.UnlockedBayCount > 1 && bay >= 0 ? $"En cours ({OrderManager.BayLabel(bay).ToLowerInvariant()})" : "En cours";
+                statusColor = Warn;
+                background = RowActive;
+            }
             else if (locked) { status = $"Verrouillée (réputation {order.requiredReputation})"; statusColor = Muted; background = RowLocked; }
             else
             {
+                bool free = orders.HasFreeBay;
                 bool areaReady = orders.WorkAreaAllowsNewOrder;
-                status = areaReady ? "Disponible" : "Aire de lavage à nettoyer";
-                statusColor = areaReady ? Ok : Warn;
+                status = !free ? (orders.UnlockedBayCount > 1 ? "Zones de lavage occupées" : "Commande en cours") : areaReady ? "Disponible" : "Aire de lavage à nettoyer";
+                statusColor = free && areaReady ? Ok : Warn;
                 action = "Accepter";
                 // Le bouton reste cliquable si seule l'aire bloque : le refus explique alors la raison.
-                interactable = orders.ActiveOrder == null;
+                interactable = free;
             }
             row.Set(order.title, details, status, statusColor, action, interactable, background);
         }
@@ -223,15 +244,44 @@ namespace RugWash.UI
             return builder.ToString();
         }
 
+        /// <summary>Zone affichée : celle choisie si elle a encore une commande, sinon la zone courante du joueur.</summary>
+        int ActiveBay()
+        {
+            if (selectedBay >= 0 && orders.OrderOf(selectedBay) != null) return selectedBay;
+            selectedBay = orders.CurrentBay;
+            return selectedBay;
+        }
+
+        /// <summary>Commande suivante parmi les zones occupées.</summary>
+        public void NextBay()
+        {
+            int current = ActiveBay();
+            for (int step = 1; step <= orders.BayCount; step++)
+            {
+                int candidate = (current + step) % orders.BayCount;
+                if (orders.OrderOf(candidate) == null) continue;
+                selectedBay = candidate;
+                break;
+            }
+            RefreshActive();
+        }
+
         void RefreshActive()
         {
-            var active = orders.ActiveOrder;
+            int bay = ActiveBay();
+            var active = orders.OrderOf(bay);
             activeSection.SetActive(active != null);
             if (active == null) return;
-            var preview = orders.Preview();
-            activeLabel.text = $"En cours : {active.title} — {OrderEvaluator.FormatTime(orders.ElapsedSeconds)}\n" +
-                               $"Note estimée : {OrderEvaluator.GradeLabel(preview.Grade)} ({preview.Score:0}/100) · " +
-                               (preview.Accepted ? $"paiement estimé {WalletManager.Format(preview.Reward)}" : "le client refuserait le tapis en l'état");
+            var preview = orders.Preview(bay);
+            bool multiple = orders.UnlockedBayCount > 1;
+            string zone = multiple ? $"{OrderManager.BayLabel(bay)} — " : string.Empty;
+            activeLabel.text = $"{zone}En cours : {active.title} — {OrderEvaluator.FormatTime(orders.ElapsedOf(bay))}\n" +
+                               (preview == null ? "Tapis en cours de chargement…"
+                                   : $"Note estimée : {OrderEvaluator.GradeLabel(preview.Grade)} ({preview.Score:0}/100) · " +
+                                     (preview.Accepted ? $"paiement estimé {WalletManager.Format(preview.Reward)}" : "le client refuserait le tapis en l'état"));
+            bool several = orders.ActiveBayCount > 1;
+            bayButton.gameObject.SetActive(several);
+            if (several) bayButtonLabel.text = "Autre zone";
         }
 
         /// <summary>Accepte la commande de la ligne <paramref name="index"/> (ordre d'affichage).</summary>
@@ -246,16 +296,18 @@ namespace RugWash.UI
 
         public void Deliver()
         {
-            if (orders.ActiveOrder == null) return;
+            int bay = ActiveBay();
+            if (orders.OrderOf(bay) == null) return;
             Close();
-            orders.Deliver();
+            orders.Deliver(bay);
         }
 
         public void Abandon()
         {
-            if (orders.ActiveOrder == null) return;
+            int bay = ActiveBay();
+            if (orders.OrderOf(bay) == null) return;
             Close();
-            orders.Abandon();
+            orders.Abandon(bay);
         }
     }
 }

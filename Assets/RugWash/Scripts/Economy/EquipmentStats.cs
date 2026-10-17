@@ -18,6 +18,10 @@ namespace RugWash.Economy
         readonly Dictionary<string, float> fiber = new Dictionary<string, float>();
         readonly HashSet<string> unlocked = new HashSet<string>();
         readonly HashSet<string> machines = new HashSet<string>();
+        readonly Dictionary<string, int> levels = new Dictionary<string, int>();
+
+        /// <summary>Niveau atteint par l'outil (améliorations par niveaux possédées) ; 0 sans amélioration de niveau.</summary>
+        public int ToolLevel(string toolId) => toolId != null && levels.TryGetValue(toolId, out int level) ? level : 0;
 
         /// <summary>Part de la boue des semelles transférée à chaque pas (1 = chaussures ordinaires).</summary>
         public float FootprintTransfer = 1f;
@@ -41,6 +45,8 @@ namespace RugWash.Economy
             foreach (var upgrade in owned)
             {
                 if (upgrade == null) continue;
+                if (upgrade.level > 0 && !string.IsNullOrEmpty(upgrade.targetToolId))
+                    stats.levels[upgrade.targetToolId] = Mathf.Max(stats.ToolLevel(upgrade.targetToolId), upgrade.level);
                 switch (upgrade.effect)
                 {
                     case UpgradeEffect.WaterCapacity: stats.WaterCapacity += upgrade.value; break;
@@ -62,6 +68,9 @@ namespace RugWash.Economy
             }
             return stats;
         }
+
+        /// <summary>Outil doré : il a plusieurs niveaux et le dernier est atteint.</summary>
+        public static bool IsGolden(int level, int maxLevel) => maxLevel >= 2 && level >= maxLevel;
 
         static void Multiply(Dictionary<string, float> table, string id, float value)
         {

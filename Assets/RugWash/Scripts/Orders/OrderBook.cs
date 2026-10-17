@@ -24,13 +24,16 @@ namespace RugWash.Orders
     }
 
     /// <summary>
-    /// État des commandes (règles pures, testées) : une seule commande active, une commande terminée
-    /// ne peut pas être refaite, une récompense n'est versée qu'à la validation d'une commande active.
+    /// État des commandes (règles pures, testées) : une commande terminée ne peut pas être refaite, une récompense n'est
+    /// versée qu'à la validation d'une commande active. Grande mise à jour : plusieurs commandes peuvent être actives à la
+    /// fois (une par zone de lavage, plus celle de la machine à laver) ; le nombre maximal est fixé par l'appelant
+    /// (<paramref name="maxActive"/>, une seule par défaut, comme avant).
     /// </summary>
     public sealed class OrderBook
     {
         readonly List<OrderDefinition> orders;
         readonly Dictionary<string, OrderState> states = new Dictionary<string, OrderState>();
+        readonly List<OrderDefinition> active = new List<OrderDefinition>();
 
         public OrderBook(IEnumerable<OrderDefinition> definitions)
         {
@@ -44,17 +47,20 @@ namespace RugWash.Orders
         }
 
         public IReadOnlyList<OrderDefinition> Orders => orders;
-        public OrderDefinition Active { get; private set; }
+        /// <summary>Première commande active (compatibilité : la seule, tant qu'une seule zone est utilisée).</summary>
+        public OrderDefinition Active => active.Count > 0 ? active[0] : null;
+        /// <summary>Toutes les commandes actives (zones de lavage et machine à laver).</summary>
+        public IReadOnlyList<OrderDefinition> ActiveOrders => active;
 
         public OrderState StateOf(OrderDefinition order) => states.TryGetValue(order.id, out var state) ? state : OrderState.Available;
 
         public bool IsLocked(OrderDefinition order, int reputation) => reputation < order.requiredReputation;
 
-        public OrderStartResult CanStart(OrderDefinition order, int reputation)
+        public OrderStartResult CanStart(OrderDefinition order, int reputation, int maxActive = 1)
         {
             if (order == null || !states.ContainsKey(order.id)) return OrderStartResult.UnknownOrder;
-            if (Active != null) return OrderStartResult.AnotherOrderActive;
             if (states[order.id] != OrderState.Available) return OrderStartResult.NotAvailable;
+            if (active.Count >= Math.Max(1, maxActive)) return OrderStartResult.AnotherOrderActive;
             if (IsLocked(order, reputation)) return OrderStartResult.ReputationTooLow;
             return OrderStartResult.Started;
         }
@@ -68,58 +74,73 @@ namespace RugWash.Orders
             return true;
         }
 
-        /// <summary>Retire une commande qui n'est plus proposée (mission livrée ou remplacée) ; jamais la commande active.</summary>
+        /// <summary>Retire une commande qui n'est plus proposée (mission livrée ou remplacée) ; jamais une commande active.</summary>
         public bool Remove(OrderDefinition order)
         {
-            if (order == null || order == Active || !orders.Remove(order)) return false;
+            if (order == null || active.Contains(order) || !orders.Remove(order)) return false;
             states.Remove(order.id);
             return true;
         }
 
-        /// <summary>Multijoueur (invité) : reproduit la commande démarrée par l'hôte, sans contrôle local.</summary>
-        public void ForceActive(OrderDefinition order)
+        /// <summary>
+        /// Multijoueur (invité) ou rechargement (machine à laver) : reproduit une commande active sans contrôle local.
+        /// <paramref name="exclusive"/> : les autres commandes actives redeviennent disponibles (une seule zone).
+        /// </summary>
+        public void ForceActive(OrderDefinition order, bool exclusive = false)
         {
             if (order == null) return;
             Add(order);
-            if (Active != null && Active != order) states[Active.id] = OrderState.Available;
-            Active = order;
+            if (exclusive)
+                foreach (var other in active.ToArray())
+                    if (other != order) Release(other);
+            if (!active.Contains(order)) active.Add(order);
             states[order.id] = OrderState.Active;
         }
 
         /// <summary>Multijoueur (invité) : plus de commande active (abandon ou livraison décidés par l'hôte).</summary>
         public void ClearActive()
         {
-            if (Active != null && StateOf(Active) == OrderState.Active) states[Active.id] = OrderState.Available;
-            Active = null;
+            foreach (var order in active.ToArray()) Release(order);
         }
 
-        public OrderStartResult Start(OrderDefinition order, int reputation)
+        /// <summary>Une commande active redevient disponible (sans résultat).</summary>
+        public bool ClearActive(OrderDefinition order) => order != null && active.Contains(order) && Release(order);
+
+        bool Release(OrderDefinition order)
         {
-            var check = CanStart(order, reputation);
+            active.Remove(order);
+            if (StateOf(order) == OrderState.Active) states[order.id] = OrderState.Available;
+            return true;
+        }
+
+        public OrderStartResult Start(OrderDefinition order, int reputation, int maxActive = 1)
+        {
+            var check = CanStart(order, reputation, maxActive);
             if (check != OrderStartResult.Started) return check;
             states[order.id] = OrderState.Active;
-            Active = order;
+            active.Add(order);
             return OrderStartResult.Started;
         }
 
         /// <summary>
-        /// Clôt la commande active avec son résultat. Acceptée → Terminée ; refusée → redevient disponible.
-        /// Retourne faux (et ne fait rien) si aucune commande n'est active : impossible d'être payé deux fois.
+        /// Clôt une commande active avec son résultat. Acceptée → Terminée ; refusée → redevient disponible.
+        /// Retourne faux (et ne fait rien) si la commande n'est pas active : impossible d'être payé deux fois.
         /// </summary>
         public bool Complete(OrderResult result)
         {
-            if (Active == null || result == null || result.Order != Active) return false;
-            states[Active.id] = result.Accepted ? OrderState.Completed : OrderState.Available;
-            Active = null;
+            if (result == null || result.Order == null || !active.Contains(result.Order)) return false;
+            states[result.Order.id] = result.Accepted ? OrderState.Completed : OrderState.Available;
+            active.Remove(result.Order);
             return true;
         }
 
-        public bool Abandon()
+        /// <summary>Abandonne la première commande active (compatibilité).</summary>
+        public bool Abandon() => Abandon(Active);
+
+        public bool Abandon(OrderDefinition order)
         {
-            if (Active == null) return false;
-            states[Active.id] = OrderState.Available;
-            Active = null;
-            return true;
+            if (order == null || !active.Contains(order)) return false;
+            return Release(order);
         }
 
         /// <summary>Restaure des commandes terminées (sauvegarde, phase 4).</summary>

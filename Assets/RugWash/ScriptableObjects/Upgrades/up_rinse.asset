@@ -20,3 +20,5 @@ MonoBehaviour:
   value: 1.3
   targetToolId: rinse
   prerequisite: {fileID: 11400000, guid: b1b9223c829f0ed4abb16794374be465, type: 2}
+  requiredReputation: 0
+  level: 1

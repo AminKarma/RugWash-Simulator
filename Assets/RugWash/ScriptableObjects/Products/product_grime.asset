@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b9c95751fd19c845a437a1bc26669a0, type: 3}
+  m_Name: product_grime
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Cleaning.ProductDefinition
+  id: product_grime
+  displayName: "D\xE9crassant intensif"
+  description: "Attaque la crasse noire incrust\xE9e et la suie : laissez agir, puis
+    brossez et rincez."
+  targets: 0e
+  targetBoost: 2.2
+  dwellBoost: 3
+  residueFactor: 1.4
+  harshness: 0.9
+  litersPerSecond: 0.05
+  packLiters: 2
+  packPrice: 140
+  maxStock: 6

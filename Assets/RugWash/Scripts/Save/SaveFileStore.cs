@@ -57,6 +57,9 @@ namespace RugWash.Save
 
         public bool Exists => File.Exists(MainPath) || File.Exists(BackupPath);
 
+        /// <summary>Interdit toute écriture (fichier d'un autre mode de jeu trouvé dans cet emplacement).</summary>
+        public void ProtectFromWriting() => WritingAllowed = false;
+
         public LoadResult Load()
         {
             if (!File.Exists(MainPath) && !File.Exists(BackupPath))
@@ -86,7 +89,8 @@ namespace RugWash.Save
         }
 
         /// <summary>Écrit une sauvegarde valide de façon atomique. Ne touche à rien si les données sont invalides.</summary>
-        public bool Save(SaveData data, out string error)
+        /// <param name="stampTime">Faux : conserve la date de la dernière session (migration d'une ancienne sauvegarde).</param>
+        public bool Save(SaveData data, out string error, bool stampTime = true)
         {
             error = null;
             if (!WritingAllowed)
@@ -104,7 +108,7 @@ namespace RugWash.Save
             {
                 System.IO.Directory.CreateDirectory(Directory);
                 data.version = SaveMigration.CurrentVersion;
-                data.savedAtUtc = DateTime.UtcNow.ToString("o");
+                if (stampTime || string.IsNullOrEmpty(data.savedAtUtc)) data.savedAtUtc = DateTime.UtcNow.ToString("o");
                 File.WriteAllText(TempPath, JsonUtility.ToJson(data, true));
 
                 // Relecture du fichier temporaire avant de remplacer quoi que ce soit.

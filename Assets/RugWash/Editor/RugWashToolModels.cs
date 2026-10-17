@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RugWash.Effects;
 using UnityEngine;
 using static RugWash.Editor.RugWashBuildHelpers;
 using static RugWash.Editor.RugWashProceduralMeshes;
@@ -190,11 +191,18 @@ namespace RugWash.Editor
         public static Model Soap(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
         {
             var root = Root(camera, "Soap", new Vector3(0.24f, -0.2f, 0.38f), new Vector3(6f, -10f, 0f));
-            Part("Bottle", root, store.Add("Tool_SoapBottle", () => Lathe(new[]
+            // Grande mise à jour : flacon en plastique vert translucide, et le liquide en volume à l'intérieur (son niveau suit la
+            // réserve du joueur, sa surface reste à plat et ballotte).
+            Part("Bottle_Shell", root, store.Add("Tool_SoapBottle", () => Lathe(new[]
                 {
                     new Vector2(0f, -0.2f), new Vector2(0.038f, -0.2f), new Vector2(0.044f, -0.19f), new Vector2(0.044f, -0.06f),
                     new Vector2(0.036f, -0.03f), new Vector2(0.016f, -0.012f), new Vector2(0.016f, 0f),
-                }, 24, capTop: false)), c["LiquidBottle"], new Vector3(0f, -0.04f, 0.02f), Quaternion.identity);
+                }, 24, capTop: false)), c["BottleShell"], new Vector3(0f, -0.04f, 0.02f), Quaternion.identity);
+            Part("Bottle", root, store.Add("Tool_SoapLiquid", () => Lathe(new[]
+                {
+                    new Vector2(0f, -0.196f), new Vector2(0.035f, -0.196f), new Vector2(0.0405f, -0.188f), new Vector2(0.0405f, -0.062f),
+                    new Vector2(0.033f, -0.034f), new Vector2(0.013f, -0.017f), new Vector2(0f, -0.017f),
+                }, 24)), c["LiquidBottle"], new Vector3(0f, -0.04f, 0.02f), Quaternion.identity);
             Part("Label", root, store.Add("Tool_SoapLabel", () => Lathe(new[] { new Vector2(0.0445f, -0.16f), new Vector2(0.0445f, -0.09f) }, 24, false, false)),
                 c["WhitePlastic"], new Vector3(0f, -0.04f, 0.02f), Quaternion.identity);
             Part("Cap", root, store.Add("Tool_SoapCap", () => Cylinder(0.02f, 0.02f, 18)), c["WhitePlastic"], new Vector3(0f, -0.03f, 0.02f), Quaternion.identity);
@@ -279,11 +287,16 @@ namespace RugWash.Editor
             Part("Trigger", root, store.Add("Tool_GunTrigger", () => RoundedBox(new Vector3(0.012f, 0.048f, 0.022f), 0.005f)), c["DarkMetal"],
                 new Vector3(0f, -0.05f, 0.04f), Quaternion.Euler(-12f, 0f, 0f));
             // Bouteille de mousse translucide sous le corps, avec sa bague.
-            Part("Canister", root, store.Add("Tool_CannonCanister", () => Lathe(new[]
+            Part("Canister_Shell", root, store.Add("Tool_CannonCanister", () => Lathe(new[]
                 {
                     new Vector2(0f, -0.17f), new Vector2(0.042f, -0.17f), new Vector2(0.048f, -0.155f), new Vector2(0.048f, -0.04f),
                     new Vector2(0.03f, -0.015f), new Vector2(0.018f, 0f),
-                }, 24, capTop: false)), c["LiquidCanister"], new Vector3(0f, -0.04f, 0.13f), Quaternion.identity);
+                }, 24, capTop: false)), c["CanisterShell"], new Vector3(0f, -0.04f, 0.13f), Quaternion.identity);
+            Part("Canister", root, store.Add("Tool_CannonLiquid", () => Lathe(new[]
+                {
+                    new Vector2(0f, -0.166f), new Vector2(0.039f, -0.166f), new Vector2(0.0445f, -0.153f), new Vector2(0.0445f, -0.042f),
+                    new Vector2(0.027f, -0.019f), new Vector2(0f, -0.019f),
+                }, 24)), c["LiquidCanister"], new Vector3(0f, -0.04f, 0.13f), Quaternion.identity);
             Part("Canister_Ring", root, store.Add("Tool_CannonRing", () => Cylinder(0.026f, 0.02f, 18)), c["DarkMetal"],
                 new Vector3(0f, -0.045f, 0.13f), Quaternion.identity);
             Part("Lance", root, StraightTube(store, "Tool_CannonLance", 0.012f, 0.2f), c["Steel"], new Vector3(0f, 0.01f, 0.15f), AlongZ);
@@ -477,6 +490,31 @@ namespace RugWash.Editor
             var right = Glove(root, store, c, "Glove_R", new Vector3(0f, -0.07f, -0.03f), new Vector3(0f, 0.95f, -0.3f), new Vector3(0.25f, -0.55f, -0.8f), left: false);
             var left = Support(root, new Vector3(0f, -0.04f, 0.3f));
             return new Model { Root = root, Tip = tip, RightHand = right, LeftHand = left };
+        }
+
+        /// <summary>Matériaux des pièces d'outil qui passent à l'or au niveau maximal (gants, poils, tuyaux, liquides : non).</summary>
+        static readonly string[] GildedMaterials =
+            { "BluePlastic", "GreenPlastic", "RedPlastic", "WhitePlastic", "SafetyYellow", "Steel", "Chrome", "DarkMetal", "FoamCanister", "Wood", "Plywood" };
+
+        /// <summary>Finition dorée (grande mise à jour) : pièces dorables du modèle, matériau or de l'atelier.</summary>
+        public static GoldenToolSkin Gild(Model model, RugWashContentBuilder.Content c)
+        {
+            var gilded = new List<Material>();
+            foreach (string name in GildedMaterials)
+                if (c.Materials.TryGetValue(name, out var material) && material != null) gilded.Add(material);
+            var renderers = new List<Renderer>();
+            foreach (var renderer in model.Root.GetComponentsInChildren<MeshRenderer>(true))
+                foreach (var material in renderer.sharedMaterials)
+                    if (gilded.Contains(material))
+                    {
+                        renderers.Add(renderer);
+                        break;
+                    }
+            var skin = model.Root.gameObject.AddComponent<GoldenToolSkin>();
+            Wire(skin, ("gold", c["Gold"]));
+            WireList(skin, "renderers", renderers);
+            WireList(skin, "gilded", gilded);
+            return skin;
         }
 
         /// <summary>Vue à la première personne : couche « Player », sans ombres, sans collisions.</summary>

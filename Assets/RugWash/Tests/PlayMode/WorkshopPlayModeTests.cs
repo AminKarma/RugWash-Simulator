@@ -318,7 +318,7 @@ namespace RugWash.Tests
             Assert.IsNotNull(game.Orders.LastResult, "La commande de capture doit avoir été livrée.");
         }
 
-        static IEnumerator SaveWithUI(Camera camera, Canvas canvas, string path)
+        internal static IEnumerator SaveWithUI(Camera camera, Canvas canvas, string path)
         {
             var rt = new RenderTexture(1600, 900, 24, RenderTextureFormat.ARGB32);
             var previousMode = canvas.renderMode;
@@ -336,7 +336,7 @@ namespace RugWash.Tests
             Object.Destroy(rt);
         }
 
-        static void Save(Camera camera, string path)
+        internal static void Save(Camera camera, string path)
         {
             var rt = new RenderTexture(1600, 900, 24, RenderTextureFormat.ARGB32);
             var request = new RenderPipeline.StandardRequest { destination = rt };
@@ -346,7 +346,7 @@ namespace RugWash.Tests
             Object.Destroy(rt);
         }
 
-        static void SaveTexture(RenderTexture rt, string path)
+        internal static void SaveTexture(RenderTexture rt, string path)
         {
             Assert.IsNotNull(rt, $"Texture absente pour {path}");
             var previous = RenderTexture.active;

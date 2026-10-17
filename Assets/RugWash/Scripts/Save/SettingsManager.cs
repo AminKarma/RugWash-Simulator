@@ -104,8 +104,8 @@ namespace RugWash.Save
             new RebindableAction("Changer de produit", "Product"),
             new RebindableAction("Inspecter", "Inspect"),
             new RebindableAction("Utiliser l'outil", "Use", keyboardRebindable: false, keyboardHint: "Clic gauche"),
-            new RebindableAction("Outil suivant", "ToolNext", keyboardRebindable: false, keyboardHint: "Molette / 1-0"),
-            new RebindableAction("Outil précédent", "ToolPrevious", keyboardRebindable: false, keyboardHint: "Molette / 1-0"),
+            new RebindableAction("Outil suivant", "ToolNext", keyboardRebindable: false, keyboardHint: "Molette / 1-4"),
+            new RebindableAction("Outil précédent", "ToolPrevious", keyboardRebindable: false, keyboardHint: "Molette / 1-4"),
             new RebindableAction("Gadget de farce", "Gadget"),
         };
 
@@ -121,6 +121,8 @@ namespace RugWash.Save
         [SerializeField] CameraMotion cameraMotion;
         [Tooltip("Optionnel (atelier) : reçoit l'intensité des vibrations.")]
         [SerializeField] GamepadRumble rumble;
+        [Tooltip("Caméra du joueur (ou du menu) : post-traitement activé ou non (grande mise à jour).")]
+        [SerializeField] Camera playerCamera;
 
         InputActionAsset ownAsset;
 
@@ -151,6 +153,8 @@ namespace RugWash.Save
             ApplyGamepad();
             ApplyMotion();
             ApplyQuality();
+            ApplyFrameRate();
+            ApplyPostProcessing();
             ApplyDisplay();
             ApplyBindings();
         }
@@ -176,6 +180,21 @@ namespace RugWash.Save
         public void SetGamepadLookSpeed(float value) { Current.gamepadLookSpeed = Mathf.Clamp(value, 30f, 360f); ApplyGamepad(); Changed?.Invoke(); }
         public void SetStickDeadZone(float value) { Current.stickDeadZone = Mathf.Clamp(value, 0.02f, 0.5f); ApplyGamepad(); Changed?.Invoke(); }
         public void SetVibration(float value) { Current.vibration = Mathf.Clamp01(value); ApplyGamepad(); Changed?.Invoke(); }
+        /// <summary>Difficulté des prochaines missions générées (les offres déjà affichées gardent la leur).</summary>
+        public void SetMissionDifficulty(int value) { Current.missionDifficulty = Mathf.Clamp(value, 0, 2); Changed?.Invoke(); }
+        /// <summary>Chat vocal : micro (appuyer pour parler, toujours ouvert, coupé) et volume des voix des autres.</summary>
+        public void SetVoiceMode(int value) { Current.voiceMode = Mathf.Clamp(value, 0, 2); Changed?.Invoke(); }
+        public void SetVoiceVolume(float value) { Current.voiceVolume = Mathf.Clamp01(value); Changed?.Invoke(); }
+
+        public static string VoiceModeLabel(int mode)
+        {
+            switch (mode)
+            {
+                case 1: return "Toujours ouvert";
+                case 2: return "Coupé";
+                default: return "Appuyer pour parler (V)";
+            }
+        }
 
         public void SetQualityLevel(int level)
         {
@@ -183,6 +202,21 @@ namespace RugWash.Save
             ApplyQuality();
             Changed?.Invoke();
         }
+
+        /// <summary>Préréglage graphique (0 Très bas, 1 Bas, 2 Moyen, 3 Ultra).</summary>
+        public void SetQualityPreset(int preset) => SetQualityLevel(SettingsRules.PresetLevels[Mathf.Clamp(preset, 0, SettingsRules.PresetLevels.Length - 1)]);
+
+        public void SetVSync(bool value) { Current.vSync = value; ApplyFrameRate(); Changed?.Invoke(); }
+
+        /// <summary>Limite d'images (sans effet tant que la synchronisation verticale est activée : affichée comme telle).</summary>
+        public void SetFrameRateCap(int cap)
+        {
+            Current.frameRateCap = System.Array.IndexOf(SettingsRules.FrameRateCaps, cap) >= 0 ? cap : 0;
+            ApplyFrameRate();
+            Changed?.Invoke();
+        }
+
+        public void SetPostProcessing(bool value) { Current.postProcessing = value; ApplyPostProcessing(); Changed?.Invoke(); }
 
         public void SetResolution(Vector2Int resolution)
         {
@@ -219,8 +253,11 @@ namespace RugWash.Save
 
         // ---------------------------------------------------------------- Options disponibles
 
-        public static string[] QualityNames => QualitySettings.names;
+        /// <summary>Les quatre préréglages proposés au joueur (Très bas, Bas, Moyen, Ultra).</summary>
+        public static string[] QualityNames => SettingsRules.PresetNames;
         public int EffectiveQualityLevel => Current.qualityLevel >= 0 ? Current.qualityLevel : QualitySettings.GetQualityLevel();
+        /// <summary>Préréglage du niveau de qualité actif (un ancien niveau « Élevé » ou « Très élevé » est lu comme Ultra).</summary>
+        public int EffectivePreset => SettingsRules.PresetOf(EffectiveQualityLevel);
 
         public static IReadOnlyList<FullScreenMode> AvailableDisplayModes => DisplayModes;
 
@@ -307,9 +344,35 @@ namespace RugWash.Save
 
         void ApplyQuality()
         {
+            // Anciennes sauvegardes : les niveaux retirés du menu (Élevé, Très élevé) deviennent Ultra, leur coût réel.
+            if (Current.qualityLevel >= 0) Current.qualityLevel = SettingsRules.PresetLevels[SettingsRules.PresetOf(Current.qualityLevel)];
             if (Current.qualityLevel >= 0 && Current.qualityLevel < QualitySettings.names.Length && QualitySettings.GetQualityLevel() != Current.qualityLevel)
                 QualitySettings.SetQualityLevel(Current.qualityLevel, true);
+            // Un niveau de qualité impose sa propre synchronisation verticale : le choix du joueur est réappliqué ensuite.
+            ApplyFrameRate();
         }
+
+        /// <summary>Synchronisation verticale et limite d'images, cohérentes : avec la synchronisation, la limite est ignorée.</summary>
+        void ApplyFrameRate()
+        {
+            QualitySettings.vSyncCount = Current.vSync ? 1 : 0;
+            Application.targetFrameRate = SettingsRules.TargetFrameRate(Current.vSync, Current.frameRateCap);
+        }
+
+        void ApplyPostProcessing()
+        {
+            if (playerCamera == null) return;
+            var data = playerCamera.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+            if (data != null) data.renderPostProcessing = Current.postProcessing;
+        }
+
+        /// <summary>
+        /// Ray tracing : le jeu utilise l'Universal Render Pipeline, qui ne propose aucun effet en lancer de rayons (réservés au
+        /// pipeline HDRP). Aucune option n'est donc proposée, même sur une carte compatible : seul l'état est affiché.
+        /// </summary>
+        public static string RayTracingStatus => SystemInfo.supportsRayTracing
+            ? "Ray tracing : votre carte graphique le prend en charge, mais le moteur de rendu du jeu (URP) ne propose pas d'effets en lancer de rayons. Option indisponible."
+            : "Ray tracing : non pris en charge par votre carte graphique ni par le moteur de rendu du jeu (URP). Option indisponible.";
 
         void ApplyDisplay()
         {

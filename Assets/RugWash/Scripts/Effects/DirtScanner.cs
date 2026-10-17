@@ -2,6 +2,7 @@ using System;
 using RugWash.Audio;
 using RugWash.Cleaning;
 using RugWash.Core;
+using RugWash.Orders;
 using RugWash.Player;
 using UnityEngine;
 
@@ -76,6 +77,8 @@ namespace RugWash.Effects
         [SerializeField] PlayerInputReader input;
         [SerializeField] GameStateManager gameState;
         [SerializeField] RugCleaningController rug;
+        [Tooltip("Zones de lavage (grande mise à jour) : le scan analyse le tapis de la zone où se trouve le joueur.")]
+        [SerializeField] OrderManager orders;
         [Tooltip("Origine de l'onde (caméra du joueur).")]
         [SerializeField] Transform origin;
         [SerializeField] AudioManager audioManager;
@@ -147,7 +150,8 @@ namespace RugWash.Effects
         public bool TryScan()
         {
             if (gameState != null && !gameState.IsGameplayActive) return false;
-            if (rug == null || rug.Grid == null) return false;
+            var target = orders != null ? orders.CurrentRug : rug;
+            if (target == null || target.Grid == null) return false;
             if (!timer.TryStart())
             {
                 if (audioManager != null) audioManager.PlayInterface(deniedClip);
@@ -156,8 +160,8 @@ namespace RugWash.Effects
             }
 
             Vector3 from = origin != null ? origin.position : transform.position;
-            waveOrigin = new Vector3(from.x, rug.transform.position.y, from.z);
-            LastResult = DirtScan.Analyze(rug.Grid, residueThreshold);
+            waveOrigin = new Vector3(from.x, target.transform.position.y, from.z);
+            LastResult = DirtScan.Analyze(target.Grid, residueThreshold);
             if (audioManager != null) audioManager.PlayEffect(scanClip, 0.8f);
             Scanned?.Invoke(LastResult);
             PushToShader();

@@ -182,7 +182,7 @@ namespace RugWash.Tests
             yield return null;
             int rows = 0;
             foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) rows++;
-            Assert.AreEqual(8, rows, "Onglet Atelier : 4 paliers, 3 machines et le robot (et rien d'autre).");
+            Assert.AreEqual(11, rows, "Onglet Atelier : 4 paliers, 3 machines, le robot, l'agrandissement, la machine à laver et son programme rapide.");
             StringAssert.Contains("Réputation", game.ShopUI.RowOf(Upgrade("up_base_1")).StatusText, "Condition de réputation affichée.");
             game.ShopUI.Close();
 
@@ -233,7 +233,8 @@ namespace RugWash.Tests
             yield return new WaitForSecondsRealtime(0.3f);
             Assert.AreNotEqual(yaw, ui.Yaw, "L'aperçu tourne.");
             ui.Close();
-            var data = new SaveFileStore(TestSaveSandbox.Directory, SaveManager.DefaultFileName).Load().Data;
+            // L'apparence appartient au profil du joueur (commune à tous ses emplacements de sauvegarde).
+            var data = new ProfileStore(TestSaveSandbox.Directory).Load(out _);
             Assert.AreEqual(1, data.character.outfit);
             Assert.AreEqual(0, data.character.cap);
             Assert.AreEqual(2, data.character.gloves);

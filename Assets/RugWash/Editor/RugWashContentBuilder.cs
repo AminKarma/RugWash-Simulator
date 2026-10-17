@@ -34,6 +34,8 @@ namespace RugWash.Editor
         public const string ClassicRugPath = RugWashPaths.RugDefinitions + "/Rug_Classic.asset";
         public const string ShagRugPath = RugWashPaths.RugDefinitions + "/Rug_Shag.asset";
         public const string LuxuryRugPath = RugWashPaths.RugDefinitions + "/Rug_Luxury.asset";
+        /// <summary>Grande mise à jour : grand tapis de hall (missions avancées, chantiers de grande surface).</summary>
+        public const string HallRugPath = RugWashPaths.RugDefinitions + "/Rug_Hall.asset";
         public const string ProductFolder = RugWashPaths.Root + "/ScriptableObjects/Products";
         public const string ProductLibraryPath = ProductFolder + "/ProductLibrary.asset";
         public const string RugCatalogPath = RugWashPaths.Root + "/ScriptableObjects/RugCatalog.asset";
@@ -49,7 +51,7 @@ namespace RugWash.Editor
             public ToolDefinition Bucket;
             /// <summary>v0.1.2 jalon 4 : raclette (aire de lavage) et monobrosse.</summary>
             public ToolDefinition Squeegee, Rotary;
-            public RugDefinition Oriental, Classic, Shag, Luxury;
+            public RugDefinition Oriental, Classic, Shag, Luxury, Hall;
             public ProductLibrary ProductLibrary;
             public RugCatalog Catalog;
             /// <summary>Plan de travail de l'aire de lavage et sol de l'atelier (surfaces nettoyables).</summary>
@@ -175,6 +177,12 @@ namespace RugWash.Editor
                 new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.15f, 0.8f, 0.1f),
                 new DirtLayer(DirtType.Lint, DirtPattern.Blotches, 0.25f, 0.3f, 0.3f));
             EnsureRugMatter(content.Luxury, fragility: 0.85f, sheen: 0.4f, fringeColor: new Color(0.95f, 0.92f, 0.84f));
+            // Le plus grand tapis (3,8 × 2,6 m) : il tient sur les deux aires de lavage (4,6 × 3,6 m).
+            content.Hall = EnsureRug(HallRugPath, "hall", "Grand tapis de hall", RugPileType.ShortPile,
+                new Vector2(3.8f, 2.6f), 0.012f, 56, RugWashTextureGenerator.ClassicAlbedo, RugWashTextureGenerator.FiberShortNormal,
+                fiberTiles: 8f, fiberStrength: 0.75f, fringe: true, seed: 61,
+                new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.8f, 0.45f, 0.3f),
+                new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.6f, 0.75f, 0.25f));
             EnsureRugDescriptions(content);
             content.ProductLibrary = EnsureProducts();
             content.Catalog = EnsureCatalog(content);
@@ -286,6 +294,15 @@ namespace RugWash.Editor
                 new DirtLayer(DirtType.Grease, DirtPattern.Spots, 0.12f, 0.7f, 0.08f),
                 new DirtLayer(DirtType.Lint, DirtPattern.Blotches, 0.3f, 0.35f, 0.3f),
                 new DirtLayer(DirtType.Embedded, DirtPattern.Spots, 0.1f, 0.7f, 0.06f)));
+            // Grande mise à jour : contrat de tapis presque noir, sur le grand tapis de hall.
+            c.Orders.Add(EnsureOrder("order_flood", "Assurances Mutuelle Ouest", "Grand tapis sinistré",
+                "Sorti d'un hall inondé : boue partout, croûtes et crasse noire sur tout le motif. Un très gros chantier, " +
+                "à rendre sans traces de produit.",
+                c.Hall, 111, 4, 1250, 20, Objectives(0.85f, maxResidue: 0.15f, bonusSeconds: 1500f),
+                new DirtLayer(DirtType.Mud, DirtPattern.Uniform, 0.9f, 0.9f, 0.35f),
+                new DirtLayer(DirtType.Grime, DirtPattern.Blotches, 0.6f, 0.92f, 0.35f, adhesionOffset: 0.25f),
+                new DirtLayer(DirtType.DriedMud, DirtPattern.Edges, 0.5f, 0.9f, 0.25f, adhesionOffset: 0.2f),
+                new DirtLayer(DirtType.Soil, DirtPattern.Uniform, 0.6f, 0.75f, 0.3f)));
         }
 
         static OrderDefinition EnsureOrder(string id, string client, string title, string description, RugDefinition rug, int seed,
@@ -396,6 +413,22 @@ namespace RugWash.Editor
                 "Aspire seul la poussière, les poils et les débris secs de l'aire de lavage (pas l'eau ni les taches) ; contourne " +
                 "le tapis et les joueurs, rentre se recharger. E sur le robot ou sa base pour le lancer ou l'arrêter.",
                 650, UpgradeEffect.WorkshopEquipment, 1f, UpgradeManager.RobotMachineId, null));
+            // Grande mise à jour : agrandissement (zone de lavage 2), machine à laver et son programme rapide (prix et
+            // réputation modifiables dans l'Inspector).
+            var extension = Reputation(EnsureUpgrade("up_extension", "Agrandissement de l'atelier",
+                "Ouvre l'annexe derrière le mur droit : une deuxième zone de lavage complète (aire, caniveau, projecteur) pour " +
+                "nettoyer deux tapis de commande en même temps, et la place de la machine à laver.",
+                1800, UpgradeEffect.WorkshopEquipment, 1f, RugWash.Workshop.WorkshopExtension.ExtensionId, null), 12);
+            var washer = Reputation(EnsureUpgrade("up_washer", "Machine à laver professionnelle",
+                "Dans l'annexe : chargez-y le tapis d'une commande, sa zone de lavage se libère pour une autre. Après 15 minutes de " +
+                "jeu, poussière, saleté détachée et la plupart des taches sont parties ; le tapis ressort trempé et les taches " +
+                "tenaces restent à finir. Les tapis fragiles s'y usent.",
+                1400, UpgradeEffect.WorkshopEquipment, 1f, RugWash.Workshop.WashingMachine.MachineId, extension), 15);
+            var fastProgram = Reputation(EnsureUpgrade("up_washer_fast", "Programme rapide de la machine à laver",
+                "Cycle de la machine à laver ramené de 15 à 9 minutes de jeu (même lavage).",
+                900, UpgradeEffect.WorkshopEquipment, 1f, RugWash.Workshop.WashingMachine.FastProgramId, washer), 25);
+            c.Upgrades.AddRange(new[] { extension, washer, fastProgram });
+            EnsureToolLevels(c);
             // v0.1.2 jalon 6 : gadgets de farce (onglet Farces), nettement plus chers que les outils de nettoyage (90 à 650 €).
             c.Upgrades.Add(Reputation(EnsureUpgrade("up_prank_pee", "Soda géant (farce : pipi)",
                 "Auréole jaune et humide sur le tapis visé (détergent, brosse, rinçage), ou gouttes sur la vue d'un coéquipier. Recharge 45 s.",
@@ -409,6 +442,55 @@ namespace RugWash.Editor
         }
 
         static System.Collections.Generic.Dictionary<string, UpgradeDefinition> toolUnlocks;
+
+        /// <summary>
+        /// Grande mise à jour : trois niveaux de puissance par outil (le premier existait déjà pour quatre outils), prix et
+        /// réputation croissants ; le niveau 3 rend l'outil doré, visible par tous les joueurs. Modifiables dans l'Inspector.
+        /// </summary>
+        static void EnsureToolLevels(Content c)
+        {
+            UpgradeDefinition Existing(string id) => c.Upgrades.Find(u => u != null && u.id == id);
+            var chains = new (string tool, string name, UpgradeDefinition first, int price, int rep2, int rep3)[]
+            {
+                ("vacuum", "Aspirateur", Existing("up_vacuum"), 220, 10, 25),
+                ("brush", "Brosse", Existing("up_brush"), 250, 10, 25),
+                ("rinse", "Lance de rinçage", Existing("up_rinse"), 240, 10, 25),
+                ("extractor", "Extracteur", Existing("up_extractor"), 260, 10, 25),
+                ("soap", "Pulvérisateur de détergent", EnsureUpgrade("up_soap_power", "Buse moussante",
+                    "Le pulvérisateur dépose 25 % de mousse en plus à chaque passage.", 160, UpgradeEffect.ToolPower, 1.25f, "soap", null), 160, 8, 22),
+                ("foam_cannon", "Canon à mousse", EnsureUpgrade("up_foam_power", "Canon à mousse renforcé",
+                    "Pompe plus puissante : 25 % de mousse en plus.", 300, UpgradeEffect.ToolPower, 1.25f, "foam_cannon", null), 300, 12, 28),
+                ("broom", "Balai", EnsureUpgrade("up_broom_power", "Balai à poils durs",
+                    "Chasse poils, débris et eau 30 % plus vite.", 120, UpgradeEffect.ToolPower, 1.3f, "broom", null), 120, 8, 22),
+                ("rotary", "Monobrosse", EnsureUpgrade("up_rotary_power", "Monobrosse renforcée",
+                    "Moteur plus coupleux : détache 25 % plus vite.", 700, UpgradeEffect.ToolPower, 1.25f, "rotary", null), 700, 18, 35),
+            };
+            foreach (var (tool, name, first, price, rep2, rep3) in chains)
+            {
+                if (first == null) continue;
+                Level(first, 1);
+                if (!c.Upgrades.Contains(first)) c.Upgrades.Add(first);
+                var second = Reputation(Level(EnsureUpgrade($"up_{tool}_lvl2", $"{name} — niveau 2",
+                    "Pièces professionnelles : 25 % de puissance en plus.", Mathf.RoundToInt(price * 2.2f / 10f) * 10,
+                    UpgradeEffect.ToolPower, 1.25f, tool, first), 2), rep2);
+                var third = Reputation(Level(EnsureUpgrade($"up_{tool}_lvl3", $"{name} Prestige (doré)",
+                    "Niveau maximal : 20 % de puissance en plus et finition dorée, visible par tous les joueurs.", price * 5,
+                    UpgradeEffect.ToolPower, 1.2f, tool, second), 3), rep3);
+                c.Upgrades.Add(second);
+                c.Upgrades.Add(third);
+            }
+        }
+
+        /// <summary>Niveau d'outil (fixé à la création comme pour un asset existant).</summary>
+        static UpgradeDefinition Level(UpgradeDefinition upgrade, int level)
+        {
+            if (upgrade.level != level)
+            {
+                upgrade.level = level;
+                EditorUtility.SetDirty(upgrade);
+            }
+            return upgrade;
+        }
 
         /// <summary>Réputation requise (fixée à la création ; modifiable ensuite dans l'Inspector).</summary>
         static UpgradeDefinition Reputation(UpgradeDefinition upgrade, int reputation)
@@ -594,6 +676,7 @@ namespace RugWash.Editor
             Describe(c.Oriental, "Laine nouée à la main, médaillon central et bordures florales ; le tapis d'entraînement de l'atelier.");
             Describe(c.Shag, "Poils longs et moelleux qui retiennent poussière, poils et miettes au cœur du velours.");
             Describe(c.Luxury, "Soie nouée main, plus de cent nœuds au centimètre carré. Éclat soyeux et fibres très délicates.");
+            Describe(c.Hall, "Grand tapis tufté d'hôtel ou de hall d'immeuble : beaucoup de surface à traiter, idéal pour la deuxième zone de lavage.");
         }
 
         static ProductLibrary EnsureProducts()
@@ -606,6 +689,8 @@ namespace RugWash.Editor
                 library.products.Add(product);
                 EditorUtility.SetDirty(library);
             }
+            Add(EnsureProduct("product_grime", "Décrassant intensif", "Attaque la crasse noire incrustée et la suie : laissez agir, puis brossez et rincez.",
+                new[] { DirtType.Grime }, boost: 2.2f, dwell: 3f, residue: 1.4f, harshness: 0.9f, lps: 0.05f, pack: 2f, price: 140, max: 6f));
             Add(EnsureProduct("product_degreaser", "Dégraissant", "Dissout graisses et huiles.",
                 new[] { DirtType.Grease }, boost: 2.5f, dwell: 3f, residue: 1.3f, harshness: 0.8f, lps: 0.04f, pack: 2f, price: 90, max: 6f));
             Add(EnsureProduct("product_enzyme", "Détachant enzymatique", "Décompose lentement les taches organiques ; à laisser agir.",
@@ -643,7 +728,7 @@ namespace RugWash.Editor
         static RugCatalog EnsureCatalog(Content c)
         {
             var catalog = LoadOrCreate<RugCatalog>(RugCatalogPath, out _);
-            foreach (var rug in new[] { c.Classic, c.Oriental, c.Shag, c.Luxury })
+            foreach (var rug in new[] { c.Classic, c.Oriental, c.Shag, c.Luxury, c.Hall })
                 if (rug != null && !catalog.rugs.Contains(rug))
                 {
                     catalog.rugs.Add(rug);
@@ -760,8 +845,11 @@ namespace RugWash.Editor
             content.Materials["RobotLed"] = EnsureEmissive("M_RobotLed", Color.white, 2f);
             content.Materials["FoamCanister"] = EnsureLit("M_FoamCanister", new Color(0.82f, 0.9f, 0.95f), 0.85f);
             // Contenants à niveau de liquide visible (réserve de détergent, v0.1.2) : hauteurs en espace objet des maillages.
-            content.Materials["LiquidBottle"] = EnsureLiquid("M_LiquidBottle", new Color(0.8f, 0.9f, 0.82f, 0.35f), new Color(0.2f, 0.62f, 0.32f, 0.94f), -0.195f, -0.035f);
-            content.Materials["LiquidCanister"] = EnsureLiquid("M_LiquidCanister", new Color(0.84f, 0.92f, 0.97f, 0.3f), new Color(0.93f, 0.97f, 1f, 0.92f), -0.165f, -0.045f);
+            // Grande mise à jour : liquide en volume (surface claire, masse plus foncée) dans un plastique translucide.
+            content.Materials["LiquidBottle"] = EnsureLiquid("M_LiquidBottle", new Color(0.42f, 0.85f, 0.5f, 0.95f), new Color(0.16f, 0.58f, 0.27f, 0.88f), -0.196f, -0.062f);
+            content.Materials["LiquidCanister"] = EnsureLiquid("M_LiquidCanister", new Color(1f, 1f, 1f, 0.95f), new Color(0.88f, 0.94f, 1f, 0.85f), -0.166f, -0.045f);
+            content.Materials["BottleShell"] = EnsurePlastic("M_BottleShell", new Color(0.42f, 0.88f, 0.52f, 0.22f), new Color(0.7f, 1f, 0.75f, 0.55f));
+            content.Materials["CanisterShell"] = EnsurePlastic("M_CanisterShell", new Color(0.86f, 0.93f, 1f, 0.18f), new Color(0.92f, 0.97f, 1f, 0.5f));
             content.Materials["Hazard"] = EnsureLit("M_Hazard", Color.white, 0.3f, Tex(RugWashTextureGenerator.Hazard), null, tiling: 2f);
             content.Materials["Paper"] = EnsureLit("M_Paper", Color.white, 0.05f, Tex(RugWashTextureGenerator.Paper), null, tiling: 1f);
             content.Materials["ClockFace"] = EnsureLit("M_ClockFace", Color.white, 0.3f, Tex(RugWashTextureGenerator.ClockFace), null, tiling: 1f);
@@ -815,10 +903,20 @@ namespace RugWash.Editor
             content.Materials["ScreenGlow"] = EnsureEmissive("M_ScreenGlow", new Color(0.35f, 0.75f, 0.85f), 1.2f);
         }
 
-        static Material EnsureLiquid(string name, Color empty, Color liquid, float minY, float maxY)
+        static Material EnsurePlastic(string name, Color tint, Color rim)
+        {
+            var material = EnsureMaterial(name, "RugWash/Translucent Plastic", out _);
+            if (material.shader == null || material.shader.name != "RugWash/Translucent Plastic") material.shader = Shader.Find("RugWash/Translucent Plastic");
+            material.SetColor("_Color", tint);
+            material.SetColor("_RimColor", rim);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        static Material EnsureLiquid(string name, Color surface, Color liquid, float minY, float maxY)
         {
             var material = EnsureMaterial(name, "RugWash/Liquid Container", out _);
-            material.SetColor("_EmptyColor", empty);
+            material.SetColor("_SurfaceColor", surface);
             material.SetColor("_LiquidColor", liquid);
             material.SetFloat("_MinY", minY);
             material.SetFloat("_MaxY", maxY);

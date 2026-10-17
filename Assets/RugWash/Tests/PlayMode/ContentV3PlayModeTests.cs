@@ -416,7 +416,7 @@ namespace RugWash.Tests
             menu.RugDexButton.onClick.Invoke();
             yield return null;
             Assert.IsTrue(menu.RugDex.IsOpen);
-            StringAssert.Contains("1 / 4 tapis", menu.RugDex.CompletionText);
+            StringAssert.Contains("1 / 5 tapis", menu.RugDex.CompletionText, "Grande mise à jour : cinq tapis au RugDex (grand tapis de hall).");
             menu.RugDex.Select(0);
             StringAssert.Contains("meilleure note : S", menu.RugDex.DetailText);
             menu.RugDex.Close();

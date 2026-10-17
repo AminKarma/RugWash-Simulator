@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d333a16da8f21469968da14f880b1f, type: 3}
+  m_Name: up_rotary_power
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
+  id: up_rotary_power
+  displayName: "Monobrosse renforc\xE9e"
+  description: "Moteur plus coupleux : d\xE9tache 25 % plus vite."
+  price: 700
+  effect: 4
+  value: 1.25
+  targetToolId: rotary
+  prerequisite: {fileID: 11400000, guid: a2da9ab3504462d4884687b988177a43, type: 2}
+  requiredReputation: 0
+  level: 1

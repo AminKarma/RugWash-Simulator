@@ -20,3 +20,5 @@ MonoBehaviour:
   value: 1.4
   targetToolId: vacuum
   prerequisite: {fileID: 11400000, guid: dd161e1d6b53abc418c1d02acaa7e099, type: 2}
+  requiredReputation: 0
+  level: 1

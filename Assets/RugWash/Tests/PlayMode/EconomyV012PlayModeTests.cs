@@ -191,6 +191,11 @@ namespace RugWash.Tests
             Assert.AreEqual(1f, level.ShownFill, 0.02f);
             var renderer = level.GetComponent<Renderer>();
             Assert.AreEqual("RugWash/Liquid Container", renderer.sharedMaterial.shader.name);
+            // Grande mise à jour : liquide en volume dans un flacon en plastique translucide.
+            var shell = level.transform.parent.Find("Bottle_Shell");
+            Assert.IsNotNull(shell, "Paroi translucide du flacon.");
+            Assert.AreEqual("RugWash/Translucent Plastic", shell.GetComponent<Renderer>().sharedMaterial.shader.name);
+            Assert.Greater(renderer.sharedMaterial.GetColor("_LiquidColor").g, renderer.sharedMaterial.GetColor("_LiquidColor").r, "Liquide vert.");
             soap.Empty();
             soap.Add(1f);
             yield return new WaitForSeconds(1.2f);

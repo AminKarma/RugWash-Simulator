@@ -23,7 +23,8 @@ namespace RugWash.UI
         [SerializeField] Button closeButton;
 
         GameStateManager gameState;
-        RugCleaningController rug;
+        RugCleaningController rug, defaultRug;
+        Orders.OrderManager orders;
         RugSnapshotService snapshots;
 
         public bool IsOpen { get; private set; }
@@ -41,10 +42,13 @@ namespace RugWash.UI
             return missing == null;
         }
 
-        public void Bind(GameStateManager state, RugCleaningController rugController, RugSnapshotService snapshotService)
+        public void Bind(GameStateManager state, RugCleaningController rugController, RugSnapshotService snapshotService,
+            Orders.OrderManager orderManager = null)
         {
             gameState = state;
+            defaultRug = rugController;
             rug = rugController;
+            orders = orderManager;
             snapshots = snapshotService;
             closeButton.onClick.AddListener(Close);
             panel.SetActive(false);
@@ -59,8 +63,10 @@ namespace RugWash.UI
 
         public bool Open()
         {
-            if (IsOpen || !gameState.IsGameplayActive || rug.Grid == null) return false;
-            snapshots.CaptureAfter();
+            // Zones de lavage (grande mise à jour) : le tapis inspecté est celui de la zone où se trouve le joueur.
+            rug = orders != null ? orders.CurrentRug : defaultRug;
+            if (IsOpen || !gameState.IsGameplayActive || rug == null || rug.Grid == null) return false;
+            snapshots.CaptureAfter(rug);
             beforeImage.texture = snapshots.Before;
             afterImage.texture = snapshots.After;
             float aspect = rug.Definition.sizeMeters.x / rug.Definition.sizeMeters.y;

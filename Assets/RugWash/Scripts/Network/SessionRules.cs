@@ -29,22 +29,33 @@ namespace RugWash.Network
         public readonly string DisplayName;
         public readonly string GameVersion;
         public readonly string PlayerKey;
+        /// <summary>
+        /// Ticket d'authentification Steam (grande mise à jour, partie « Premium uniquement ») : l'hôte le fait valider par
+        /// Steam et vérifie la licence Premium du compte. Vide sans Steam.
+        /// </summary>
+        public readonly byte[] AuthTicket;
 
-        public ConnectionPayload(string version, string displayName, string gameVersion = null, string playerKey = null)
+        public const int MaxTicketBytes = 1024;
+
+        public ConnectionPayload(string version, string displayName, string gameVersion = null, string playerKey = null, byte[] authTicket = null)
         {
             Version = version ?? string.Empty;
             DisplayName = displayName ?? string.Empty;
             GameVersion = gameVersion ?? string.Empty;
             PlayerKey = playerKey ?? string.Empty;
+            AuthTicket = authTicket ?? Array.Empty<byte>();
         }
 
         public byte[] Encode()
         {
-            var writer = new ByteWriter(128);
+            var writer = new ByteWriter(128 + AuthTicket.Length);
             writer.String(Version);
             writer.String(DisplayName);
             writer.String(GameVersion);
             writer.String(PlayerKey);
+            int ticket = Math.Min(AuthTicket.Length, MaxTicketBytes);
+            writer.UShort(ticket);
+            if (ticket > 0) writer.Bytes(AuthTicket, 0, ticket);
             return writer.ToArray();
         }
 
@@ -58,7 +69,15 @@ namespace RugWash.Network
                 string version = reader.String(), name = reader.String();
                 string game = reader.Remaining > 0 ? reader.String() : string.Empty;
                 string key = reader.Remaining > 0 ? reader.String() : string.Empty;
-                payload = new ConnectionPayload(version, name, game, key);
+                byte[] ticket = Array.Empty<byte>();
+                if (reader.Remaining >= 2)
+                {
+                    int length = reader.UShort();
+                    if (length > MaxTicketBytes || length > reader.Remaining) return false;
+                    ticket = new byte[length];
+                    if (length > 0) reader.Bytes(ticket, 0, length);
+                }
+                payload = new ConnectionPayload(version, name, game, key, ticket);
                 return true;
             }
             catch (FormatException)
@@ -160,6 +179,31 @@ namespace RugWash.Network
             if (!System.Net.IPAddress.TryParse(text, out var ip) || ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) return false;
             address = text;
             return true;
+        }
+
+        public const string KickedReason = "Vous avez été expulsé de la partie par l'hôte.";
+        public const string KickedRejoinReason = "L'hôte vous a expulsé de cette partie : impossible de la rejoindre.";
+        public const string ClosedReason = "La partie est fermée par l'hôte : impossible de la rejoindre pour l'instant.";
+        public const string PremiumReason = "Partie réservée aux joueurs qui possèdent l'édition Premium (vérifiée par Steam).";
+        public const string PremiumUnverifiedReason = "Partie Premium : votre compte n'a pas pu être vérifié par Steam (lancez le jeu depuis Steam).";
+
+        /// <summary>
+        /// Contrôles de l'hôte avant d'admettre un joueur (grande mise à jour) : partie fermée, joueur expulsé de cette partie
+        /// (même identité). Null si rien ne s'y oppose. La vérification Premium (asynchrone, par Steam) vient ensuite.
+        /// </summary>
+        public static string HostRefusal(bool open, ICollection<string> kickedKeys, string playerKey)
+        {
+            if (kickedKeys != null && !string.IsNullOrEmpty(playerKey) && kickedKeys.Contains(playerKey)) return KickedRejoinReason;
+            if (!open) return ClosedReason;
+            return null;
+        }
+
+        /// <summary>Identité Steam annoncée (« steam:76561… ») ; 0 si le joueur n'utilise pas Steam.</summary>
+        public static ulong SteamIdOf(string playerKey)
+        {
+            const string prefix = "steam:";
+            if (string.IsNullOrEmpty(playerKey) || !playerKey.StartsWith(prefix, StringComparison.Ordinal)) return 0;
+            return ulong.TryParse(playerKey.Substring(prefix.Length), out ulong id) ? id : 0;
         }
 
         /// <summary>Message affiché après une déconnexion, selon qui l'a provoquée.</summary>

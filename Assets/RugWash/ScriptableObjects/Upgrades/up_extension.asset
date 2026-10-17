@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d333a16da8f21469968da14f880b1f, type: 3}
+  m_Name: up_extension
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
+  id: up_extension
+  displayName: Agrandissement de l'atelier
+  description: "Ouvre l'annexe derri\xE8re le mur droit : une deuxi\xE8me zone de
+    lavage compl\xE8te (aire, caniveau, projecteur) pour nettoyer deux tapis de commande
+    en m\xEAme temps, et la place de la machine \xE0 laver."
+  price: 1800
+  effect: 9
+  value: 1
+  targetToolId: extension
+  prerequisite: {fileID: 0}
+  requiredReputation: 12

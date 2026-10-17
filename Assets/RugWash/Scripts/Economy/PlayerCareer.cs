@@ -75,6 +75,18 @@ namespace RugWash.Economy
             return clean;
         }
 
+        /// <summary>
+        /// Carrière tenue par l'hôte pour un invité qui arrive (règle des emplacements multijoueur) : première partie sur
+        /// l'emplacement de l'invité → copie de la carrière de l'hôte (une seule fois) ; sinon → la carrière annoncée par
+        /// l'invité, bornée (<see cref="Sanitize"/>). Jamais l'inverse : la carrière de l'hôte n'est pas modifiée.
+        /// </summary>
+        public static PlayerCareer Arrival(bool initialSync, PlayerCareer announced, PlayerCareer hostCareer, IReadOnlyList<UpgradeDefinition> upgrades,
+            IReadOnlyList<ProductDefinition> products, float maxDetergentStock)
+        {
+            var source = initialSync ? (hostCareer ?? new PlayerCareer()).Clone() : announced ?? new PlayerCareer();
+            return Sanitize(source, upgrades, products, maxDetergentStock);
+        }
+
         /// <summary>Achat d'une amélioration avec l'argent de cette carrière (mêmes règles que la boutique).</summary>
         public static PurchaseResult TryBuyUpgrade(PlayerCareer career, UpgradeDefinition upgrade)
         {

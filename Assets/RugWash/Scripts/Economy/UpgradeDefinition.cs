@@ -47,6 +47,9 @@ namespace RugWash.Economy
         public UpgradeDefinition prerequisite;
         [Tooltip("Réputation nécessaire pour l'acheter (0 = aucune condition).")]
         [Min(0)] public int requiredReputation;
+        [Tooltip("Niveau d'outil (1, 2, 3…) des améliorations de puissance par niveaux ; 0 = amélioration simple. Au niveau " +
+                 "maximal de son outil, l'outil devient doré (visible par tous les joueurs).")]
+        [Min(0)] public int level;
 
         /// <summary>Article de l'onglet « Atelier » (machines, robot, décor) plutôt que du matériel tenu en main.</summary>
         public bool IsWorkshopItem => effect == UpgradeEffect.WorkshopEquipment || effect == UpgradeEffect.WorkshopTier;

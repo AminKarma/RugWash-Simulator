@@ -47,15 +47,19 @@ namespace RugWash.Network
         public byte Tier;
         public byte MachinesOwned;
         public byte MachinesRunning;
+        /// <summary>Grande mise à jour : agrandissement (bit 0), machine à laver (bit 1), programme rapide (bit 2).</summary>
+        public byte Facilities;
 
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref Tier);
             serializer.SerializeValue(ref MachinesOwned);
             serializer.SerializeValue(ref MachinesRunning);
+            serializer.SerializeValue(ref Facilities);
         }
 
-        public bool Equals(WorkshopNetState other) => Tier == other.Tier && MachinesOwned == other.MachinesOwned && MachinesRunning == other.MachinesRunning;
+        public bool Equals(WorkshopNetState other) => Tier == other.Tier && MachinesOwned == other.MachinesOwned && MachinesRunning == other.MachinesRunning
+                                                      && Facilities == other.Facilities;
     }
 
     /// <summary>
@@ -82,14 +86,20 @@ namespace RugWash.Network
         public const byte RugId = 0;
         public const byte WorkSurfaceId = 1;
         public const byte FloorId = 2;
+        /// <summary>Zone de lavage 2 (agrandissement de l'atelier) : tapis et aire de lavage.</summary>
+        public const byte Rug2Id = 3;
+        public const byte WorkSurface2Id = 4;
 
         /// <summary>Réputation de l'hôte : elle déverrouille les commandes du tableau de la session (pas la carrière des invités).</summary>
         readonly NetworkVariable<int> boardReputation = new NetworkVariable<int>();
         readonly NetworkVariable<FixedString512Bytes> completedOrders = new NetworkVariable<FixedString512Bytes>();
         readonly NetworkVariable<FixedString64Bytes> activeOrder = new NetworkVariable<FixedString64Bytes>();
+        /// <summary>Commande de la zone de lavage 2 (agrandissement).</summary>
+        readonly NetworkVariable<FixedString64Bytes> activeOrder2 = new NetworkVariable<FixedString64Bytes>();
         /// <summary>Missions générées proposées sur le tableau de l'hôte (identifiants : les invités les régénèrent à l'identique).</summary>
-        readonly NetworkVariable<FixedString128Bytes> missionOffers = new NetworkVariable<FixedString128Bytes>();
+        readonly NetworkVariable<FixedString512Bytes> missionOffers = new NetworkVariable<FixedString512Bytes>();
         readonly NetworkVariable<float> elapsed = new NetworkVariable<float>();
+        readonly NetworkVariable<float> elapsed2 = new NetworkVariable<float>();
         readonly NetworkVariable<RobotNetState> robotState = new NetworkVariable<RobotNetState>();
         readonly NetworkVariable<WorkshopNetState> workshopState = new NetworkVariable<WorkshopNetState>();
 
@@ -110,14 +120,17 @@ namespace RugWash.Network
         public const int SlowCorrectionCellsPerSend = 4096;
         float agingSyncInterval = 2f;
 
-        // Économie de session (règle des sauvegardes) : celle de la sauvegarde de l'hôte — argent, réputation, achats,
-        // produits, stock de détergent. Tous les joueurs l'utilisent ; seul l'hôte la modifie et la sauvegarde. Diffusée
-        // aux invités dès qu'elle change (envoi groupé, au plus quatre fois par seconde).
-        bool economyDirty;
-        float economyTimer;
-        const float EconomySendInterval = 0.25f;
-        // Invité : économie de l'hôte reçue (fin de la synchronisation d'arrivée) ; état redemandé tant qu'elle manque.
-        bool economyReceived;
+        // Progression (grande mise à jour) : chaque joueur a SA carrière (argent, réputation, achats, produits, détergent),
+        // tenue et validée par l'hôte pendant la partie, sauvegardée dans l'emplacement multijoueur du joueur. À la
+        // première arrivée sur un emplacement multijoueur, cette carrière est une copie de celle de l'hôte ; ensuite elle
+        // est indépendante (les achats de l'un ne changent jamais la progression de l'autre).
+        readonly Dictionary<ulong, PlayerCareer> careers = new Dictionary<ulong, PlayerCareer>();
+        readonly HashSet<ulong> careerDirty = new HashSet<ulong>();
+        readonly List<ulong> careerFlush = new List<ulong>();
+        readonly HashSet<ulong> initialSyncs = new HashSet<ulong>();
+        ulong operationSender;
+        // Invité : carrière validée reçue (fin de la synchronisation d'arrivée) ; annonce répétée tant qu'elle manque.
+        bool careerReceived;
         float helloTimer, readyTimer;
         bool readyWarned;
         const float HelloRetrySeconds = 3f;
@@ -135,10 +148,12 @@ namespace RugWash.Network
         /// <summary>Invité : la synchronisation d'arrivée a eu lieu (état de chargement affiché).</summary>
         public bool ShowedLoading { get; private set; }
 
-        /// <summary>Économie de session telle que ce poste l'utilise (hôte : la sienne ; invité : celle reçue de l'hôte).</summary>
-        public PlayerCareer SessionEconomy => CaptureEconomy();
-        /// <summary>Invité : économie de l'hôte reçue au moins une fois.</summary>
-        public bool EconomyReceived => economyReceived;
+        /// <summary>Hôte : carrière tenue pour un invité (copie), ou null.</summary>
+        public PlayerCareer CareerOf(ulong clientId) => careers.TryGetValue(clientId, out var career) ? career.Clone() : null;
+        /// <summary>Hôte : vrai si la carrière de cet invité a été initialisée par copie de celle de l'hôte.</summary>
+        public bool WasInitialSync(ulong clientId) => initialSyncs.Contains(clientId);
+        /// <summary>Invité : carrière validée reçue au moins une fois.</summary>
+        public bool CareerReceived => careerReceived;
 
         // ---------------------------------------------------------------- Apparition
 
@@ -170,6 +185,7 @@ namespace RugWash.Network
         public override void OnNetworkDespawn()
         {
             if (Instance == this) Instance = null;
+            if (game != null) TearDownVoice();
             var messaging = NetworkManager != null ? NetworkManager.CustomMessagingManager : null;
             if (IsServer)
             {
@@ -186,8 +202,9 @@ namespace RugWash.Network
                 client?.Unregister();
                 if (game != null)
                 {
-                    // Fin de partie pour l'invité : rien de la session n'est écrit dans SA sauvegarde (règle des sauvegardes) ;
-                    // sa progression personnelle est relue du disque au prochain chargement de l'atelier.
+                    // Fin de partie pour l'invité : sa carrière validée est écrite dans SON emplacement multijoueur (jamais
+                    // l'atelier de l'hôte) ; une carrière jamais reçue n'écrase rien.
+                    if (careerReceived) game.SaveSystem.SaveNow("fin de la partie en ligne");
                     game.Orders.Remote = null;
                     game.Shop.Remote = null;
                     game.Robot.Remote = null;
@@ -195,6 +212,7 @@ namespace RugWash.Network
                     game.WorkshopFromHost = false;
                     foreach (var machine in game.Machines)
                         if (machine != null) machine.Remote = null;
+                    if (Washer != null) Washer.Remote = null;
                     TearDownPranks();
                     game.Orders.SetBoardReputation(-1);
                     game.GameState.Synchronizing = false;
@@ -204,25 +222,46 @@ namespace RugWash.Network
             if (game != null) game.GameState.Networked = false;
         }
 
-        RugCleaningController Surface(byte id) =>
-            id == RugId ? game.Rug : id == WorkSurfaceId ? game.WorkSurface.Surface : id == FloorId ? game.RoomFloor : null;
+        RugCleaningController Surface(byte id)
+        {
+            switch (id)
+            {
+                case RugId: return game.Rug;
+                case WorkSurfaceId: return game.WorkSurface.Surface;
+                case FloorId: return game.RoomFloor;
+                case Rug2Id: return game.Orders.RugOf(1);
+                case WorkSurface2Id:
+                    var surface = game.Orders.WorkSurfaceOf(1);
+                    return surface != null ? surface.Surface : null;
+                default: return null;
+            }
+        }
+
+        /// <summary>Surfaces partagées présentes dans cette scène (la zone 2 n'existe que si l'atelier peut s'agrandir).</summary>
+        IEnumerable<byte> SharedSurfaces()
+        {
+            foreach (byte id in new[] { RugId, WorkSurfaceId, FloorId, Rug2Id, WorkSurface2Id })
+                if (Surface(id) != null) yield return id;
+        }
+
+        static int BayOfSurface(byte id) => id == RugId ? 0 : id == Rug2Id ? 1 : -1;
 
         // ---------------------------------------------------------------- Hôte
 
         void SetUpHost()
         {
             host = new SurfaceSyncHost(Identify);
-            host.Register(RugId, Surface(RugId));
-            host.Register(WorkSurfaceId, Surface(WorkSurfaceId));
-            host.Register(FloorId, Surface(FloorId));
+            foreach (byte id in SharedSurfaces()) host.Register(id, Surface(id));
             NetworkManager.CustomMessagingManager.RegisterNamedMessageHandler(OperationMessage, OnOperationMessage);
             NetworkManager.SceneManager.OnSynchronizeComplete += OnClientSynchronized;
             NetworkManager.OnClientDisconnectCallback += OnClientLeft;
             HookHostSystems();
             SetUpHostPranks();
+            SetUpVoice();
             boardReputation.Value = game.Reputation.Points;
             PushOrders();
             SpawnAvatar(NetworkManager.LocalClientId);
+            PushHostGolden();
             // Invités déjà connectés (arrivés pendant le chargement de l'atelier).
             foreach (var id in NetworkManager.ConnectedClientsIds)
                 if (id != NetworkManager.LocalClientId) OnClientSynchronized(id);
@@ -232,8 +271,8 @@ namespace RugWash.Network
         {
             var surface = Surface(id);
             string definition = surface != null && surface.Definition != null ? surface.Definition.id : string.Empty;
-            string order = id == RugId && game.Orders.ActiveOrder != null ? game.Orders.ActiveOrder.id : string.Empty;
-            return new SurfaceIdentity(definition, order);
+            var active = game.Orders.OrderOf(BayOfSurface(id));
+            return new SurfaceIdentity(definition, active != null ? active.id : string.Empty);
         }
 
         void HookHostSystems()
@@ -241,14 +280,16 @@ namespace RugWash.Network
             game.Reputation.Changed += OnReputationChanged;
             game.Orders.Changed += PushOrders;
             game.Orders.OrderFinished += OnHostOrderFinished;
-            game.Wallet.Wallet.Changed += OnHostWalletChanged;
-            game.Upgrades.Changed += MarkEconomyDirty;
-            game.Products.Book.Changed += MarkEconomyDirty;
-            game.Detergent.Changed += MarkEconomyDirty;
+            game.Upgrades.Changed += PushHostGolden;
+            HookWasher();
         }
 
-        void OnHostWalletChanged(int balance, int delta) => economyDirty = true;
-        void MarkEconomyDirty() => economyDirty = true;
+        /// <summary>Hôte : ses propres outils dorés, sur sa silhouette.</summary>
+        void PushHostGolden()
+        {
+            var avatar = AvatarOf(NetworkManager.LocalClientId);
+            if (avatar != null) avatar.SetGoldenTools(game.Upgrades.GoldenMaskFor(game.Upgrades.OwnedIds));
+        }
 
         void UnhookHostSystems()
         {
@@ -256,27 +297,26 @@ namespace RugWash.Network
             game.Reputation.Changed -= OnReputationChanged;
             game.Orders.Changed -= PushOrders;
             game.Orders.OrderFinished -= OnHostOrderFinished;
-            game.Wallet.Wallet.Changed -= OnHostWalletChanged;
-            game.Upgrades.Changed -= MarkEconomyDirty;
-            game.Products.Book.Changed -= MarkEconomyDirty;
-            game.Detergent.Changed -= MarkEconomyDirty;
+            game.Upgrades.Changed -= PushHostGolden;
+            UnhookWasher();
         }
 
-        void OnReputationChanged(int points)
-        {
-            boardReputation.Value = points;
-            economyDirty = true;
-        }
+        void OnReputationChanged(int points) => boardReputation.Value = points;
 
         void PushOrders()
         {
-            var active = game.Orders.ActiveOrder;
-            activeOrder.Value = new FixedString64Bytes(active != null ? Truncate(active.id, 60) : string.Empty);
-            completedOrders.Value = new FixedString512Bytes(Truncate(string.Join(",", game.Orders.Book.CompletedIds()), 500));
+            var orders = game.Orders;
+            var first = orders.OrderOf(0);
+            var second = orders.OrderOf(1);
+            activeOrder.Value = new FixedString64Bytes(first != null ? Truncate(first.id, 60) : string.Empty);
+            activeOrder2.Value = new FixedString64Bytes(second != null ? Truncate(second.id, 60) : string.Empty);
+            completedOrders.Value = new FixedString512Bytes(Truncate(string.Join(",", orders.Book.CompletedIds()), 500));
             var offers = new List<string>();
-            foreach (var offer in game.Orders.Missions.Offers) offers.Add(offer.Id);
-            missionOffers.Value = new FixedString128Bytes(Truncate(string.Join(",", offers), 120));
-            elapsed.Value = game.Orders.ElapsedSeconds;
+            foreach (var offer in orders.Missions.Offers) offers.Add(offer.Id);
+            missionOffers.Value = new FixedString512Bytes(Truncate(string.Join(",", offers), 500));
+            elapsed.Value = orders.ElapsedOf(0);
+            elapsed2.Value = orders.ElapsedOf(1);
+            PushWasher();
         }
 
         static string Truncate(string text, int max) => text.Length <= max ? text : text.Substring(0, max);
@@ -293,8 +333,8 @@ namespace RugWash.Network
         }
 
         /// <summary>
-        /// État complet pour un invité : instantané de chaque surface, puis l'économie de session ; ensuite, il reçoit les
-        /// mises à jour comme les autres. Sans effet de bord si on le renvoie (mêmes valeurs simplement réécrites).
+        /// État complet pour un invité : instantané de chaque surface, puis sa carrière (si déjà annoncée) ; ensuite, il reçoit
+        /// les mises à jour comme les autres. Sans effet de bord si on le renvoie (mêmes valeurs simplement réécrites).
         /// </summary>
         void SendFullState(ulong clientId)
         {
@@ -305,7 +345,8 @@ namespace RugWash.Network
                 SendSurface(writer, clientId);
             }
             if (!syncedClients.Contains(clientId)) syncedClients.Add(clientId);
-            EconomyToRpc(CareerCodec.Encode(CaptureEconomy()), RpcTarget.Single(clientId, RpcTargetUse.Temp));
+            // Carrière annoncée avant la fin de la synchronisation : la réponse part maintenant.
+            if (careers.ContainsKey(clientId)) SendCareer(clientId, persist: false);
         }
 
         /// <summary>
@@ -326,6 +367,10 @@ namespace RugWash.Network
             syncedClients.Remove(clientId);
             spawnedAvatars.Remove(clientId);
             host?.Acks.Remove(clientId);
+            careers.Remove(clientId);
+            careerDirty.Remove(clientId);
+            initialSyncs.Remove(clientId);
+            ForgetSocial(clientId);
             if (game != null && game.Pranks != null) game.Pranks.Forget(clientId);
             ToastRpc($"{session?.NameOf(clientId) ?? "Un joueur"} a quitté l'atelier.");
         }
@@ -345,34 +390,81 @@ namespace RugWash.Network
             if (length <= 0 || length > 4096) return;
             if (receiveBuffer.Length < length) receiveBuffer = new byte[Mathf.Max(length, receiveBuffer.Length * 2)];
             reader.ReadBytesSafe(ref receiveBuffer, length);
+            operationSender = senderClientId;
             if (!host.TryApply(senderClientId, new ArraySegment<byte>(receiveBuffer, 0, length), out var applied, ProductFilter)) return;
-            // Produit spécialisé pulvérisé par un invité : prélevé sur le stock de l'atelier (économie de session).
-            if (applied.Product != ProductTable.Standard)
+            // Produit spécialisé pulvérisé par un invité : prélevé sur SON stock (carrière tenue par l'hôte).
+            if (applied.Product != ProductTable.Standard && careers.TryGetValue(senderClientId, out var career))
             {
                 var product = game.Rug.Products.Get(applied.Product);
-                if (product != null) game.Products.Book.ConsumeFrom(product, product.litersPerSecond * applied.DeltaTime);
+                if (product != null && CareerRules.Consume(career, product.id, product.litersPerSecond * applied.DeltaTime) > 0f)
+                    careerDirty.Add(senderClientId);
             }
         }
 
-        /// <summary>Un produit spécialisé n'est utilisé que s'il en reste dans le stock de l'atelier ; sinon, détergent standard.</summary>
+        /// <summary>Un invité ne peut utiliser un produit spécialisé que s'il en a dans SON stock ; sinon, détergent standard.</summary>
         byte ProductFilter(byte id)
         {
             if (id == ProductTable.Standard) return id;
             var product = game.Rug.Products.Get(id);
-            return product != null && game.Products.StockOf(product) > 0f ? id : ProductTable.Standard;
+            return product != null && careers.TryGetValue(operationSender, out var career) && career.StockOf(product.id) > 0f
+                ? id : ProductTable.Standard;
         }
 
-        // ---------------------------------------------------------------- Économie de session (hôte → invités)
+        // ---------------------------------------------------------------- Carrières (hôte)
 
-        /// <summary>L'économie de l'hôte a changé : diffusée à tous les invités (envoi groupé).</summary>
-        void FlushEconomy(float dt)
+        /// <summary>
+        /// Envoie à un invité sa carrière telle que l'hôte la tient. <paramref name="persist"/> : à sauvegarder aussitôt.
+        /// La première réponse après une copie de la carrière de l'hôte porte le marqueur « synchronisation initiale ».
+        /// </summary>
+        void SendCareer(ulong clientId, bool persist)
         {
-            economyTimer += dt;
-            if (!economyDirty || economyTimer < EconomySendInterval) return;
-            economyTimer = 0f;
-            economyDirty = false;
-            if (syncedClients.Count > 0) EconomyRpc(CareerCodec.Encode(CaptureEconomy()));
+            if (!careers.TryGetValue(clientId, out var career)) return;
+            careerDirty.Remove(clientId);
+            // Outils dorés de cet invité, d'après SA carrière (achats validés ici) : visibles par tous sur sa silhouette.
+            var avatar = AvatarOf(clientId);
+            if (avatar != null) avatar.SetGoldenTools(game.Upgrades.GoldenMaskFor(career.Upgrades));
+            CareerRpc(CareerCodec.Encode(career), persist, initialSyncs.Contains(clientId), RpcTarget.Single(clientId, RpcTargetUse.Temp));
         }
+
+        /// <summary>
+        /// Arrivée d'un invité. <paramref name="initialSync"/> : son emplacement multijoueur n'a encore jamais joué — sa
+        /// carrière de départ est une copie de celle de l'hôte (une seule fois). Sinon, la carrière annoncée (celle de SON
+        /// emplacement) est bornée par l'hôte. Une annonce répétée (réponse perdue, ou tentative de se redonner de l'argent)
+        /// ne remplace jamais la carrière déjà tenue : elle redemande seulement la carrière actuelle.
+        /// </summary>
+        [Rpc(SendTo.Server)]
+        void CareerHelloRpc(byte[] data, bool initialSync, RpcParams rpcParams = default)
+        {
+            ulong sender = rpcParams.Receive.SenderClientId;
+            if (sender == NetworkManager.LocalClientId) return;
+            if (careers.ContainsKey(sender))
+            {
+                if (syncedClients.Contains(sender)) SendCareer(sender, persist: false);
+                return;
+            }
+            PlayerCareer announced = null;
+            if (!initialSync)
+            {
+                try
+                {
+                    announced = CareerCodec.Decode(data);
+                }
+                catch (FormatException)
+                {
+                    Debug.LogWarning($"[RugWash] Carrière illisible reçue du client {sender} : carrière vierge.");
+                    announced = new PlayerCareer();
+                }
+            }
+            careers[sender] = CareerRules.Arrival(initialSync, announced, CaptureHostCareer(), game.Upgrades.Catalog,
+                game.Products.Book.Catalog, game.Detergent.MaxStock);
+            if (initialSync) initialSyncs.Add(sender);
+            Debug.Log($"[RugWash] Carrière de l'invité {sender} : {(initialSync ? "copie de celle de l'hôte (première partie sur cet emplacement)" : "la sienne, bornée")}.");
+            // Réponse seulement à un invité synchronisé (sinon à la fin de sa synchronisation, OnClientSynchronized).
+            if (syncedClients.Contains(sender)) SendCareer(sender, persist: initialSync);
+        }
+
+        /// <summary>Carrière de l'hôte, lue dans ses systèmes (copiée pour un invité qui commence un emplacement multijoueur).</summary>
+        PlayerCareer CaptureHostCareer() => CaptureLocalCareer();
 
         void Update()
         {
@@ -433,9 +525,14 @@ namespace RugWash.Network
             if (slowTimer >= 0.5f)
             {
                 slowTimer = 0f;
-                if (game.Orders.ActiveOrder != null) elapsed.Value = game.Orders.ElapsedSeconds;
+                if (game.Orders.OrderOf(0) != null) elapsed.Value = game.Orders.ElapsedOf(0);
+                if (game.Orders.OrderOf(1) != null) elapsed2.Value = game.Orders.ElapsedOf(1);
+                PushWasher();
+                // Carrières modifiées par les consommations (produits, farces) : envoi groupé.
+                careerFlush.Clear();
+                careerFlush.AddRange(careerDirty);
+                foreach (ulong id in careerFlush) SendCareer(id, persist: false);
             }
-            FlushEconomy(dt);
         }
 
         void SendSurface(ByteWriter data, ulong clientId)
@@ -458,16 +555,24 @@ namespace RugWash.Network
         {
             // Les mesures exactes de l'hôte accompagnent la livraison : les invités affichent le même résultat,
             // sans rien payer eux-mêmes.
-            if (game.Rug.Grid == null) return;
-            var summary = game.Rug.Grid.ComputeSummary();
+            // Zone de la commande livrée (grande mise à jour : plusieurs zones) ; son tapis reste posé jusqu'au retour.
+            var delivered = game.Orders.RugOf(result.Bay);
+            if (delivered == null || delivered.Grid == null) return;
+            var summary = delivered.Grid.ComputeSummary();
             // La commande livrée vient du résultat : une mission générée a déjà quitté le tableau (remplacée).
-            var order = result.Order != null ? result.Order : game.Orders.Book.Find(activeOrder.Value.ToString()) ?? FindLastCompleted();
+            var order = result.Order != null ? result.Order : FindLastCompleted();
             if (order == null) return;
             DeliveredRpc(new FixedString64Bytes(order.id), summary.Cleanliness01, summary.CleanCellRatio01, summary.AverageMoisture01,
                 summary.AverageFoam01, summary.AverageResidue01, summary.AverageWear01, summary.RemainingDirt, summary.InitialDirt,
-                game.Orders.ElapsedSeconds);
-            // Récompense et réputation versées une seule fois, dans l'économie de l'hôte (OrderManager de l'hôte) : les invités
-            // la voient par la diffusion de l'économie ; rien n'entre dans leur sauvegarde personnelle.
+                result.ElapsedSeconds, (byte)Mathf.Clamp(result.Bay, 0, 255));
+            // Règle de participation : chaque invité présent à la livraison reçoit la même récompense et la même variation de
+            // réputation que l'hôte, dans SA carrière (calculées une seule fois, ici).
+            foreach (ulong id in syncedClients)
+                if (careers.TryGetValue(id, out var career))
+                {
+                    CareerRules.Reward(career, result);
+                    SendCareer(id, persist: true);
+                }
             PushOrders();
         }
 
@@ -484,47 +589,67 @@ namespace RugWash.Network
         void SetUpGuest()
         {
             client = new SurfaceSyncClient(SendOperation, LoadSurface) { LocalClientId = NetworkManager.LocalClientId };
-            client.Register(RugId, Surface(RugId));
-            client.Register(WorkSurfaceId, Surface(WorkSurfaceId));
-            client.Register(FloorId, Surface(FloorId));
+            foreach (byte id in SharedSurfaces()) client.Register(id, Surface(id));
             NetworkManager.CustomMessagingManager.RegisterNamedMessageHandler(SurfaceMessageName, OnSurfaceMessage);
 
             game.Orders.Remote = this;
             game.Shop.Remote = this;
             game.Robot.Remote = this;
             game.Detergent.Remote = this;
-            // La carrière affichée et sauvegardée reste celle de ce joueur (jamais celle de l'hôte).
+            // La carrière affichée et sauvegardée est celle de l'emplacement multijoueur de ce joueur.
             game.SaveSystem.GuestCareerMode = true;
 
             boardReputation.OnValueChanged += (_, value) => game.Orders.SetBoardReputation(value);
             completedOrders.OnValueChanged += (_, value) => game.Orders.ApplyRemoteCompleted(Split(value.ToString()));
             missionOffers.OnValueChanged += (_, value) => game.Orders.ApplyRemoteOffers(Split(value.ToString()));
-            activeOrder.OnValueChanged += (_, value) => ApplyActiveOrder(value.ToString());
-            elapsed.OnValueChanged += (_, value) => game.Orders.ApplyRemoteElapsed(value);
+            activeOrder.OnValueChanged += (_, value) => ApplyActiveOrder(0, value.ToString());
+            activeOrder2.OnValueChanged += (_, value) => ApplyActiveOrder(1, value.ToString());
+            elapsed.OnValueChanged += (_, value) => game.Orders.ApplyRemoteElapsed(value, 0);
+            elapsed2.OnValueChanged += (_, value) => game.Orders.ApplyRemoteElapsed(value, 1);
+            washerState.OnValueChanged += (_, value) => ApplyWasher(value);
             robotState.OnValueChanged += (_, value) => ApplyRobot(value);
             // Atelier de l'hôte : décor et machines (les achats de l'invité restent dans sa carrière).
             game.WorkshopFromHost = true;
             foreach (var machine in game.Machines)
                 if (machine != null) machine.Remote = this;
+            if (Washer != null) Washer.Remote = this;
             workshopState.OnValueChanged += (_, value) => ApplyWorkshop(value);
             ApplyWorkshop(workshopState.Value);
             SetUpGuestPranks();
+            SetUpVoice();
 
             game.Orders.SetBoardReputation(boardReputation.Value);
             game.Orders.ApplyRemoteCompleted(Split(completedOrders.Value.ToString()));
             game.Orders.ApplyRemoteOffers(Split(missionOffers.Value.ToString()));
-            ApplyActiveOrder(activeOrder.Value.ToString());
+            ApplyActiveOrder(0, activeOrder.Value.ToString());
+            ApplyActiveOrder(1, activeOrder2.Value.ToString());
+            ApplyWasher(washerState.Value);
             ApplyRobot(robotState.Value);
 
             // Arrivée : contrôles coupés et HUD en chargement jusqu'à réception de l'état de l'hôte et de la carrière validée.
             ShowedLoading = true;
             game.GameState.Synchronizing = true;
-            game.Hud.SetLoading("Connexion à l'atelier de l'hôte — synchronisation de l'atelier…");
+            game.Hud.SetLoading(game.SaveSystem.NeedsInitialSync
+                ? "Connexion à l'atelier de l'hôte — première partie sur cet emplacement : copie de la progression de l'hôte…"
+                : "Connexion à l'atelier de l'hôte — synchronisation de l'atelier et de votre progression…");
+            SendHello();
             StateRequestRpc();
         }
 
-        /// <summary>Économie lue dans les systèmes de ce poste (hôte : celle de sa sauvegarde ; invité : celle reçue).</summary>
-        PlayerCareer CaptureEconomy()
+        /// <summary>Annonce de l'invité : sa carrière (emplacement déjà joué) ou une demande de copie (premier passage).</summary>
+        void SendHello() => CareerHelloRpc(CareerCodec.Encode(CaptureLocalCareer()), game.SaveSystem.NeedsInitialSync);
+
+        /// <summary>
+        /// Diagnostic (vérification automatique du multijoueur) : renvoie à l'hôte une annonce de carrière arbitraire, comme
+        /// le ferait un client modifié. L'hôte doit l'ignorer : la carrière tenue en cours de partie ne change pas.
+        /// </summary>
+        public void SendForgedCareerForDiagnostics(PlayerCareer forged)
+        {
+            if (!IsServer && forged != null) CareerHelloRpc(CareerCodec.Encode(forged), false);
+        }
+
+        /// <summary>Carrière de ce joueur, lue dans ses propres systèmes (chargés depuis SON emplacement).</summary>
+        PlayerCareer CaptureLocalCareer()
         {
             var career = new PlayerCareer { Money = game.Wallet.Balance, Reputation = game.Reputation.Points, DetergentStock = game.Detergent.Stock };
             career.Upgrades.UnionWith(game.Upgrades.OwnedIds);
@@ -533,11 +658,8 @@ namespace RugWash.Network
             return career;
         }
 
-        /// <summary>
-        /// Invité : applique l'économie de l'hôte pour la durée de la session (le produit sélectionné reste le choix local).
-        /// La sauvegarde de l'invité ne l'enregistre jamais (<see cref="Save.SaveManager.GuestCareerMode"/>).
-        /// </summary>
-        void ApplyEconomy(PlayerCareer career)
+        /// <summary>Applique la carrière validée par l'hôte (le produit sélectionné reste le choix local).</summary>
+        void ApplyCareer(PlayerCareer career)
         {
             game.Wallet.Wallet.Restore(career.Money);
             game.Reputation.Restore(career.Reputation);
@@ -549,27 +671,30 @@ namespace RugWash.Network
             game.Products.Restore(entries, active != null ? active.id : career.ActiveProduct);
         }
 
-        [Rpc(SendTo.NotServer)]
-        void EconomyRpc(byte[] data) => ReceiveEconomy(data);
-
         [Rpc(SendTo.SpecifiedInParams)]
-        void EconomyToRpc(byte[] data, RpcParams rpcParams) => ReceiveEconomy(data);
-
-        void ReceiveEconomy(byte[] data)
+        void CareerRpc(byte[] data, bool persist, bool initialSync, RpcParams rpcParams)
         {
             if (IsServer) return;
-            PlayerCareer economy;
+            PlayerCareer career;
             try
             {
-                economy = CareerCodec.Decode(data);
+                career = CareerCodec.Decode(data);
             }
             catch (FormatException)
             {
-                Debug.LogWarning("[RugWash] Économie de session illisible reçue de l'hôte : ignorée.");
+                Debug.LogWarning("[RugWash] Carrière illisible reçue de l'hôte : ignorée.");
                 return;
             }
-            ApplyEconomy(economy);
-            economyReceived = true;
+            ApplyCareer(career);
+            bool first = !careerReceived;
+            careerReceived = true;
+            // Copie de départ reçue : l'emplacement est marqué « initialisé » et sauvegardé (jamais recopié ensuite).
+            if (initialSync && game.SaveSystem.NeedsInitialSync)
+            {
+                game.SaveSystem.MarkMultiplayerInitialized();
+                if (first) game.Hud.ShowToast("Première partie sur cet emplacement : progression de départ copiée depuis l'hôte. Elle vous appartient désormais.");
+            }
+            else if (persist) game.SaveSystem.SaveNow("progression en ligne");
         }
 
         /// <summary>Invité : fin de la synchronisation d'arrivée quand toutes les surfaces et la carrière sont reçues.</summary>
@@ -577,24 +702,26 @@ namespace RugWash.Network
         {
             if (GuestReady || client == null) return;
             float dt = Time.unscaledDeltaTime;
-            bool surfaces = client.IsReady(RugId) && client.IsReady(WorkSurfaceId) && client.IsReady(FloorId);
-            if (!economyReceived || !surfaces)
+            bool surfaces = true;
+            foreach (byte id in SharedSurfaces()) surfaces &= client.IsReady(id);
+            if (!careerReceived || !surfaces)
             {
-                // Réponse perdue ou partie trop tôt : l'état complet (surfaces et économie) est redemandé.
+                // Réponse perdue ou partie trop tôt : nouvelle demande (l'hôte ne remplace jamais une carrière déjà tenue).
                 helloTimer += dt;
                 if (helloTimer >= HelloRetrySeconds)
                 {
                     helloTimer = 0f;
+                    if (!careerReceived) SendHello();
                     StateRequestRpc();
                 }
             }
-            if (!economyReceived || !surfaces)
+            if (!careerReceived || !surfaces)
             {
                 readyTimer += dt;
                 if (readyTimer > 10f && !readyWarned)
                 {
                     readyWarned = true;
-                    Debug.LogWarning($"[RugWash] Synchronisation de l'invité toujours en cours après 10 s : économie {(economyReceived ? "reçue" : "en attente")}, " +
+                    Debug.LogWarning($"[RugWash] Synchronisation de l'invité toujours en cours après 10 s : carrière {(careerReceived ? "reçue" : "en attente")}, " +
                                      $"tapis {client.IsReady(RugId)}, aire {client.IsReady(WorkSurfaceId)}, sol {client.IsReady(FloorId)}.");
                 }
                 return;
@@ -603,27 +730,34 @@ namespace RugWash.Network
             game.GameState.Synchronizing = false;
             game.Hud.SetLoading(null);
             game.WorkSurface.RefreshStatus(force: true);
-            game.Hud.ShowToast("Atelier de l'hôte : vous jouez avec son argent et son équipement — votre sauvegarde reste intacte");
+            var secondArea = game.Orders.WorkSurfaceOf(1);
+            if (secondArea != null) secondArea.RefreshStatus(force: true);
+            game.Hud.ShowToast($"Connecté à l'atelier de l'hôte — progression de {game.SaveSystem.Slot.DisplayName} (la vôtre)");
         }
 
         static string[] Split(string text) => string.IsNullOrEmpty(text) ? Array.Empty<string>() : text.Split(',');
 
-        void ApplyActiveOrder(string id)
+        void ApplyActiveOrder(int bay, string id)
         {
             var orders = game.Orders;
+            var current = orders.OrderOf(bay);
             if (string.IsNullOrEmpty(id))
             {
-                if (orders.ActiveOrder != null && game.GameState.State != GameState.Results) orders.ApplyRemoteReturn();
+                if (current != null && game.GameState.State != GameState.Results) orders.ApplyRemoteReturn(bay);
                 return;
             }
-            if (orders.ActiveOrder != null && orders.ActiveOrder.id == id) return;
+            if (current != null && current.id == id) return;
             var order = orders.Resolve(id);
-            if (order != null) orders.ApplyRemoteStart(order, elapsed.Value);
+            if (order != null) orders.ApplyRemoteStart(order, bay == 0 ? elapsed.Value : elapsed2.Value, bay);
         }
 
         WorkshopNetState CaptureWorkshop()
         {
-            var state = new WorkshopNetState { Tier = (byte)(game.Decor != null ? Mathf.Max(0, game.Decor.Tier) : 0) };
+            var state = new WorkshopNetState
+            {
+                Tier = (byte)(game.Decor != null ? Mathf.Max(0, game.Decor.Tier) : 0),
+                Facilities = game.Extension != null ? game.Extension.Facilities : (byte)0,
+            };
             for (int i = 0; i < game.Machines.Count && i < 8; i++)
             {
                 var machine = game.Machines[i];
@@ -637,6 +771,7 @@ namespace RugWash.Network
         void ApplyWorkshop(WorkshopNetState state)
         {
             if (game.Decor != null) game.Decor.Apply(state.Tier);
+            if (game.Extension != null) game.Extension.ApplyFacilities(state.Facilities);
             for (int i = 0; i < game.Machines.Count && i < 8; i++)
                 if (game.Machines[i] != null)
                     game.Machines[i].ApplyRemoteState((state.MachinesOwned & (1 << i)) != 0, (state.MachinesRunning & (1 << i)) != 0);
@@ -660,7 +795,7 @@ namespace RugWash.Network
         {
             var surface = Surface(id);
             if (surface == null) return false;
-            if (id != RugId) return surface.Grid != null;
+            if (BayOfSurface(id) < 0) return surface.Grid != null;
             if (string.IsNullOrEmpty(identity.DefinitionId))
             {
                 surface.Unload();
@@ -715,9 +850,10 @@ namespace RugWash.Network
 
         // ---------------------------------------------------------------- Demandes des invités (IWorkshopRequests)
 
-        public void RequestStartOrder(string orderId) => StartOrderRpc(new FixedString64Bytes(orderId ?? string.Empty));
-        public void RequestDeliver() => DeliverRpc();
-        public void RequestAbandon() => AbandonRpc();
+        public void RequestStartOrder(string orderId, int bay) => StartOrderRpc(new FixedString64Bytes(orderId ?? string.Empty), (byte)Mathf.Clamp(bay, 0, 255));
+        public void RequestDeliver(int bay) => DeliverRpc((byte)Mathf.Clamp(bay, 0, 255));
+        public void RequestAbandon(int bay) => AbandonRpc((byte)Mathf.Clamp(bay, 0, 255));
+        public void RequestWasher(byte action, int bay) => WasherRpc(action, (byte)Mathf.Clamp(bay, 0, 255));
         public void RequestUpgrade(string upgradeId) => UpgradeRpc(new FixedString64Bytes(upgradeId ?? string.Empty));
         public void RequestProduct(string productId) => ProductRpc(new FixedString64Bytes(productId ?? string.Empty));
         public void RequestRobotToggle() => RobotToggleRpc();
@@ -740,33 +876,32 @@ namespace RugWash.Network
         public void RequestDetergentCan() => DetergentCanRpc();
         public void RequestDetergentRefill(float liters) => DetergentRefillRpc(liters);
 
-        /// <summary>Bidon acheté par un invité : payé avec l'argent de l'atelier, ajouté au stock de l'atelier (sauvegarde de l'hôte).</summary>
+        /// <summary>Bidon acheté par un invité : payé avec SON argent, ajouté à SON stock (carrière tenue par l'hôte).</summary>
         [Rpc(SendTo.Server)]
         void DetergentCanRpc(RpcParams rpcParams = default)
         {
             ulong sender = rpcParams.Receive.SenderClientId;
+            if (!careers.TryGetValue(sender, out var career))
+            {
+                ShopResultRpc("Progression en cours de synchronisation", false, RpcTarget.Single(sender, RpcTargetUse.Temp));
+                return;
+            }
             var supply = game.Detergent;
-            var result = game.Shop.TryBuyDetergentCan();
+            var result = CareerRules.TryBuyDetergentCan(career, supply.CanPrice, supply.CanLiters, supply.MaxStock);
             ShopResultRpc(result == ProductPurchaseResult.Purchased ? $"Bidon de détergent acheté : +{supply.CanLiters:0} L" : ShopRules.Describe(result),
                 result == ProductPurchaseResult.Purchased, RpcTarget.Single(sender, RpcTargetUse.Temp));
-            if (result == ProductPurchaseResult.Purchased) NotifyOthers(sender, "un bidon de détergent");
+            if (result == ProductPurchaseResult.Purchased) SendCareer(sender, persist: true);
         }
 
-        /// <summary>Remplissage au poste par un invité : prélevé sur le stock de l'atelier (jamais plus que la réserve ne peut contenir).</summary>
+        /// <summary>Remplissage au poste par un invité : prélevé sur SON stock (jamais plus que la réserve ne peut contenir).</summary>
         [Rpc(SendTo.Server)]
         void DetergentRefillRpc(float liters, RpcParams rpcParams = default)
         {
             ulong sender = rpcParams.Receive.SenderClientId;
-            float granted = game.Detergent.Take(Mathf.Clamp(liters, 0f, MaxReserveLiters));
+            if (!careers.TryGetValue(sender, out var career)) return;
+            float granted = CareerRules.TakeDetergent(career, Mathf.Clamp(liters, 0f, MaxReserveLiters));
             DetergentGrantedRpc(granted, RpcTarget.Single(sender, RpcTargetUse.Temp));
-        }
-
-        /// <summary>Les autres joueurs voient ce qu'un invité a acheté avec l'argent de l'atelier.</summary>
-        void NotifyOthers(ulong buyer, string item)
-        {
-            string message = $"{session?.NameOf(buyer) ?? "Un joueur"} a acheté {item} (argent de l'atelier).";
-            foreach (ulong id in NetworkManager.ConnectedClientsIds)
-                if (id != buyer) ToastToRpc(message, RpcTarget.Single(id, RpcTargetUse.Temp));
+            SendCareer(sender, persist: false);
         }
 
         /// <summary>Borne d'un remplissage (réserve maximale du catalogue d'améliorations).</summary>
@@ -779,7 +914,7 @@ namespace RugWash.Network
         }
 
         [Rpc(SendTo.Server)]
-        void StartOrderRpc(FixedString64Bytes orderId, RpcParams rpcParams = default)
+        void StartOrderRpc(FixedString64Bytes orderId, byte bay, RpcParams rpcParams = default)
         {
             var order = game.Orders.Book.Find(orderId.ToString());
             ulong sender = rpcParams.Receive.SenderClientId;
@@ -788,25 +923,27 @@ namespace RugWash.Network
                 ToastToRpc("Commande inconnue.", RpcTarget.Single(sender, RpcTargetUse.Temp));
                 return;
             }
-            var result = game.Orders.TryStart(order);
-            if (result == OrderStartResult.Started) ToastRpc($"{session?.NameOf(sender) ?? "Un joueur"} a accepté « {order.title} ».");
+            var result = game.Orders.TryStart(order, bay);
+            int placed = game.Orders.BayOf(order);
+            string where = game.Orders.UnlockedBayCount > 1 && placed >= 0 ? $" ({OrderManager.BayLabel(placed).ToLowerInvariant()})" : string.Empty;
+            if (result == OrderStartResult.Started) ToastRpc($"{session?.NameOf(sender) ?? "Un joueur"} a accepté « {order.title} »{where}.");
             else ToastToRpc(OrderManager.StartResultMessage(result), RpcTarget.Single(sender, RpcTargetUse.Temp));
         }
 
         [Rpc(SendTo.Server)]
-        void DeliverRpc(RpcParams rpcParams = default)
+        void DeliverRpc(byte bay, RpcParams rpcParams = default)
         {
-            // Une seule livraison possible : sans commande active, la demande est ignorée (double appui, deux joueurs).
-            if (game.Orders.ActiveOrder == null) return;
-            game.Orders.Deliver();
+            // Une seule livraison possible : sans commande dans cette zone, la demande est ignorée (double appui, deux joueurs).
+            if (game.Orders.OrderOf(bay) == null) return;
+            game.Orders.Deliver(bay);
         }
 
         [Rpc(SendTo.Server)]
-        void AbandonRpc(RpcParams rpcParams = default)
+        void AbandonRpc(byte bay, RpcParams rpcParams = default)
         {
-            if (game.Orders.ActiveOrder == null) return;
-            string title = game.Orders.ActiveOrder.title;
-            if (game.Orders.Abandon()) ToastRpc($"{session?.NameOf(rpcParams.Receive.SenderClientId) ?? "Un joueur"} a abandonné « {title} ».");
+            var order = game.Orders.OrderOf(bay);
+            if (order == null) return;
+            if (game.Orders.Abandon(bay)) ToastRpc($"{session?.NameOf(rpcParams.Receive.SenderClientId) ?? "Un joueur"} a abandonné « {order.title} ».");
         }
 
         [Rpc(SendTo.Server)]
@@ -816,17 +953,17 @@ namespace RugWash.Network
             foreach (var candidate in game.Upgrades.Catalog)
                 if (candidate != null && candidate.id == upgradeId.ToString()) upgrade = candidate;
             ulong sender = rpcParams.Receive.SenderClientId;
-            if (upgrade == null)
+            if (upgrade == null || !careers.TryGetValue(sender, out var career))
             {
-                ShopResultRpc("Article inconnu", false, RpcTarget.Single(sender, RpcTargetUse.Temp));
+                ShopResultRpc(upgrade == null ? "Article inconnu" : "Progression en cours de synchronisation", false, RpcTarget.Single(sender, RpcTargetUse.Temp));
                 return;
             }
-            // Achat de session : payé avec l'argent de l'atelier, ajouté aux achats de l'atelier (sauvegarde de l'hôte),
-            // avec les mêmes règles qu'un achat de l'hôte (prix, prérequis, réputation de l'atelier).
-            var result = game.Shop.TryPurchase(upgrade);
-            ShopResultRpc(result == PurchaseResult.Purchased ? $"Achat effectué : {upgrade.displayName} (argent de l'atelier)" : ShopRules.Describe(result),
+            // Payé avec l'argent de l'invité, validé ici (prix, prérequis, réputation de SA carrière) : ni l'argent ni les
+            // achats de l'hôte ne sont touchés. Un même achat demandé deux fois n'est payé qu'une fois (déjà possédé).
+            var result = CareerRules.TryBuyUpgrade(career, upgrade);
+            ShopResultRpc(result == PurchaseResult.Purchased ? $"Achat effectué : {upgrade.displayName}" : ShopRules.Describe(result),
                 result == PurchaseResult.Purchased, RpcTarget.Single(sender, RpcTargetUse.Temp));
-            if (result == PurchaseResult.Purchased) NotifyOthers(sender, $"« {upgrade.displayName} »");
+            if (result == PurchaseResult.Purchased) SendCareer(sender, persist: true);
         }
 
         [Rpc(SendTo.Server)]
@@ -836,15 +973,15 @@ namespace RugWash.Network
             foreach (var candidate in game.Products.Book.Catalog)
                 if (candidate != null && candidate.id == productId.ToString()) product = candidate;
             ulong sender = rpcParams.Receive.SenderClientId;
-            if (product == null)
+            if (product == null || !careers.TryGetValue(sender, out var career))
             {
-                ShopResultRpc("Article inconnu", false, RpcTarget.Single(sender, RpcTargetUse.Temp));
+                ShopResultRpc(product == null ? "Article inconnu" : "Progression en cours de synchronisation", false, RpcTarget.Single(sender, RpcTargetUse.Temp));
                 return;
             }
-            var result = game.Shop.TryBuyProduct(product);
-            ShopResultRpc(result == ProductPurchaseResult.Purchased ? $"Achat effectué : {product.displayName} (argent de l'atelier)" : ShopRules.Describe(result),
+            var result = CareerRules.TryBuyProduct(career, product);
+            ShopResultRpc(result == ProductPurchaseResult.Purchased ? $"Achat effectué : {product.displayName}" : ShopRules.Describe(result),
                 result == ProductPurchaseResult.Purchased, RpcTarget.Single(sender, RpcTargetUse.Temp));
-            if (result == ProductPurchaseResult.Purchased) NotifyOthers(sender, $"« {product.displayName} »");
+            if (result == ProductPurchaseResult.Purchased) SendCareer(sender, persist: true);
         }
 
         [Rpc(SendTo.Server)]
@@ -865,16 +1002,21 @@ namespace RugWash.Network
         void ToastToRpc(string message, RpcParams rpcParams) => game.Hud.ShowToast(message);
 
         [Rpc(SendTo.Everyone)]
-        void ToastRpc(string message) => game.Hud.ShowToast(message);
+        void ToastRpc(string message)
+        {
+            game.Hud.ShowToast(message);
+            // Arrivées, départs, commandes acceptées : aussi dans le chat (historique de la session).
+            AddChatLine(null, message, true);
+        }
 
         [Rpc(SendTo.NotServer)]
         void DeliveredRpc(FixedString64Bytes orderId, float cleanliness, float cleanCells, float moisture, float foam, float residue, float wear,
-            float remaining, float initial, float elapsedSeconds)
+            float remaining, float initial, float elapsedSeconds, byte bay)
         {
             var order = game.Orders.Resolve(orderId.ToString());
             if (order == null) return;
             var summary = new RugCleaningSummary(cleanliness, cleanCells, moisture, foam, residue, wear, remaining, initial);
-            game.Orders.ApplyRemoteDelivery(order, summary, elapsedSeconds);
+            game.Orders.ApplyRemoteDelivery(order, summary, elapsedSeconds, bay);
             RemoteDeliveries++;
         }
     }

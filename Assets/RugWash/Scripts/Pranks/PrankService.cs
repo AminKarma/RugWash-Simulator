@@ -19,19 +19,28 @@ namespace RugWash.Pranks
         [SerializeField] RugCleaningController rug;
         [Tooltip("Aire de lavage : taches de faux sang sous un joueur touché par le fusil (optionnel).")]
         [SerializeField] RugCleaningController workSurface;
+        [Tooltip("Zones de lavage supplémentaires (agrandissement) : leurs tapis et leurs aires.")]
+        [SerializeField] List<RugCleaningController> extraRugs = new List<RugCleaningController>();
+        [SerializeField] List<RugCleaningController> extraWorkSurfaces = new List<RugCleaningController>();
 
         readonly Dictionary<ulong, float[]> readyAt = new Dictionary<ulong, float[]>();
         readonly Dictionary<ulong, float> globalReadyAt = new Dictionary<ulong, float>();
         readonly Dictionary<ulong, float> splashProtectedUntil = new Dictionary<ulong, float>();
         readonly Dictionary<ulong, float> knockProtectedUntil = new Dictionary<ulong, float>();
+        /// <summary>Saleté ajoutée par les farces à chaque tapis posé (remise à zéro à chaque tapis).</summary>
+        readonly Dictionary<RugCleaningController, float> addedTo = new Dictionary<RugCleaningController, float>();
+        readonly List<RugCleaningController> rugs = new List<RugCleaningController>();
         int seed;
 
         public PrankTuning Tuning => tuning;
         public RugCleaningController Rug => rug;
         /// <summary>Joueurs visables (partie en ligne, hôte) ; null en solo.</summary>
         public IPrankVictims Victims { get; set; }
-        /// <summary>Saleté ajoutée par les farces au tapis actuel (remise à zéro à chaque tapis).</summary>
-        public float AddedToRug { get; private set; }
+        /// <summary>Saleté ajoutée par les farces au tapis de la zone 1 (remise à zéro à chaque tapis).</summary>
+        public float AddedToRug => AddedTo(rug);
+
+        /// <summary>Saleté ajoutée par les farces à ce tapis depuis qu'il est posé.</summary>
+        public float AddedTo(RugCleaningController surface) => surface != null && addedTo.TryGetValue(surface, out float added) ? added : 0f;
         /// <summary>Horloge des recharges (secondes) ; remplaçable par les tests.</summary>
         public Func<float> Clock { get; set; } = () => Time.time;
         public event Action<PrankOutcome> Executed;
@@ -42,17 +51,32 @@ namespace RugWash.Pranks
             return missing == null;
         }
 
+        void Awake()
+        {
+            if (rug != null) rugs.Add(rug);
+            foreach (var extra in extraRugs)
+                if (extra != null && !rugs.Contains(extra)) rugs.Add(extra);
+        }
+
         void OnEnable()
         {
-            if (rug != null) rug.RugLoaded += OnRugLoaded;
+            foreach (var surface in rugs) surface.RugLoaded += OnRugLoaded;
         }
 
         void OnDisable()
         {
-            if (rug != null) rug.RugLoaded -= OnRugLoaded;
+            foreach (var surface in rugs) surface.RugLoaded -= OnRugLoaded;
         }
 
-        void OnRugLoaded(RugCleaningController _) => AddedToRug = 0f;
+        void OnRugLoaded(RugCleaningController loaded) => addedTo[loaded] = 0f;
+
+        /// <summary>Tapis de commande posé sous ce point (zones de lavage), ou null.</summary>
+        RugCleaningController RugAt(Vector3 point)
+        {
+            foreach (var surface in rugs)
+                if (surface.IsLoaded && surface.TryWorldToUV(point, out _)) return surface;
+            return null;
+        }
 
         /// <summary>Temps de recharge restant pour ce joueur et ce gadget (s).</summary>
         public float CooldownRemaining(ulong actor, PrankGadget gadget)
@@ -81,10 +105,13 @@ namespace RugWash.Pranks
             if (!readyAt.TryGetValue(actor.Id, out var times)) readyAt[actor.Id] = times = new float[4];
             globalReadyAt.TryGetValue(actor.Id, out float global);
             var check = PrankRules.CheckUse(actor.Owns(request.Gadget), now, times[(int)request.Gadget], global, actor.Money, gadget.costPerUse);
+            // Batte : un coup dans le vide ne passe jamais par ici (rien à valider) ; un coup qui touche démarre la recharge
+            // ici, chez l'autorité : un client modifié qui ignore sa recharge locale est refusé (Cooldown).
             if (check != PrankResult.Done) return check;
 
             Vector3 point;
             Vector3 victimFeet = default;
+            RugCleaningController targetRug = null;
             if (request.Target == PrankTarget.Player)
             {
                 if (!gadget.affectsPlayers) return PrankResult.InvalidTarget;
@@ -100,11 +127,12 @@ namespace RugWash.Pranks
             else
             {
                 if (!gadget.affectsRug) return PrankResult.InvalidTarget;
-                if (rug == null || !rug.IsLoaded || !rug.TryWorldToUV(request.Point, out _)) return PrankResult.NoTarget;
-                if (rug.IsFinished) return PrankResult.RugFinished;
+                targetRug = RugAt(request.Point);
+                if (targetRug == null) return PrankResult.NoTarget;
+                if (targetRug.IsFinished) return PrankResult.RugFinished;
                 point = request.Point;
                 if (!PrankRules.InRange(actor.Eye, point, gadget.range, tuning.rangeTolerance)) return PrankResult.OutOfRange;
-                if (PrankRules.CapRemaining(AddedToRug, rug.Grid.InitialDirt, tuning.rugCapFraction, tuning.rugCapMinimum) <= 0f)
+                if (PrankRules.CapRemaining(AddedTo(targetRug), targetRug.Grid.InitialDirt, tuning.rugCapFraction, tuning.rugCapMinimum) <= 0f)
                     return PrankResult.CapReached;
             }
 
@@ -139,8 +167,8 @@ namespace RugWash.Pranks
             }
             else
             {
-                outcome.Added = Stain(gadget, point);
-                AddedToRug += outcome.Added;
+                outcome.Added = Stain(gadget, point, targetRug);
+                addedTo[targetRug] = AddedTo(targetRug) + outcome.Added;
             }
             Executed?.Invoke(outcome);
             return PrankResult.Done;
@@ -149,21 +177,29 @@ namespace RugWash.Pranks
         /// <summary>Taches sous un joueur touché : sur le tapis (dans la limite par tapis) ou sur l'aire de lavage.</summary>
         float StainUnder(PrankTuning.Gadget gadget, Vector3 feet)
         {
-            if (rug != null && rug.IsLoaded && !rug.IsFinished && rug.TryWorldToUV(feet, out _)
-                && PrankRules.CapRemaining(AddedToRug, rug.Grid.InitialDirt, tuning.rugCapFraction, tuning.rugCapMinimum) > 0f)
+            var under = RugAt(feet);
+            if (under != null && !under.IsFinished
+                && PrankRules.CapRemaining(AddedTo(under), under.Grid.InitialDirt, tuning.rugCapFraction, tuning.rugCapMinimum) > 0f)
             {
-                float added = Stain(gadget, feet, rug);
-                AddedToRug += added;
+                float added = Stain(gadget, feet, under);
+                addedTo[under] = AddedTo(under) + added;
                 return added;
             }
-            if (workSurface != null && workSurface.IsLoaded && workSurface.AcceptsDirt && workSurface.TryWorldToUV(feet, out _))
-                Stain(gadget, feet, workSurface);
+            if (Stainable(workSurface, feet)) Stain(gadget, feet, workSurface);
+            else
+                foreach (var area in extraWorkSurfaces)
+                    if (Stainable(area, feet))
+                    {
+                        Stain(gadget, feet, area);
+                        break;
+                    }
             return 0f;
         }
 
-        /// <summary>Dépose la ou les taches du gadget autour du point (repère du tapis) ; retourne la saleté ajoutée.</summary>
-        float Stain(PrankTuning.Gadget gadget, Vector3 point) => Stain(gadget, point, rug);
+        static bool Stainable(RugCleaningController area, Vector3 point) =>
+            area != null && area.IsLoaded && area.AcceptsDirt && area.TryWorldToUV(point, out _);
 
+        /// <summary>Dépose la ou les taches du gadget autour du point (repère du tapis) ; retourne la saleté ajoutée.</summary>
         float Stain(PrankTuning.Gadget gadget, Vector3 point, RugCleaningController surface)
         {
             var rug = surface;

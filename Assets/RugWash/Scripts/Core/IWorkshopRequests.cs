@@ -6,9 +6,13 @@ namespace RugWash.Core
     /// </summary>
     public interface IWorkshopRequests
     {
-        void RequestStartOrder(string orderId);
-        void RequestDeliver();
-        void RequestAbandon();
+        /// <summary>Accepter une commande ; <paramref name="bay"/> : zone de lavage voulue (l'hôte en choisit une autre si elle est prise).</summary>
+        void RequestStartOrder(string orderId, int bay);
+        /// <summary>Livrer ou abandonner la commande d'une zone de lavage (grande mise à jour : plusieurs zones).</summary>
+        void RequestDeliver(int bay);
+        void RequestAbandon(int bay);
+        /// <summary>Machine à laver de l'hôte : charger le tapis d'une zone, récupérer le tapis lavé, ou abandonner la commande en machine.</summary>
+        void RequestWasher(byte action, int bay);
         void RequestUpgrade(string upgradeId);
         void RequestProduct(string productId);
         void RequestRobotToggle();

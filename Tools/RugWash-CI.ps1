@@ -169,11 +169,11 @@ if ($Step -eq 'multiplayer') {
     }
     if ($reports.ContainsKey('host') -and $reports.ContainsKey('guest')) {
         if (-not (Compare-Values "Tapis identique chez l'hôte et l'invité" $reports['host'].values.empreinteTapis $reports['guest'].values.empreinteTapis)) { $failed = $true }
-        if (-not (Compare-Values "Économie de l'atelier identique chez l'hôte et l'invité après l'achat" $reports['host'].values.argentApresAchat $reports['guest'].values.argentApresAchatVuParInvite)) { $failed = $true }
+        if (-not (Compare-Values "Carrière de l'invité : la même chez l'hôte (qui la valide) et chez l'invité, après son achat" $reports['host'].values.argentInviteTenuParHote $reports['guest'].values.argentApresAchatVuParInvite)) { $failed = $true }
         if (-not (Compare-Values "Missions du tableau identiques chez l'hôte et l'invité" $reports['host'].values.missionsTableau $reports['guest'].values.missionsTableau)) { $failed = $true }
     }
     if ($reports.ContainsKey('host') -and $reports.ContainsKey('guest2')) {
-        if (-not (Compare-Values "Économie de l'atelier reçue telle quelle par l'invité revenu" $reports['host'].values.argentFinalHote $reports['guest2'].values.argentVuApresReconnexion)) { $failed = $true }
+        if (-not (Compare-Values "Invité revenu : sa progression, la même chez l'hôte et chez lui" $reports['host'].values.argentInviteApresReconnexion $reports['guest2'].values.argentVuApresReconnexion)) { $failed = $true }
     }
     # Sauvegarde de l'hôte relue après sa fermeture brutale : lisible et conforme à la fin de la session.
     if ($reports.ContainsKey('host') -and $reports['host'].values.fichierSauvegardeHote) {

@@ -28,6 +28,8 @@ namespace RugWash.UI
         [SerializeField] Text resetRugLabel;
         [Tooltip("Libellé du bouton « Menu principal » (devient « Quitter la partie » en ligne).")]
         [SerializeField] Text mainMenuLabel;
+        [Tooltip("En ligne : joueurs présents, couper une voix, expulser (hôte), ouvrir ou fermer la partie.")]
+        [SerializeField] Button playersButton;
 
         GameStateManager gameState;
         RugCleaningController rug;
@@ -77,6 +79,14 @@ namespace RugWash.UI
             panel.SetActive(gameState.State == GameState.Paused);
         }
 
+        /// <summary>Bouton « Joueurs » (en ligne) : ouvre la fenêtre des joueurs par-dessus la pause.</summary>
+        public void BindPlayers(PlayersUI players)
+        {
+            if (playersButton != null && players != null) playersButton.onClick.AddListener(() => players.Open());
+        }
+
+        public Button PlayersButton => playersButton;
+
         /// <summary>Bouton « RugDex » : ouvre la collection par-dessus la pause.</summary>
         public void BindRugDex(RugDex.RugDexUI rugDex) => rugDexButton.onClick.AddListener(() => rugDex.Open());
 
@@ -95,13 +105,15 @@ namespace RugWash.UI
             var session = Network.MultiplayerSession.Find();
             bool online = session != null && session.InSession;
             bool guest = online && session.IsGuest;
-            subtitleLabel.text = (inOrder ? $"Commande en cours : {orders.ActiveOrder.title}" : "Aucune commande en cours")
+            string zone = inOrder && orders.UnlockedBayCount > 1 ? $" ({OrderManager.BayLabel(orders.CurrentBay).ToLowerInvariant()})" : string.Empty;
+            subtitleLabel.text = (inOrder ? $"Commande en cours{zone} : {orders.ActiveOrder.title}" : "Aucune commande en cours")
                 + (online ? (guest ? "\nPartie en ligne — le jeu continue pendant la pause" : "\nVous êtes l'hôte — le jeu continue pendant la pause") : string.Empty);
             resetRugLabel.text = "Recommencer la commande";
             // Invité : le tapis et la commande appartiennent à l'hôte. Hors commande, il n'y a pas de tapis à recommencer.
             resetRugButton.gameObject.SetActive(!guest && inOrder);
             abandonOrderButton.gameObject.SetActive(inOrder);
             if (mainMenuLabel != null) mainMenuLabel.text = online ? "Quitter la partie" : "Menu principal";
+            if (playersButton != null) playersButton.gameObject.SetActive(online);
             resumeButton.Select();
         }
 
@@ -131,7 +143,9 @@ namespace RugWash.UI
                 session.Leave();
                 return;
             }
-            if (orders.ActiveOrder != null) orders.Abandon();
+            // Toutes les zones : les tapis posés ne sont pas sauvegardés (celui de la machine à laver l'est, avec l'atelier).
+            for (int bay = 0; bay < orders.BayCount; bay++)
+                if (orders.OrderOf(bay) != null) orders.Abandon(bay);
             save.SaveNow("retour au menu principal");
             SceneManager.LoadScene(MainMenuScene);
         }

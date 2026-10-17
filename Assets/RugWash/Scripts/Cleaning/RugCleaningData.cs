@@ -100,6 +100,7 @@ namespace RugWash.Cleaning
             switch (type)
             {
                 case DirtType.Embedded: return 0.5f;
+                case DirtType.Grime: return 0.45f;
                 case DirtType.Grease: return 0.25f;
                 case DirtType.Drink: return 0.15f;
                 case DirtType.DriedMud: return 0.2f;
@@ -133,6 +134,7 @@ namespace RugWash.Cleaning
                 case DirtType.Lint: return new DirtResponse(1.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.80f);
                 case DirtType.Urine: return new DirtResponse(0.00f, 0.10f, 0.80f, 1.10f, 0.60f, 0.00f);
                 case DirtType.FakeBlood: return new DirtResponse(0.00f, 0.05f, 0.55f, 0.95f, 0.30f, 0.00f);
+                case DirtType.Grime: return new DirtResponse(0.00f, 0.08f, 0.30f, 0.70f, 0.10f, 0.00f);
                 default: return new DirtResponse(0f, 0f, 0f, 0f, 0f);
             }
         }
@@ -154,6 +156,7 @@ namespace RugWash.Cleaning
                 case DirtType.Lint: return new Color(0.78f, 0.76f, 0.73f);
                 case DirtType.Urine: return new Color(0.80f, 0.68f, 0.16f);
                 case DirtType.FakeBlood: return new Color(0.66f, 0.04f, 0.10f);
+                case DirtType.Grime: return new Color(0.06f, 0.055f, 0.05f);
                 default: return new Color(0.35f, 0.27f, 0.18f);
             }
         }

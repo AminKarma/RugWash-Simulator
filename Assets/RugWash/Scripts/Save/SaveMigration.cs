@@ -10,13 +10,15 @@ namespace RugWash.Save
     ///   v1 : l'état de l'atelier (robot, plan de travail, sol) est un ajout compatible :
     ///        absent d'une ancienne sauvegarde, il prend ses valeurs par défaut (atelier propre, robot sur sa base).
     ///        Même principe pour les produits spécialisés (aucun en stock) et le RugDex (vide).
+    ///   v5 (grande mise à jour) : emplacements de sauvegarde (mode, numéro, temps de jeu, synchronisation initiale en
+    ///        multijoueur) ; ajouts compatibles, une sauvegarde v4 devient l'emplacement qui la charge (Solo 1 au départ).
     ///   v2 (v0.1.2) : kit de départ réduit (brosse, détergent, seau d'eau) et détergent consommable. Une partie déjà
     ///        commencée garde les outils qu'elle avait gratuitement (aspirateur, lance, extracteur, canon à mousse, balai :
     ///        leurs déblocages sont ajoutés) et reçoit un bidon de 40 L (le détergent était illimité).
     /// </summary>
     public static class SaveMigration
     {
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
 
         /// <summary>Stock de détergent d'une nouvelle partie (litres) : trois remplissages de la réserve de 4 L.</summary>
         public const float StarterDetergentStock = 12f;
@@ -81,6 +83,12 @@ namespace RugWash.Save
                 {
                     data = JsonUtility.FromJson<SaveData>(json);
                     return Normalize(data) ? Outcome.UpToDate : Outcome.Invalid;
+                }
+                // v4 → v5 : champs ajoutés seulement (valeurs par défaut) ; le mode est fixé par l'emplacement qui la charge.
+                if (version == 4)
+                {
+                    data = JsonUtility.FromJson<SaveData>(json);
+                    return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
                 }
                 if (version == 3)
                 {
@@ -186,6 +194,10 @@ namespace RugWash.Save
             data.workshop.floor ??= string.Empty;
             if (string.IsNullOrWhiteSpace(data.profileId)) data.profileId = "profile0";
             data.savedAtUtc ??= string.Empty;
+            data.mode ??= string.Empty;
+            data.carried ??= new System.Collections.Generic.List<string>();
+            data.carried.RemoveAll(string.IsNullOrWhiteSpace);
+            if (double.IsNaN(data.playSeconds) || double.IsInfinity(data.playSeconds) || data.playSeconds < 0) data.playSeconds = 0;
             data.upgrades.RemoveAll(string.IsNullOrWhiteSpace);
             data.completedOrders.RemoveAll(string.IsNullOrWhiteSpace);
             // Les missions générées ne sont jamais « terminées » dans l'historique : elles sont remplacées.

@@ -33,13 +33,27 @@ namespace RugWash.RugDex
         void OnEnable()
         {
             if (rug != null) rug.RugLoaded += OnRugLoaded;
-            if (orders != null) orders.OrderFinished += OnOrderFinished;
+            if (orders != null)
+            {
+                orders.OrderFinished += OnOrderFinished;
+                // Zones de lavage (grande mise à jour) : un tapis posé dans une autre zone est aussi découvert.
+                orders.OrderStarted += OnOrderStarted;
+            }
         }
 
         void OnDisable()
         {
             if (rug != null) rug.RugLoaded -= OnRugLoaded;
-            if (orders != null) orders.OrderFinished -= OnOrderFinished;
+            if (orders != null)
+            {
+                orders.OrderFinished -= OnOrderFinished;
+                orders.OrderStarted -= OnOrderStarted;
+            }
+        }
+
+        void OnOrderStarted(OrderDefinition order)
+        {
+            if (order != null) Discover(order.rug);
         }
 
         /// <summary>Après restauration de la sauvegarde : le tapis déjà posé est aussi découvert.</summary>

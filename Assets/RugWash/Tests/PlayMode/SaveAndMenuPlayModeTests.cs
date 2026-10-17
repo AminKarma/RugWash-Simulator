@@ -129,7 +129,7 @@ namespace RugWash.Tests
             Assert.IsTrue(game.PlayerController.InvertY);
             Assert.AreEqual(0.5f, AudioListener.volume, 1e-4f, "Le volume général s'applique immédiatement.");
             game.SettingsUI.CloseButton.onClick.Invoke();
-            Assert.IsTrue(File.Exists(TestSaveSandbox.SavePath), "Fermer les paramètres sauvegarde les changements.");
+            Assert.IsTrue(File.Exists(TestSaveSandbox.ProfilePath), "Fermer les paramètres sauvegarde les changements (profil du joueur).");
             game.GameState.Resume();
 
             yield return LoadScene("Workshop");
@@ -178,9 +178,15 @@ namespace RugWash.Tests
             Assert.IsFalse(menu.ContinueButton.interactable, "Sans sauvegarde, « Continuer » est désactivé.");
             Assert.AreEqual(CursorLockMode.None, Cursor.lockState);
 
+            // « Jouer » ouvre les emplacements solo ; un emplacement vide lance une nouvelle partie.
             menu.PlayButton.onClick.Invoke();
+            Assert.IsTrue(menu.SaveSlots.IsOpen);
+            Assert.AreEqual(SaveMode.Solo, menu.SaveSlots.Mode);
+            Assert.IsFalse(menu.SaveSlots.SummaryOf(0).Exists);
+            menu.SaveSlots.Rows[0].ActionButton.onClick.Invoke();
             yield return WaitForScene("Workshop");
             var game = Game();
+            Assert.AreEqual(new SaveSlot(SaveMode.Solo, 1), game.SaveSystem.Slot);
             game.Wallet.Wallet.Add(250);
             game.Reputation.Add(2);
 
@@ -194,9 +200,15 @@ namespace RugWash.Tests
             Assert.AreEqual(1f, Time.timeScale);
 
             menu.PlayButton.onClick.Invoke();
-            Assert.IsTrue(menu.IsConfirmVisible, "Une nouvelle partie demande confirmation si une progression existe.");
-            menu.ConfirmNoButton.onClick.Invoke();
-            Assert.IsFalse(menu.IsConfirmVisible);
+            Assert.IsTrue(menu.SaveSlots.SummaryOf(0).HasProgress, "L'emplacement joué montre sa progression réelle.");
+            StringAssert.Contains("250", SaveSlotsUI.Describe(menu.SaveSlots.SummaryOf(0)));
+            Assert.IsTrue(menu.SaveSlots.EraseButtons[0].gameObject.activeSelf);
+            menu.SaveSlots.EraseButtons[0].onClick.Invoke();
+            Assert.IsTrue(menu.SaveSlots.IsConfirmVisible, "Effacer un emplacement demande confirmation.");
+            menu.SaveSlots.ConfirmNoButton.onClick.Invoke();
+            Assert.IsFalse(menu.SaveSlots.IsConfirmVisible);
+            Assert.IsTrue(File.Exists(TestSaveSandbox.SavePath), "Annuler n'efface rien.");
+            menu.SaveSlots.Close();
 
             menu.ContinueButton.onClick.Invoke();
             yield return WaitForScene("Workshop");
@@ -206,7 +218,7 @@ namespace RugWash.Tests
         }
 
         [UnityTest]
-        public IEnumerator MainMenu_NewGame_AfterConfirmation_ResetsProgress_KeepsSettings()
+        public IEnumerator MainMenu_EraseSlot_AfterConfirmation_ThenNewGame_ResetsProgress_KeepsSettings()
         {
             var seed = new SaveData { money = 900, reputation = 5 };
             seed.settings.mouseSensitivity = 0.33f;
@@ -216,7 +228,12 @@ namespace RugWash.Tests
             var menu = Object.FindAnyObjectByType<MainMenuController>();
             Assert.IsTrue(menu.ContinueButton.interactable);
             menu.PlayButton.onClick.Invoke();
-            menu.ConfirmYesButton.onClick.Invoke();
+            menu.SaveSlots.EraseButtons[0].onClick.Invoke();
+            menu.SaveSlots.ConfirmYesButton.onClick.Invoke();
+            Assert.IsFalse(File.Exists(TestSaveSandbox.SavePath), "Emplacement effacé.");
+            Assert.IsFalse(menu.ContinueButton.interactable, "Plus rien à continuer.");
+            Assert.IsTrue(File.Exists(TestSaveSandbox.ProfilePath), "Le profil (paramètres, niveau) n'est jamais effacé.");
+            menu.SaveSlots.Rows[0].ActionButton.onClick.Invoke();
             yield return WaitForScene("Workshop");
             var game = Game();
             Assert.AreEqual(0, game.Wallet.Balance);

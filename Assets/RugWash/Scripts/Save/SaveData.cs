@@ -18,8 +18,14 @@ namespace RugWash.Save
         public bool invertY;
         /// <summary>Intensité du balancement caméra/outils (0 = désactivé).</summary>
         public float motionIntensity = 1f;
-        /// <summary>-1 = niveau de qualité par défaut du projet.</summary>
+        /// <summary>-1 = niveau de qualité par défaut du projet ; sinon l'un des quatre préréglages (Très bas, Bas, Moyen, Ultra).</summary>
         public int qualityLevel = -1;
+        /// <summary>Synchronisation verticale (grande mise à jour) : indépendante du niveau de qualité.</summary>
+        public bool vSync = true;
+        /// <summary>Limite d'images par seconde sans synchronisation verticale (0 = illimitée).</summary>
+        public int frameRateCap;
+        /// <summary>Effets de post-traitement de la caméra (bloom, vignette, étalonnage).</summary>
+        public bool postProcessing = true;
         /// <summary>0 = résolution actuelle de l'écran.</summary>
         public int resolutionWidth;
         public int resolutionHeight;
@@ -33,6 +39,12 @@ namespace RugWash.Save
         public float stickDeadZone = 0.15f;
         /// <summary>Intensité des vibrations de la manette (0 = désactivées).</summary>
         public float vibration = 1f;
+        /// <summary>Difficulté des nouvelles missions générées (0 détendu, 1 normal, 2 exigeant) ; en ligne, celle de l'hôte.</summary>
+        public int missionDifficulty = 1;
+        /// <summary>Micro du chat vocal en ligne (0 appuyer pour parler, 1 toujours ouvert, 2 coupé).</summary>
+        public int voiceMode;
+        /// <summary>Volume des voix des autres joueurs (0 = coupées).</summary>
+        public float voiceVolume = 1f;
 
         public SettingsData Clone() => (SettingsData)MemberwiseClone();
     }
@@ -60,11 +72,17 @@ namespace RugWash.Save
         public string workSurface = string.Empty;
         /// <summary>Grille du sol encodée (vide = état initial).</summary>
         public string floor = string.Empty;
+        /// <summary>Aire de lavage de la zone 2 (agrandissement, grande mise à jour) ; vide = propre.</summary>
+        public string workSurface2 = string.Empty;
+        /// <summary>Machine à laver : tapis en cours de lavage et temps restant (grande mise à jour).</summary>
+        public Workshop.WasherSaveData washer = new Workshop.WasherSaveData();
     }
 
     /// <summary>
-    /// Données persistantes, au format JSON versionné. Aucune donnée visuelle ou de scène :
-    /// uniquement la progression du joueur et ses paramètres.
+    /// Données persistantes d'un emplacement de sauvegarde (<see cref="SaveSlot"/>), au format JSON versionné : la
+    /// progression jouée sur cet emplacement (argent, réputation, achats, atelier, missions…). Le niveau, les paramètres
+    /// et l'apparence du joueur sont dans son profil (<see cref="PlayerProfile"/>), commun à tous les emplacements ;
+    /// <see cref="settings"/> et <see cref="character"/> ne servent plus qu'à migrer une ancienne sauvegarde.
     /// </summary>
     [Serializable]
     public sealed class SaveData
@@ -72,6 +90,19 @@ namespace RugWash.Save
         public int version = SaveMigration.CurrentVersion;
         public string profileId = "profile0";
         public string savedAtUtc = string.Empty;
+
+        /// <summary>Mode de l'emplacement (« solo » / « multi ») ; vide : ancienne sauvegarde, rattachée à l'emplacement qui la charge.</summary>
+        public string mode = string.Empty;
+        public int slotIndex;
+        /// <summary>Temps de jeu cumulé sur cet emplacement (secondes passées dans l'atelier).</summary>
+        public double playSeconds;
+        /// <summary>
+        /// Emplacement multijoueur : la progression de départ a déjà été copiée depuis un hôte (une seule fois, à la première
+        /// arrivée). Ensuite cette progression est indépendante : jamais recopiée à une reconnexion.
+        /// </summary>
+        public bool multiplayerInitialized;
+        /// <summary>Inventaire porté (grande mise à jour : 4 emplacements, outils et gadgets) ; le reste est au casier.</summary>
+        public List<string> carried = new List<string>();
 
         public int money;
         public int reputation;
@@ -125,6 +156,8 @@ namespace RugWash.Save
             else if (data.ordersDelivered < 0 || data.totalEarned < 0) reason = "statistiques négatives";
             else if (data.upgrades == null || data.completedOrders == null || data.settings == null) reason = "liste absente";
             else if (data.upgrades.Exists(string.IsNullOrWhiteSpace) || data.completedOrders.Exists(string.IsNullOrWhiteSpace)) reason = "identifiant vide";
+            else if (!string.IsNullOrEmpty(data.mode) && !SaveSlot.TryParseMode(data.mode, out _)) reason = $"mode inconnu ({data.mode})";
+            else if (double.IsNaN(data.playSeconds) || data.playSeconds < 0) reason = "temps de jeu invalide";
             return reason == null;
         }
 
@@ -141,6 +174,10 @@ namespace RugWash.Save
             s.gamepadLookSpeed = Mathf.Clamp(s.gamepadLookSpeed, 30f, 360f);
             s.stickDeadZone = Mathf.Clamp(s.stickDeadZone, 0.02f, 0.5f);
             s.vibration = Mathf.Clamp01(s.vibration);
+            s.missionDifficulty = Mathf.Clamp(s.missionDifficulty, 0, 2);
+            if (System.Array.IndexOf(SettingsRules.FrameRateCaps, s.frameRateCap) < 0) s.frameRateCap = 0;
+            s.voiceMode = Mathf.Clamp(s.voiceMode, 0, 2);
+            s.voiceVolume = Mathf.Clamp01(s.voiceVolume);
         }
     }
 }

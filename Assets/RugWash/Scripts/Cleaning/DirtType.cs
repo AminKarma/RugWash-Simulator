@@ -26,11 +26,16 @@ namespace RugWash.Cleaning
         Urine = 12,
         /// <summary>Faux sang de théâtre (farces, v0.1.2) : éclaboussures stylisées rouge vif ; détergent et brossage humide.</summary>
         FakeBlood = 13,
+        /// <summary>
+        /// Crasse noire incrustée (grande mise à jour) : suie, graisse brûlée et saleté accumulée des années, presque noire et très
+        /// adhérente. Seuls le détergent et un long brossage humide en viennent à bout ; le jet d'eau seul n'y fait presque rien.
+        /// </summary>
+        Grime = 14,
     }
 
     public static class DirtTypes
     {
-        public const int Count = 14;
+        public const int Count = 15;
 
         /// <summary>Salissures créées par les farces entre joueurs (temporaires, nettoyables comme les autres).</summary>
         public static bool IsPrank(DirtType type) => type == DirtType.Urine || type == DirtType.FakeBlood;

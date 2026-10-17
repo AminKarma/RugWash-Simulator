@@ -60,6 +60,8 @@ namespace RugWash.Network
         [Tooltip("Outils, un par emplacement (1 à 8).")]
         [SerializeField] List<AvatarTool> tools = new List<AvatarTool>();
         [SerializeField] TextMesh nameLabel;
+        [Tooltip("Voix de ce joueur (chat vocal de proximité), jouée depuis sa tête.")]
+        [SerializeField] VoicePlayback voice;
         [SerializeField] ParticleSystem liquidEffect;
         [SerializeField] ParticleSystem dustEffect;
         [SerializeField] AudioSource toolAudio;
@@ -84,6 +86,8 @@ namespace RugWash.Network
         [SerializeField] float strideDegrees = 26f;
 
         readonly NetworkVariable<FixedString64Bytes> displayName = new NetworkVariable<FixedString64Bytes>();
+        /// <summary>Outils dorés de ce joueur (un bit par emplacement), calculés par l'hôte depuis sa carrière : non falsifiable.</summary>
+        readonly NetworkVariable<int> goldenTools = new NetworkVariable<int>();
         readonly NetworkVariable<byte> toolSlot = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<bool> usingTool = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<sbyte> headPitch = new NetworkVariable<sbyte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
@@ -129,6 +133,9 @@ namespace RugWash.Network
         }
 
         public string DisplayName => displayName.Value.ToString();
+        /// <summary>Voix de ce joueur (null pour le joueur local : on ne s'entend pas soi-même).</summary>
+        public VoicePlayback Voice => voice;
+        bool shownSpeaking;
         public int ToolSlot => CurrentSlot;
         public bool UsingTool => CurrentUsing;
         /// <summary>Outil détaillé affiché (diagnostic, tests), ou null.</summary>
@@ -144,6 +151,30 @@ namespace RugWash.Network
 
         /// <summary>Durée de vol moyenne d'une goutte du jet distant jusqu'au point visé (s).</summary>
         const float LiquidFlightSeconds = 0.32f;
+        const float SwingSeconds = 0.4f;
+        float swingTimer;
+
+        /// <summary>Hôte : outils dorés de ce joueur (niveau maximal), d'après la carrière qu'il tient.</summary>
+        public void SetGoldenTools(int mask)
+        {
+            if (IsServer && goldenTools.Value != mask) goldenTools.Value = mask;
+        }
+
+        public int GoldenTools => goldenTools.Value;
+
+        void ApplyGolden(int mask)
+        {
+            for (int i = 0; i < tools.Count; i++)
+            {
+                var root = tools[i]?.root;
+                var skin = root != null ? root.GetComponent<Effects.GoldenToolSkin>() : null;
+                if (skin != null) skin.SetGolden(i < 31 && (mask & (1 << i)) != 0);
+            }
+        }
+
+        /// <summary>Coup de batte d'un joueur distant (même dans le vide) : le geste est rejoué sur sa silhouette.</summary>
+        public void PlaySwing() => swingTimer = SwingSeconds;
+        public bool IsSwinging => swingTimer > 0f;
         /// <summary>Jet, brume ou mousse de l'outil tenu (rattaché à sa buse).</summary>
         public ParticleSystem LiquidEffect => liquidEffect;
         Transform effectsRoot;
@@ -180,7 +211,7 @@ namespace RugWash.Network
                 }
                 var game = FindAnyObjectByType<Core.GameBootstrap>();
                 if (game != null && game.SaveSystem != null && game.SaveSystem.Current != null)
-                    look.Value = CharacterPalette.Clamp(game.SaveSystem.Current.character).Pack();
+                    look.Value = CharacterPalette.Clamp(game.SaveSystem.Profile.character).Pack();
             }
             else if (visuals != null) visuals.SetActive(true);
             look.OnValueChanged += (_, value) => ApplyLook(value);
@@ -193,6 +224,8 @@ namespace RugWash.Network
             if (!IsOwner && knockedDown.Value) ApplyKnockdown(true);
             displayName.OnValueChanged += (_, value) => RefreshName();
             RefreshName();
+            goldenTools.OnValueChanged += (_, value) => ApplyGolden(value);
+            ApplyGolden(goldenTools.Value);
             var rug = FindAnyObjectByType<RugCleaningController>();
             if (rug != null) rugTuning = rug.Tuning;
         }
@@ -294,11 +327,20 @@ namespace RugWash.Network
 
         void RefreshName()
         {
-            if (nameLabel != null) nameLabel.text = displayName.Value.ToString();
+            if (nameLabel == null) return;
+            // Chat vocal : le nom passe au vert, suivi de « (parle) », tant que ce joueur parle.
+            nameLabel.text = shownSpeaking ? $"{displayName.Value} (parle)" : displayName.Value.ToString();
+            nameLabel.color = shownSpeaking ? new Color(0.55f, 1f, 0.6f) : Color.white;
         }
 
         void Update()
         {
+            bool speaking = voice != null && IsSpawned && !IsOwner && voice.IsSpeaking;
+            if (speaking != shownSpeaking)
+            {
+                shownSpeaking = speaking;
+                RefreshName();
+            }
             if (!IsSpawned)
             {
                 if (hasPreview) PresentRemote(Time.deltaTime);
@@ -378,6 +420,16 @@ namespace RugWash.Network
                 TipToTargetMeters = Vector3.Distance(tool.tip.position, AimTarget);
             }
             else TipToTargetMeters = -1f;
+            if (swingTimer > 0f)
+            {
+                swingTimer = Mathf.Max(0f, swingTimer - deltaTime);
+                if (tool != null && shownSlot == Pranks.PrankTuning.AvatarSlot(Pranks.PrankGadget.Bat))
+                {
+                    float t = 1f - swingTimer / SwingSeconds;
+                    float swing = t < 0.38f ? Mathf.SmoothStep(0f, 1f, t / 0.38f) : Mathf.SmoothStep(1f, 0f, (t - 0.38f) / 0.62f);
+                    tool.root.transform.localRotation *= Quaternion.Euler(swing * 60f, -swing * 90f, swing * 25f);
+                }
+            }
 
             // Effets d'un joueur éloigné : non affichés (son conservé), la silhouette et l'outil restent visibles.
             if (viewer == null && Camera.main != null) viewer = Camera.main.transform;

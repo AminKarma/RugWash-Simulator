@@ -37,11 +37,60 @@ namespace RugWash.Network
             game.Gadgets.LocalId = NetworkManager.LocalClientId;
             game.Gadgets.LocalName = session?.NameOf(NetworkManager.LocalClientId) ?? "Un joueur";
             game.Gadgets.RemotePlayers = RemotePrankTargets;
+            game.Gadgets.Swung -= OnLocalSwing;
+            game.Gadgets.Swung += OnLocalSwing;
+        }
+
+        // ---------------------------------------------------------------- Coups de batte (geste visible par tous)
+
+        readonly Dictionary<ulong, float> lastSwingFx = new Dictionary<ulong, float>();
+
+        void OnLocalSwing()
+        {
+            if (IsServer) BroadcastSwing(NetworkManager.LocalClientId);
+            else SwingRpc();
+        }
+
+        /// <summary>Invité : son coup de batte (même dans le vide), rejoué chez les autres. Cadence bornée par l'hôte.</summary>
+        [Rpc(SendTo.Server, Delivery = RpcDelivery.Unreliable)]
+        void SwingRpc(RpcParams rpcParams = default)
+        {
+            ulong sender = rpcParams.Receive.SenderClientId;
+            var avatar = AvatarOf(sender);
+            if (avatar == null || !syncedClients.Contains(sender)) return;
+            float now = Time.time;
+            if (lastSwingFx.TryGetValue(sender, out float last) && now - last < 0.3f) return;
+            lastSwingFx[sender] = now;
+            BroadcastSwing(sender);
+        }
+
+        void BroadcastSwing(ulong actor)
+        {
+            if (actor != NetworkManager.LocalClientId) PlayRemoteSwing(actor);
+            SwingFxRpc(actor);
+        }
+
+        [Rpc(SendTo.NotServer, Delivery = RpcDelivery.Unreliable)]
+        void SwingFxRpc(ulong actor)
+        {
+            if (actor == NetworkManager.LocalClientId) return;
+            PlayRemoteSwing(actor);
+        }
+
+        void PlayRemoteSwing(ulong actor)
+        {
+            var avatar = AvatarOf(actor);
+            if (avatar == null) return;
+            avatar.PlaySwing();
+            if (game.Gadgets != null && game.Gadgets.Effects != null)
+                game.Gadgets.Effects.PlaySwing(avatar.transform.position + Vector3.up * 1.3f + avatar.transform.forward * 0.4f);
         }
 
         void TearDownPranks()
         {
             if (game == null) return;
+            lastSwingFx.Clear();
+            if (game.Gadgets != null) game.Gadgets.Swung -= OnLocalSwing;
             if (game.Pranks != null)
             {
                 if (ReferenceEquals(game.Pranks.Victims, this)) game.Pranks.Victims = null;
@@ -80,12 +129,13 @@ namespace RugWash.Network
         {
             ulong sender = rpcParams.Receive.SenderClientId;
             var target1 = RpcTarget.Single(sender, RpcTargetUse.Temp);
-            if (game.Pranks == null || gadget < 1 || gadget > 3 || target > 1 || !syncedClients.Contains(sender) || AvatarOf(sender) == null)
+            if (game.Pranks == null || gadget < 1 || gadget > 3 || target > 1 || !syncedClients.Contains(sender)
+                || !careers.TryGetValue(sender, out var career) || AvatarOf(sender) == null)
             {
                 PrankResultRpc(gadget, (byte)PrankResult.Unavailable, false, target1);
                 return;
             }
-            var actor = new GuestPrankActor(this, sender);
+            var actor = new GuestPrankActor(this, sender, career);
             var request = new PrankRequest
             {
                 Gadget = (PrankGadget)gadget, Target = (PrankTarget)target, Point = point, Victim = victim,
@@ -93,6 +143,7 @@ namespace RugWash.Network
             };
             var result = game.Pranks.Execute(actor, request, out var outcome);
             PrankResultRpc(gadget, (byte)result, outcome.HitPlayer, target1);
+            if (actor.Spent) careerDirty.Add(sender);
         }
 
         [Rpc(SendTo.SpecifiedInParams)]
@@ -192,12 +243,16 @@ namespace RugWash.Network
         {
             readonly NetworkWorkshop owner;
             readonly ulong id;
+            readonly PlayerCareer career;
 
-            public GuestPrankActor(NetworkWorkshop owner, ulong id)
+            public GuestPrankActor(NetworkWorkshop owner, ulong id, PlayerCareer career)
             {
                 this.owner = owner;
                 this.id = id;
+                this.career = career;
             }
+
+            public bool Spent { get; private set; }
 
             public ulong Id => id;
             public string Name => owner.session?.NameOf(id) ?? "Un joueur";
@@ -217,12 +272,18 @@ namespace RugWash.Network
             public bool Owns(PrankGadget gadget)
             {
                 var settings = owner.game.Pranks.Tuning.Get(gadget);
-                return settings != null && owner.game.Upgrades.OwnsGadget(settings.upgradeId);
+                return settings != null && career.Upgrades.Contains(settings.upgradeId);
             }
 
-            public int Money => owner.game.Wallet.Balance;
+            public int Money => career.Money;
 
-            public bool TrySpend(int amount) => amount >= 0 && owner.game.Wallet.Wallet.TrySpend(amount);
+            public bool TrySpend(int amount)
+            {
+                if (amount < 0 || career.Money < amount) return false;
+                career.Money -= amount;
+                Spent = true;
+                return true;
+            }
         }
     }
 }

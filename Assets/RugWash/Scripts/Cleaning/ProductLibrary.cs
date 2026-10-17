@@ -127,6 +127,7 @@ namespace RugWash.Cleaning
                 case DirtType.Lint: return "Peluches et fibres";
                 case DirtType.Urine: return "Pipi (farce)";
                 case DirtType.FakeBlood: return "Faux sang (farce)";
+                case DirtType.Grime: return "Crasse noire incrustée";
                 default: return "Aucune";
             }
         }

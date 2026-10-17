@@ -90,6 +90,8 @@ namespace RugWash.Editor
             var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2, 1, 0, 2, 0, 0 };
             var gadgetRanges = new[] { c.Pranks.bat.range, c.Pranks.blaster.range };
             foreach (var model in models) DisableShadows(model.Root.gameObject);
+            // Outils dorés (niveau maximal) : même finition que la vue à la première personne, état diffusé par l'hôte.
+            for (int i = 0; i < definitions.Length; i++) RugWashToolModels.Gild(models[i], c);
             var appearance = AddAppearance(visuals, c);
             // Ragdoll : le corps bascule, jambes et bras articulés ; avant-bras rattachés aux bras pendant la chute.
             var ragdoll = visuals.gameObject.AddComponent<AvatarRagdoll>();
@@ -144,11 +146,17 @@ namespace RugWash.Editor
             audio.maxDistance = 14f;
             audio.volume = 0.45f;
 
+            // Chat vocal de proximité (grande mise à jour) : la voix de ce joueur sort de sa tête (source 3D).
+            var mouth = new GameObject("Voice");
+            mouth.transform.SetParent(head, false);
+            mouth.AddComponent<AudioSource>();
+            var voice = mouth.AddComponent<VoicePlayback>();
             var avatar = root.AddComponent<NetworkPlayerAvatar>();
             Wire(avatar, ("visuals", visuals.gameObject), ("head", head), ("view", view), ("nameLabel", label), ("liquidEffect", liquid),
                 ("dustEffect", dust), ("toolAudio", audio), ("legLeft", legLeft), ("legRight", legRight), ("shoulderLeft", shoulderLeft),
                 ("shoulderRight", shoulderRight), ("upperArmLeft", upperLeft), ("upperArmRight", upperRight), ("foreArmLeft", foreLeft),
-                ("foreArmRight", foreRight), ("handRight", handRight), ("appearance", appearance), ("ragdoll", ragdoll), ("headPop", headPop));
+                ("foreArmRight", foreRight), ("handRight", handRight), ("appearance", appearance), ("ragdoll", ragdoll), ("headPop", headPop),
+                ("voice", voice));
             SetInt(avatar, "aimMask", ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5)));
             var serialized = new SerializedObject(avatar);
             var list = serialized.FindProperty("tools");

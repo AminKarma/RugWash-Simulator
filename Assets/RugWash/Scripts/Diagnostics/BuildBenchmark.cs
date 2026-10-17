@@ -66,6 +66,8 @@ namespace RugWash.Diagnostics
             if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
             Directory.CreateDirectory(sandbox);
             SaveManager.DirectoryOverride = sandbox;
+            // Les scénarios choisissent leurs outils directement (inventaire à 4 emplacements contourné pour la mesure).
+            Player.PlayerInventory.AutomationCarriesOnSelect = true;
 
             var runner = new GameObject("[BuildBenchmark]");
             UnityEngine.Object.DontDestroyOnLoad(runner);
@@ -228,7 +230,8 @@ namespace RugWash.Diagnostics
             Record("« Continuer » désactivé sans sauvegarde", !menu.ContinueButton.interactable);
 
             // 2. Nouvelle partie → atelier.
-            menu.PlayButton.onClick.Invoke();
+            // Emplacement Solo 1 (vide dans le dossier temporaire du benchmark) : nouvelle partie.
+            menu.PlaySlot(new SaveSlot(SaveMode.Solo, 1));
             yield return WaitFor(() => SceneManager.GetActiveScene().name == "Workshop" && FindAnyObjectByType<GameBootstrap>() != null, 30f);
             var game = FindAnyObjectByType<GameBootstrap>();
             yield return null;

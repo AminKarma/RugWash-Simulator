@@ -346,6 +346,44 @@ namespace RugWash.Cleaning
     }
 
     /// <summary>
+    /// Machine à laver (grande mise à jour) : lavage complet en tambour. La poussière, les débris et la saleté détachée
+    /// partent presque entièrement ; les taches fixées partent selon leur réponse à l'eau et leur adhérence (les taches
+    /// tenaces restent à traiter à la main) ; mousse et résidus sont rincés ; le tapis sort trempé (à extraire, sécher).
+    /// Un tapis fragile s'use (<see cref="Wear"/>).
+    /// </summary>
+    public struct MachineWashOperation : ICellOperation
+    {
+        public DirtTypeTable Table;
+        /// <summary>Part de la poussière et des débris non fixés retirée.</summary>
+        public float DustRemoved;
+        /// <summary>Part des taches fixées retirée à réponse nominale à l'eau.</summary>
+        public float StainRemoved;
+        /// <summary>Humidité minimale à la sortie (tapis trempé).</summary>
+        public float MoistureAfter;
+        /// <summary>Usure ajoutée aux fibres (fragilité du tapis × usure par cycle).</summary>
+        public float Wear;
+        /// <summary>Statistique de sortie : saleté retirée.</summary>
+        public float Removed;
+
+        public void Apply(ref RugCell cell, float weight)
+        {
+            if (weight <= 0f) return;
+            float dust = cell.Dust * Mathf.Clamp01(DustRemoved * weight);
+            cell.Dust -= dust;
+            float loose = cell.Loosened * Mathf.Clamp01(weight);
+            cell.Loosened -= loose;
+            float response = Table != null ? Mathf.Clamp01(Table.GetResponse(cell.StainType).rinse * 1.5f + 0.15f) : 0.5f;
+            float stain = cell.Stain * Mathf.Clamp01(StainRemoved * response * (1f - 0.6f * Mathf.Clamp01(cell.Adhesion)) * weight);
+            cell.Stain -= stain;
+            Removed += dust + loose + stain;
+            cell.Foam = 0f;
+            cell.Residue *= 0.2f;
+            cell.Moisture = Mathf.Max(cell.Moisture, MoistureAfter);
+            cell.Wear += Wear * weight;
+        }
+    }
+
+    /// <summary>
     /// Plaque vibrante de dépoussiérage (machine de l'atelier, v0.1.2) : secoue le tapis, la poussière et les débris secs
     /// non fixés (poussière, poils, peluches, amas) tombent. Sans effet sur les fibres mouillées, les taches et la boue.
     /// </summary>

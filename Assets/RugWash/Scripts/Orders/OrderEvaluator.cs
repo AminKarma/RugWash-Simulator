@@ -39,6 +39,8 @@ namespace RugWash.Orders
         public bool TimeBonus;
         public int ReputationDelta;
         public float ElapsedSeconds;
+        /// <summary>Zone de lavage de la commande livrée (0 = zone 1).</summary>
+        public int Bay;
         public RugCleaningSummary Summary;
         public readonly List<ResultLine> Lines = new List<ResultLine>();
 

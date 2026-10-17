@@ -53,6 +53,9 @@ namespace RugWash.Network
         public const string HostKey = "host";
         public const string HostNameKey = "host_name";
         public const string StateKey = "state";
+        /// <summary>Grande mise à jour : partie fermée par l'hôte (« 1 »), réservée au Premium (« 1 »).</summary>
+        public const string LockKey = "locked";
+        public const string PremiumKey = "premium";
 
         Callback<LobbyEnter_t> lobbyEnter;
         Callback<LobbyChatUpdate_t> lobbyChatUpdate;

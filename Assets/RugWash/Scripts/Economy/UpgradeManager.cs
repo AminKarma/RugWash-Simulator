@@ -73,6 +73,9 @@ namespace RugWash.Economy
                 tool.ConsumptionMultiplier = Stats.ConsumptionMultiplier(tool.Definition.id);
                 tool.RadiusMultiplier = Stats.RadiusMultiplier(tool.Definition.id);
                 tool.IsUnlocked = !tool.Definition.requiresUnlock || Stats.IsUnlocked(tool.Definition.id);
+                tool.Level = Stats.ToolLevel(tool.Definition.id);
+                tool.MaxLevel = MaxToolLevel(tool.Definition.id);
+                tool.IsGolden = EquipmentStats.IsGolden(tool.Level, tool.MaxLevel);
             }
             tools.EnsureUsableToolSelected();
             Changed?.Invoke();
@@ -85,6 +88,42 @@ namespace RugWash.Economy
             foreach (string id in ids)
                 if (catalog.Exists(u => u != null && u.id == id)) owned.Add(id);
             ApplyAll();
+        }
+
+        /// <summary>Dernier niveau proposé pour cet outil dans le catalogue (0 : aucune amélioration par niveaux).</summary>
+        public int MaxToolLevel(string toolId)
+        {
+            int max = 0;
+            foreach (var upgrade in catalog)
+                if (upgrade != null && upgrade.level > max && upgrade.targetToolId == toolId) max = upgrade.level;
+            return max;
+        }
+
+        /// <summary>Niveau de l'outil pour ces achats (ceux d'un autre joueur en ligne, tenus par l'hôte).</summary>
+        public int ToolLevelFor(ICollection<string> ownedIds, string toolId)
+        {
+            int level = 0;
+            foreach (var upgrade in catalog)
+                if (upgrade != null && upgrade.level > level && upgrade.targetToolId == toolId && ownedIds.Contains(upgrade.id)) level = upgrade.level;
+            return level;
+        }
+
+        /// <summary>
+        /// Outils dorés de ces achats, un bit par emplacement d'outil (bit 0 = emplacement 1) : l'hôte le calcule pour chaque
+        /// joueur à partir de la carrière qu'il tient et le diffuse sur sa silhouette.
+        /// </summary>
+        public int GoldenMaskFor(ICollection<string> ownedIds)
+        {
+            int mask = 0;
+            foreach (var tool in tools.Tools)
+            {
+                if (tool == null || tool.Definition == null) continue;
+                int slot = tool.Definition.slot;
+                if (slot < 1 || slot > 31) continue;
+                string id = tool.Definition.id;
+                if (EquipmentStats.IsGolden(ToolLevelFor(ownedIds, id), MaxToolLevel(id))) mask |= 1 << (slot - 1);
+            }
+            return mask;
         }
 
         /// <summary>Description de l'effet réel, avec la valeur actuelle → la valeur après achat.</summary>
@@ -103,7 +142,11 @@ namespace RugWash.Economy
                 case UpgradeEffect.ToolPower:
                 {
                     float current = stats.PowerMultiplier(upgrade.targetToolId);
-                    return $"Puissance {ToolName(upgrade.targetToolId)} : ×{current:0.##} → ×{current * upgrade.value:0.##}";
+                    string power = $"Puissance {ToolName(upgrade.targetToolId)} : ×{current:0.##} → ×{current * upgrade.value:0.##}";
+                    if (upgrade.level <= 0) return power;
+                    int max = MaxToolLevel(upgrade.targetToolId);
+                    return $"Niveau {upgrade.level}/{max} (actuel : {stats.ToolLevel(upgrade.targetToolId)}) · {power}" +
+                           (EquipmentStats.IsGolden(upgrade.level, max) ? " · outil doré, visible par tous" : string.Empty) + Requirement(upgrade);
                 }
                 case UpgradeEffect.ToolConsumption:
                 {
@@ -119,9 +162,8 @@ namespace RugWash.Economy
                 {
                     var tool = FindTool(upgrade.targetToolId);
                     if (tool == null) return "Nouvel outil";
-                    string key = Player.RugWashInputActions.SlotKeyLabel(tool.Definition.slot);
-                    return key.Length > 0 ? $"Nouvel outil : {tool.Definition.displayName} (touche {key})"
-                        : $"Nouvel outil : {tool.Definition.displayName} (molette ou LB / RB)";
+                    // Inventaire à 4 emplacements (grande mise à jour) : l'outil acheté est porté s'il reste une place, sinon rangé.
+                    return $"Nouvel outil : {tool.Definition.displayName} — porté s'il reste un emplacement (touches 1 à 4), sinon rangé au casier";
                 }
                 case UpgradeEffect.FootprintTransfer:
                     return $"Boue laissée par vos pas : {stats.FootprintTransfer * 100f:0} % → {stats.FootprintTransfer * Mathf.Clamp01(upgrade.value) * 100f:0} %";
@@ -131,9 +173,17 @@ namespace RugWash.Economy
                     return $"Poils et peluches ({ToolName(upgrade.targetToolId)}) : ×{current:0.##} → ×{current * upgrade.value:0.##}";
                 }
                 case UpgradeEffect.WorkshopEquipment:
-                    return upgrade.targetToolId == RobotMachineId
-                        ? "Équipement de l'atelier : robot aspirateur sur sa base (aire de lavage)"
-                        : $"Machine de l'atelier{Requirement(upgrade)}";
+                    switch (upgrade.targetToolId)
+                    {
+                        case RobotMachineId: return "Équipement de l'atelier : robot aspirateur sur sa base (aire de lavage)";
+                        case Workshop.WorkshopExtension.ExtensionId:
+                            return $"Zones de lavage : {(stats.HasMachine(Workshop.WorkshopExtension.ExtensionId) ? 2 : 1)} → 2 · place pour la machine à laver{Requirement(upgrade)}";
+                        case Workshop.WashingMachine.MachineId:
+                            return $"Machine à laver dans l'annexe : la zone de lavage se libère pendant le cycle{Requirement(upgrade)}";
+                        case Workshop.WashingMachine.FastProgramId:
+                            return $"Machine à laver : cycle raccourci (programme rapide){Requirement(upgrade)}";
+                        default: return $"Machine de l'atelier{Requirement(upgrade)}";
+                    }
                 case UpgradeEffect.WorkshopTier:
                     return $"Décor de l'atelier : palier {Mathf.RoundToInt(upgrade.value)} / {MaxWorkshopTier} (actuel : {stats.WorkshopTier}){Requirement(upgrade)}";
                 case UpgradeEffect.PrankGadget:

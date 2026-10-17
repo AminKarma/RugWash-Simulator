@@ -49,7 +49,7 @@ namespace RugWash.Editor
             mesh.anchor = TextAnchor.MiddleCenter;
             mesh.alignment = TextAlignment.Center;
             mesh.color = new Color(0.95f, 0.93f, 0.85f);
-            go.GetComponent<MeshRenderer>().sharedMaterial = UIFont.material;
+            DepthTestedText(mesh);
         }
 
         static AudioSource Loop(GameObject owner, AudioClip clip, float volume)

@@ -11,7 +11,7 @@ namespace RugWash.Network
         [Tooltip("Silhouette d'un joueur vue par les autres (position, outil, effets).")]
         public GameObject avatarPrefab;
         /// <summary>Version courante du protocole (imposée à l'asset par le constructeur de contenu).</summary>
-        public const string CurrentProtocol = "rugwash-coop-8";
+        public const string CurrentProtocol = "rugwash-coop-11";
 
         [Tooltip("Version du protocole : un joueur d'une autre version est refusé avec un message clair.")]
         public string protocolVersion = CurrentProtocol;
@@ -20,6 +20,9 @@ namespace RugWash.Network
         public ushort defaultPort = 7777;
         [Tooltip("App ID Steam. 480 (« Spacewar ») est l'application de test publique de Valve, pour le développement uniquement.")]
         public uint steamAppId = 480;
+        [Tooltip("App ID Steam du DLC « édition Premium » (grande mise à jour). 0 : aucune édition Premium déclarée, " +
+                 "l'option « Premium uniquement » reste indisponible (jamais de vérification factice).")]
+        public uint premiumAppId;
         [Tooltip("Envois de cellules par seconde (hôte → invités).")]
         [Range(5f, 30f)] public float surfaceSendRate = 15f;
         [Tooltip("Intervalle (s) de correction de la simulation lente (mousse qui retombe, séchage). Chaque poste la reproduit ; " +

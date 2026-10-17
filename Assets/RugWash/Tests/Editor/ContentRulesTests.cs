@@ -420,8 +420,14 @@ namespace RugWash.Tests
             {
                 var order = AssetDatabase.LoadAssetAtPath<OrderDefinition>(AssetDatabase.GUIDToAssetPath(guid));
                 if (order == palace) continue;
-                Assert.Less(order.baseReward, palace.baseReward, "La commande de luxe est la mieux payée.");
-                Assert.LessOrEqual(order.requiredReputation, palace.requiredReputation);
+                // Grande mise à jour : le contrat « sinistre » (grand tapis presque noir) vient après, à plus haute réputation.
+                if (order.requiredReputation > palace.requiredReputation)
+                {
+                    Assert.AreEqual("order_flood", order.id, "Seul le contrat de la grande mise à jour dépasse la commande de luxe.");
+                    Assert.Greater(order.baseReward, palace.baseReward, "Le plus gros chantier est aussi le mieux payé.");
+                    continue;
+                }
+                Assert.Less(order.baseReward, palace.baseReward, "La commande de luxe est la mieux payée de son niveau.");
             }
         }
 
@@ -443,8 +449,9 @@ namespace RugWash.Tests
             }
 
             var catalog = AssetDatabase.LoadAssetAtPath<RugCatalog>(RugWashContentBuilder.RugCatalogPath);
-            Assert.AreEqual(4, catalog.rugs.Count);
+            Assert.AreEqual(5, catalog.rugs.Count, "Grande mise à jour : grand tapis de hall en plus.");
             Assert.Contains(AssetDatabase.LoadAssetAtPath<RugDefinition>(RugWashContentBuilder.LuxuryRugPath), catalog.rugs);
+            Assert.Contains(AssetDatabase.LoadAssetAtPath<RugDefinition>(RugWashContentBuilder.HallRugPath), catalog.rugs);
         }
     }
 }

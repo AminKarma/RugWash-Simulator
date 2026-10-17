@@ -46,31 +46,36 @@ namespace RugWash.Tests
 
         // ------------------------------------------------------------------ 3. Sauvegardes et multijoueur
 
+        /// <summary>
+        /// Grande mise à jour (règle des emplacements multijoueur) : un invité sauvegarde SA carrière (validée par l'hôte) dans
+        /// son emplacement, jamais l'atelier de l'hôte (aire de lavage, sol, robot, tableau) ; ses paramètres vont au profil.
+        /// </summary>
         [UnityTest]
-        public IEnumerator Guest_NeverWritesTheHostsSessionEconomy_IntoItsPersonalSave_OnlyItsPreferences()
+        public IEnumerator Guest_SavesItsOwnCareer_NeverTheHostsWorkshop_PreferencesGoToTheProfile()
         {
             yield return LoadWorkshop();
             Assert.IsTrue(game.SaveSystem.SaveNow("départ"));
             var personal = ReadSave();
-            int money = personal.money, reputation = personal.reputation;
-            var upgrades = new List<string>(personal.upgrades);
+            string workshopBefore = personal.workshop.workSurface;
 
-            // Session d'invité : les systèmes affichent l'économie de l'hôte (simulée ici), puis tout ce qui sauvegarde.
             game.SaveSystem.GuestCareerMode = true;
-            game.Wallet.Wallet.Restore(50000);
-            game.Reputation.Restore(12);
-            var owned = new List<string>(game.Upgrades.OwnedIds) { "up_base_4", "up_prank_bat" };
-            game.Upgrades.Restore(owned);
+            // L'atelier affiché est celui de l'hôte : le salir ne doit pas entrer dans la sauvegarde de l'invité.
+            var pad = game.WorkSurface.Surface.Grid;
+            var mud = new Cleaning.DepositOperation { Type = Cleaning.DirtType.Mud, Mud = 0.5f, Water = 0.3f };
+            pad.ApplyRect(new RectInt(0, 0, pad.Width, pad.Height), 1f, ref mud);
+            // Carrière validée par l'hôte (simulée ici) : argent gagné et achat effectué par cet invité.
+            game.Wallet.Wallet.Restore(personal.money + 420);
             game.Settings.SetMusicVolume(0.25f);
-            Assert.IsTrue(game.SaveSystem.SaveNow("paramètres pendant la session"));
+            Assert.IsTrue(game.SaveSystem.SaveNow("progression en ligne"));
             yield return null;
 
             var after = ReadSave();
-            Assert.AreEqual(money, after.money, "Argent personnel intact.");
-            Assert.AreEqual(reputation, after.reputation, "Réputation personnelle intacte.");
-            CollectionAssert.AreEquivalent(upgrades, after.upgrades, "Aucun achat de la session dans la sauvegarde personnelle.");
-            Assert.AreEqual(0.25f, after.settings.musicVolume, 1e-4f, "Les préférences, elles, sont bien sauvegardées.");
-            Assert.AreEqual(personal.ordersDelivered, after.ordersDelivered);
+            Assert.AreEqual(personal.money + 420, after.money, "La carrière de l'invité est la sienne : elle est sauvegardée.");
+            Assert.AreEqual(workshopBefore, after.workshop.workSurface, "L'atelier de l'hôte n'est jamais écrit chez l'invité.");
+            var profile = new ProfileStore(TestSaveSandbox.Directory).Load(out _);
+            Assert.AreEqual(0.25f, profile.settings.musicVolume, 1e-4f, "Les préférences vont au profil du joueur.");
+            game.SaveSystem.MarkMultiplayerInitialized();
+            Assert.IsFalse(ReadSave().multiplayerInitialized, "Un emplacement solo n'est jamais marqué « synchronisé avec un hôte ».");
         }
 
         // ------------------------------------------------------------------ 2.5 Fusil : KO cartoon de 5 s

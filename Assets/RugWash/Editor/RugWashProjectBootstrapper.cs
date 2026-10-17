@@ -39,6 +39,9 @@ namespace RugWash.Editor
         public const string RugLayerName = "Rug";
         public const int PlayerLayer = 9;
         public const string PlayerLayerName = "Player";
+        /// <summary>Studio des icônes 3D des outils (grande mise à jour) : vu par la seule caméra des icônes.</summary>
+        public const int ToolIconLayer = 10;
+        public const string ToolIconLayerName = "ToolIcon";
 
         /// <summary>Ordre parent → enfant, requis par AssetDatabase.CreateFolder.</summary>
         public static readonly string[] Folders =
@@ -147,6 +150,7 @@ namespace RugWash.Editor
             bool changed = false;
             changed |= SetLayer(layers, RugWashPaths.RugLayer, RugWashPaths.RugLayerName);
             changed |= SetLayer(layers, RugWashPaths.PlayerLayer, RugWashPaths.PlayerLayerName);
+            changed |= SetLayer(layers, RugWashPaths.ToolIconLayer, RugWashPaths.ToolIconLayerName);
             if (changed) tagManager.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -249,8 +253,11 @@ namespace RugWash.Editor
             public readonly bool SpotShadows;
             public readonly int ShadowResolution;
             public readonly AmbientOcclusionTier AmbientOcclusion;
+            public readonly bool MainShadows;
+            public readonly bool Hdr;
 
-            public QualityTier(string name, int msaa, float renderScale, bool spotShadows, int shadowResolution, AmbientOcclusionTier ambientOcclusion)
+            public QualityTier(string name, int msaa, float renderScale, bool spotShadows, int shadowResolution, AmbientOcclusionTier ambientOcclusion,
+                bool mainShadows = true, bool hdr = true)
             {
                 Name = name;
                 Msaa = msaa;
@@ -258,6 +265,8 @@ namespace RugWash.Editor
                 SpotShadows = spotShadows;
                 ShadowResolution = shadowResolution;
                 AmbientOcclusion = ambientOcclusion;
+                MainShadows = mainShadows;
+                Hdr = hdr;
             }
         }
 
@@ -270,13 +279,18 @@ namespace RugWash.Editor
         /// </summary>
         public static readonly QualityTier[] QualityTiers =
         {
+            // Grande mise à jour : « Très bas » devient un vrai palier (rendu à 70 %, sans ombres ni HDR) ; voir SettingsRules.
+            new QualityTier("VeryLow", 1, 0.7f, false, 512, AmbientOcclusionTier.Off, mainShadows: false, hdr: false),
             new QualityTier("Low", 1, 0.85f, false, 1024, AmbientOcclusionTier.Off),
             new QualityTier("Medium", 1, 1f, true, 1024, AmbientOcclusionTier.HalfLow),
             new QualityTier("High", 2, 1f, true, 2048, AmbientOcclusionTier.HalfMedium),
         };
 
-        /// <summary>Palier de chaque niveau de qualité (Very Low, Low, Medium, High, Very High, Ultra) ; -1 = Ultra.</summary>
-        public static readonly int[] TierOfLevel = { 0, 0, 1, 2, -1, -1 };
+        /// <summary>
+        /// Palier de chaque niveau de qualité (Very Low, Low, Medium, High, Very High, Ultra) ; -1 = Ultra. Le joueur choisit
+        /// parmi quatre préréglages (Very Low, Low, Medium, Ultra) ; High et Very High restent pour les mesures du banc d'essai.
+        /// </summary>
+        public static readonly int[] TierOfLevel = { 0, 1, 2, 3, -1, -1 };
 
         /// <summary>Crée (copie d'Ultra) et règle les pipelines des paliers, puis les assigne aux niveaux de qualité.</summary>
         static void EnsureQualityTiers(UniversalRenderPipelineAsset ultra)
@@ -333,6 +347,8 @@ namespace RugWash.Editor
             serialized.FindProperty("m_MainLightShadowmapResolution").intValue = tier.ShadowResolution;
             // Résolution d'une ombre de projecteur (palier « élevé » de ses lumières) : la moitié de l'atlas, comme Ultra.
             serialized.FindProperty("m_AdditionalLightsShadowResolutionTierHigh").intValue = Mathf.Min(1024, tier.ShadowResolution / 2);
+            serialized.FindProperty("m_MainLightShadowsSupported").boolValue = tier.MainShadows;
+            serialized.FindProperty("m_SupportsHDR").boolValue = tier.Hdr;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(pipeline);
             return pipeline;

@@ -98,7 +98,10 @@ namespace RugWash.UI
             int open = 0;
             foreach (var order in orders.Book.Orders)
                 if (orders.Book.StateOf(order) == OrderState.Available && !orders.Book.IsLocked(order, orders.BoardReputation)) open++;
-            missionsStatus.text = active != null
+            int running = orders.ActiveBayCount + orders.HeldOrders.Count;
+            missionsStatus.text = running > 1
+                ? $"{running} commandes en cours\nLivrer ou abandonner ici"
+                : active != null
                 ? $"En cours : {active.title}\nLivrer ou abandonner ici"
                 : open == 0 ? "Aucune commande disponible" : $"{open} commande{(open > 1 ? "s" : string.Empty)} disponible{(open > 1 ? "s" : string.Empty)}";
             string stock = detergent != null ? $"\nDétergent en stock : {detergent.Stock:0.#} L" : string.Empty;

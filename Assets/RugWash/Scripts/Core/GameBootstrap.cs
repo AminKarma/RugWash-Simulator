@@ -49,6 +49,8 @@ namespace RugWash.Core
         [SerializeField] List<Workshop.WorkshopMachine> machines = new List<Workshop.WorkshopMachine>();
         [Tooltip("Décor de l'atelier par paliers (v0.1.2).")]
         [SerializeField] Workshop.WorkshopDecor decor;
+        [Tooltip("Agrandissement de l'atelier (grande mise à jour) : annexe, zone de lavage 2 et machine à laver.")]
+        [SerializeField] Workshop.WorkshopExtension extension;
         [SerializeField] WorkshopStateService workshopState;
         [Tooltip("Farces entre coéquipiers (v0.1.2) : autorité et gadgets du joueur local.")]
         [SerializeField] Pranks.PrankService pranks;
@@ -79,6 +81,16 @@ namespace RugWash.Core
         [SerializeField] ResultsUI results;
         [SerializeField] SettingsUI settingsUI;
         [SerializeField] DebugOverlay debugOverlay;
+        [Header("Inventaire et casier (grande mise à jour)")]
+        [SerializeField] PlayerInventory inventory;
+        [SerializeField] LockerUI lockerUI;
+        [SerializeField] WashingMachineUI washerUI;
+        [Header("En ligne (grande mise à jour)")]
+        [SerializeField] ChatUI chatUI;
+        [SerializeField] PlayersUI playersUI;
+        [SerializeField] Network.VoiceChat voice;
+        [Tooltip("Icônes 3D des outils et gadgets (barre d'outils, casier, boutique).")]
+        [SerializeField] Effects.ToolIconRenderer toolIcons;
 
         IModalPanel[] modalPanels;
 
@@ -100,6 +112,9 @@ namespace RugWash.Core
         public ResultsUI Results => results;
         public SettingsUI SettingsUI => settingsUI;
         public SaveManager SaveSystem => saveManager;
+        public PlayerInventory Inventory => inventory;
+        public ToolSelectionUI Toolbar => toolbar;
+        public LockerUI Locker => lockerUI;
         public SettingsManager Settings => settingsManager;
         public HUDController Hud => hud;
         public DirtScanner DirtScanner => dirtScanner;
@@ -108,6 +123,14 @@ namespace RugWash.Core
         public Workshop.RobotVacuum Robot => robot;
         public IReadOnlyList<Workshop.WorkshopMachine> Machines => machines;
         public Workshop.WorkshopDecor Decor => decor;
+        /// <summary>Agrandissement de l'atelier : zone de lavage 2 et machine à laver.</summary>
+        public Workshop.WorkshopExtension Extension => extension;
+        public Workshop.WashingMachine Washer => extension != null ? extension.Washer : null;
+        public WashingMachineUI WasherUI => washerUI;
+        public ChatUI Chat => chatUI;
+        public PlayersUI Players => playersUI;
+        /// <summary>Micro du chat vocal du joueur local (actif seulement en ligne).</summary>
+        public Network.VoiceChat Voice => voice;
         /// <summary>Autorité des farces (solo, hôte).</summary>
         public Pranks.PrankService Pranks => pranks;
         /// <summary>Gadgets de farce du joueur local.</summary>
@@ -189,6 +212,21 @@ namespace RugWash.Core
             Require(computer, nameof(computer));
             Require(results, nameof(results));
             Require(debugOverlay, nameof(debugOverlay));
+            Require(inventory, nameof(inventory));
+            Require(lockerUI, nameof(lockerUI));
+            Require(extension, nameof(extension));
+            Require(washerUI, nameof(washerUI));
+            Require(chatUI, nameof(chatUI));
+            Require(playersUI, nameof(playersUI));
+            Require(voice, nameof(voice));
+            Require(toolIcons, nameof(toolIcons));
+            if (chatUI != null && !chatUI.IsConfigured(out string chatMissing)) problems.Add($"chatUI.{chatMissing}");
+            if (playersUI != null && !playersUI.IsConfigured(out string playersMissing)) problems.Add($"playersUI.{playersMissing}");
+            if (extension != null && !extension.IsConfigured(out string extensionMissing)) problems.Add($"extension.{extensionMissing}");
+            if (extension != null && extension.Washer != null && !extension.Washer.IsConfigured(out string washerMissing)) problems.Add($"extension.washer.{washerMissing}");
+            if (washerUI != null && !washerUI.IsConfigured(out string washerUIMissing)) problems.Add($"washerUI.{washerUIMissing}");
+            if (inventory != null && !inventory.IsConfigured(out string inventoryMissing)) problems.Add($"inventory.{inventoryMissing}");
+            if (lockerUI != null && !lockerUI.IsConfigured(out string lockerMissing)) problems.Add($"lockerUI.{lockerMissing}");
             if (availableRugs.Count == 0 || availableRugs.Contains(null)) problems.Add(nameof(availableRugs));
 
             string detail;
@@ -239,7 +277,7 @@ namespace RugWash.Core
                 return;
             }
             // Ordre = priorité de fermeture par Échap (les paramètres s'ouvrent par-dessus la pause).
-            modalPanels = new IModalPanel[] { settingsUI, rugDexUI, inspection, orderBoard, shopUI, computer };
+            modalPanels = new IModalPanel[] { chatUI, settingsUI, rugDexUI, inspection, orderBoard, shopUI, computer, lockerUI, washerUI, playersUI };
             IsReady = true;
         }
 
@@ -253,10 +291,36 @@ namespace RugWash.Core
             audioManager.Bind(gameState);
             hud.Bind(toolController, interactor, input, rug, gameState);
             hud.BindEconomy(wallet, reputation, orders);
+            hud.BindProfile(saveManager);
             hud.BindFeedback(dirtScanner, progressFeedback);
-            hud.BindWorkSurface(workSurface);
-            toolbar.Bind(toolController);
+            // Zones de lavage (grande mise à jour) : la zone courante est celle où se trouve le joueur local.
+            orders.Viewer = playerController.transform;
+            orders.DifficultySource = () => settingsManager.Current.missionDifficulty;
+            gadgets.Orders = orders;
+            hud.BindWorkSurface(workSurface, orders.WorkSurfaceOf(1));
+            hud.BindWasher(Washer);
+            washerUI.Bind(gameState);
+            chatUI.Bind(gameState);
+            playersUI.Bind(gameState);
+            pauseMenu.BindPlayers(playersUI);
+            // Icônes 3D : les modèles tenus en main, photographiés une fois les achats appliqués (outils dorés compris).
+            foreach (var tool in toolController.Tools)
+                if (tool != null && tool.Definition != null) toolIcons.Register(tool.Definition.id, tool.ViewModel);
+            toolIcons.Register(InventoryRules.GadgetId(RugWash.Pranks.PrankGadget.Bat), gadgets.BatModel);
+            toolIcons.Register(InventoryRules.GadgetId(RugWash.Pranks.PrankGadget.Blaster), gadgets.BlasterModel);
+            toolbar.BindIcons(toolIcons);
+            lockerUI.BindIcons(toolIcons);
+            shopUI.BindIcons(toolIcons);
+            StartCoroutine(RenderIconsWhenReady());
+            voice.CanTalk = () => gameState.IsGameplayActive;
+            hud.BindVoice(voice);
+            ApplyVoiceSettings();
+            settingsManager.Changed += ApplyVoiceSettings;
+            if (Washer != null) Washer.Message += hud.ShowToast;
+            toolbar.Bind(toolController, inventory, gadgets);
             upgrades.Changed += toolbar.Refresh;
+            lockerUI.Bind(inventory, gameState);
+            inventory.Message += hud.ShowToast;
             robot.Message += hud.ShowToast;
             // Robot aspirateur, machines et décor : selon les achats (en ligne, l'invité suit l'atelier de l'hôte).
             SyncRobotOwnership();
@@ -276,7 +340,7 @@ namespace RugWash.Core
             settingsUI.Bind(settingsManager, saveManager, gameState);
             saveManager.Saved += OnSaved;
             orders.ObjectiveReached += OnObjectiveReached;
-            inspection.Bind(gameState, rug, snapshots);
+            inspection.Bind(gameState, rug, snapshots, orders);
             orderBoard.Bind(gameState, orders, wallet);
             shopUI.Bind(gameState, shop);
             computer.Bind(gameState, orderBoard, shopUI, orders, wallet, toolController.Equipment.Detergent);
@@ -291,6 +355,8 @@ namespace RugWash.Core
             audioManager.RegisterButtons(results);
             audioManager.RegisterButtons(settingsUI);
             audioManager.RegisterButtons(rugDexUI);
+            audioManager.RegisterButtons(washerUI);
+            audioManager.RegisterButtons(playersUI);
 
             gameState.StateChanged += OnGameStateChanged;
             var music = MusicPlayer.Ensure();
@@ -313,6 +379,36 @@ namespace RugWash.Core
             foreach (var machine in machines)
                 if (machine != null) machine.SetOwned(upgrades.OwnsMachine(machine.MachineId));
             if (decor != null) decor.Apply(upgrades.WorkshopTier);
+            if (extension != null)
+                extension.Apply(upgrades.OwnsMachine(Workshop.WorkshopExtension.ExtensionId), upgrades.OwnsMachine(Workshop.WashingMachine.MachineId),
+                    upgrades.OwnsMachine(Workshop.WashingMachine.FastProgramId));
+        }
+
+        int iconGoldenMask = -1;
+
+        System.Collections.IEnumerator RenderIconsWhenReady()
+        {
+            // Une image : sauvegarde et achats appliqués (Start des autres systèmes), outils dorés compris.
+            yield return null;
+            RefreshToolIcons();
+            upgrades.Changed += RefreshToolIcons;
+        }
+
+        /// <summary>Icônes rephotographiées seulement si un outil change d'aspect (doré).</summary>
+        void RefreshToolIcons()
+        {
+            int mask = upgrades.GoldenMaskFor(upgrades.OwnedIds);
+            if (mask == iconGoldenMask) return;
+            iconGoldenMask = mask;
+            toolIcons.RenderAll();
+        }
+
+        /// <summary>Paramètres du chat vocal : mode du micro et volume des voix des autres joueurs.</summary>
+        void ApplyVoiceSettings()
+        {
+            var current = settingsManager.Current;
+            voice.Mode = (Network.VoiceMode)Mathf.Clamp(current.voiceMode, 0, 2);
+            Network.VoicePlayback.GlobalVolume = Mathf.Clamp01(current.voiceVolume);
         }
 
         void OnSoloExitRequested()
@@ -328,7 +424,11 @@ namespace RugWash.Core
         void OnObjectiveReached(OrderDefinition order)
         {
             // Tapis terminé d'un coup (moins de 1 % restant) : le HUD affiche déjà « Tapis terminé ».
-            if (!rug.IsFinished) hud.ShowToast("Objectif de propreté atteint — livrez la commande sur l'ordinateur");
+            var bayRug = orders.RugOf(orders.BayOf(order));
+            if (bayRug == null || !bayRug.IsFinished)
+                hud.ShowToast(orders.UnlockedBayCount > 1 && orders.BayOf(order) >= 0
+                    ? $"Objectif atteint ({OrderManager.BayLabel(orders.BayOf(order)).ToLowerInvariant()}) — livrez la commande sur l'ordinateur"
+                    : "Objectif de propreté atteint — livrez la commande sur l'ordinateur");
             audioManager.PlayInterface(audioManager.ObjectiveClip);
         }
 
@@ -344,6 +444,9 @@ namespace RugWash.Core
                     if (machine != null) machine.Message -= hud.ShowToast;
             if (rugDex != null) rugDex.NewRugDiscovered -= OnNewRugDiscovered;
             if (gadgets != null && hud != null) gadgets.Message -= hud.ShowToast;
+            if (Washer != null && hud != null) Washer.Message -= hud.ShowToast;
+            if (settingsManager != null) settingsManager.Changed -= ApplyVoiceSettings;
+            if (upgrades != null) upgrades.Changed -= RefreshToolIcons;
             if (session != null) session.SoloExitRequested -= OnSoloExitRequested;
             if (gameState == null) return;
             gameState.StateChanged -= OnGameStateChanged;

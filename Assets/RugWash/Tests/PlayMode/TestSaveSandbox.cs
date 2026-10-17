@@ -21,6 +21,11 @@ namespace RugWash.Tests
             Directory = Path.Combine(Application.temporaryCachePath, "RugWashTests", Guid.NewGuid().ToString("N"));
             System.IO.Directory.CreateDirectory(Directory);
             SaveManager.DirectoryOverride = Directory;
+            // Emplacement choisi conservé entre les scènes (statique) : chaque test repart de Solo 1.
+            SaveSlots.Selected = new SaveSlot(SaveMode.Solo, 1);
+            // Les tests d'outils choisissent leurs outils directement : l'inventaire à 4 emplacements les porte au besoin
+            // (les tests de l'inventaire lui-même désactivent ce raccourci).
+            RugWash.Player.PlayerInventory.AutomationCarriesOnSelect = true;
             if (legacyTools)
             {
                 var data = new SaveData();
@@ -33,6 +38,8 @@ namespace RugWash.Tests
         }
 
         public static string SavePath => Path.Combine(Directory, SaveManager.DefaultFileName);
+        /// <summary>Profil du joueur (niveau, paramètres, apparence), commun à tous les emplacements.</summary>
+        public static string ProfilePath => Path.Combine(Directory, SaveSlots.ProfileFileName);
     }
 
     /// <summary>

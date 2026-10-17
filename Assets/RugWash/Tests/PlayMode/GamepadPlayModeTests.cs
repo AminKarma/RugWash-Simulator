@@ -190,7 +190,10 @@ namespace RugWash.Tests
             yield return Stick(false, new Vector2(1f, 0f), 0.3f);
             Assert.Greater(Mathf.Abs(Mathf.DeltaAngle(yaw, game.PlayerController.transform.eulerAngles.y)), 15f, "Le stick droit tourne la caméra.");
 
-            // Changement d'outil (RB / LB) et utilisation à la gâchette droite.
+            // Changement d'outil (RB / LB) et utilisation à la gâchette droite. Inventaire à 4 emplacements : l'aspirateur
+            // est d'abord pris au casier (à la place de la lance), puis atteint aux gâchettes hautes parmi les outils portés.
+            Assert.AreEqual(RugWash.Player.InventoryResult.Done, game.Inventory.Store("rinse"));
+            Assert.AreEqual(RugWash.Player.InventoryResult.Done, game.Inventory.Carry("vacuum"));
             var first = game.ToolController.ActiveTool;
             yield return Press(GamepadButton.RightShoulder);
             Assert.AreNotSame(first, game.ToolController.ActiveTool, "RB : outil suivant.");
@@ -283,7 +286,7 @@ namespace RugWash.Tests
         {
             yield return Stick(true, new Vector2(0.5f, 0f), 0.1f);
             Assert.IsTrue(game.SettingsUI.Open());
-            game.SettingsUI.ShowTab(2);
+            game.SettingsUI.ShowTab(3);
             int scanRow = -1;
             for (int i = 0; i < game.SettingsUI.RebindRows.Count; i++)
                 if (RugWash.Save.SettingsManager.RebindableActions[i].Label == "Scanner la saleté") scanRow = i;
@@ -391,8 +394,12 @@ namespace RugWash.Tests
             yield return null;
             var scroll = game.OrderBoard.Rows[0].GetComponentInParent<ScrollRect>();
             float startY = scroll.content.anchoredPosition.y;
-            var last = game.OrderBoard.Rows[game.OrderBoard.Rows.Count - 1].ActionButton.gameObject;
-            for (int i = 0; i < 20 && Selected != last; i++)
+            // Dernière ligne sélectionnable (une offre verrouillée, comme le contrat « sinistre » à 20 de réputation, n'a pas de bouton).
+            GameObject last = null;
+            foreach (var row in game.OrderBoard.Rows)
+                if (row.gameObject.activeSelf && row.ActionButton.gameObject.activeSelf && row.ActionButton.interactable) last = row.ActionButton.gameObject;
+            Assert.IsNotNull(last);
+            for (int i = 0; i < 24 && Selected != last; i++)
                 yield return Press(GamepadButton.DpadDown);
             Assert.AreSame(last, Selected, "La croix descend jusqu'à la dernière commande.");
             yield return null;
@@ -436,6 +443,10 @@ namespace RugWash.Tests
             for (int i = 0; i < 6 && Selected != menu.PlayButton.gameObject; i++)
                 yield return Press(GamepadButton.DpadUp);
             Assert.AreSame(menu.PlayButton.gameObject, Selected);
+            yield return Press(GamepadButton.South);
+            Assert.IsTrue(menu.SaveSlots.IsOpen, "A sur « Jouer » ouvre les emplacements de sauvegarde.");
+            yield return null;
+            Assert.AreSame(menu.SaveSlots.Rows[0].ActionButton.gameObject, Selected, "Focus sur le premier emplacement.");
             yield return Press(GamepadButton.South);
             Assert.IsTrue(menu.IsLoading, "A sur « Nouvelle partie » démarre le chargement.");
             float end = Time.realtimeSinceStartup + 30f;

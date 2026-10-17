@@ -14,6 +14,10 @@ namespace RugWash.Save
         [SerializeField] RugCleaningController workSurface;
         [SerializeField] RugCleaningController floor;
         [SerializeField] RobotVacuum robot;
+        [Tooltip("Aire de lavage de la zone 2 (agrandissement, optionnelle).")]
+        [SerializeField] RugCleaningController workSurface2;
+        [Tooltip("Machine à laver (agrandissement, optionnelle).")]
+        [SerializeField] WashingMachine washer;
 
         /// <summary>Sol de la salle (hors zone de nettoyage).</summary>
         public RugCleaningController RoomFloor => floor;
@@ -30,6 +34,8 @@ namespace RugWash.Save
             if (workSurface != null && workSurface.Grid != null) data.workSurface = SurfaceStateCodec.Encode(workSurface.Grid);
             // Sol hors zone de nettoyage : rien à conserver (il ne se salit plus).
             data.floor = floor != null && floor.Grid != null && floor.AcceptsDirt ? SurfaceStateCodec.Encode(floor.Grid) : string.Empty;
+            if (workSurface2 != null && workSurface2.Grid != null) data.workSurface2 = SurfaceStateCodec.Encode(workSurface2.Grid);
+            if (washer != null) data.washer = washer.Capture();
             if (robot == null) return;
             var state = robot.CaptureState();
             data.hasRobot = true;
@@ -53,6 +59,9 @@ namespace RugWash.Save
             if (floor != null && floor.Grid != null && floor.AcceptsDirt && !string.IsNullOrEmpty(data.floor)
                 && !SurfaceStateCodec.TryDecode(data.floor, floor.Grid))
                 Debug.LogWarning("[RugWash] État du sol illisible : sol dans son état initial.");
+            if (workSurface2 != null && workSurface2.Grid != null && !string.IsNullOrEmpty(data.workSurface2)
+                && !SurfaceStateCodec.TryDecode(data.workSurface2, workSurface2.Grid))
+                Debug.LogWarning("[RugWash] État de l'aire de lavage 2 illisible : aire propre.");
             if (robot != null && data.hasRobot)
                 robot.ApplyState(new RobotState
                 {
@@ -63,6 +72,15 @@ namespace RugWash.Save
                     z = data.robotZ,
                     yaw = data.robotYaw,
                 });
+        }
+
+        /// <summary>
+        /// Machine à laver : restaurée après les commandes et les missions (la commande en machine redevient active). Une
+        /// sauvegarde sans machine (ancienne version) la laisse vide.
+        /// </summary>
+        public void RestoreWasher(WorkshopSaveData data)
+        {
+            if (washer != null && data != null && data.washer != null) washer.Restore(data.washer);
         }
     }
 }

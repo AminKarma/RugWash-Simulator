@@ -10,8 +10,8 @@ using UnityEngine.UI;
 namespace RugWash.UI
 {
     /// <summary>
-    /// Menu principal : Nouvelle partie (avec confirmation si une progression existe), Continuer
-    /// (seulement si une sauvegarde avec progression existe), Paramètres, RugDex, Quitter.
+    /// Menu principal : Jouer (choix d'un des trois emplacements solo), Continuer (dernier emplacement solo joué, s'il a
+    /// une progression), Multijoueur (emplacements multijoueur séparés), Personnage, RugDex, Paramètres, Quitter.
     /// Navigable à la souris, au clavier et à la manette (B / Rond ferme la fenêtre ouverte, curseur masqué à la manette).
     /// </summary>
     [DisallowMultipleComponent]
@@ -31,9 +31,7 @@ namespace RugWash.UI
         [SerializeField] Button quitButton;
         [SerializeField] Text continueSummary;
         [SerializeField] Text messageLabel;
-        [SerializeField] GameObject confirmPanel;
-        [SerializeField] Button confirmYesButton;
-        [SerializeField] Button confirmNoButton;
+        [SerializeField] SaveSlotsUI saveSlotsUI;
         [SerializeField] GameObject loadingPanel;
         [Tooltip("Périphérique actif : curseur masqué quand la manette est utilisée.")]
         [SerializeField] InputDeviceMonitor inputMonitor;
@@ -58,9 +56,7 @@ namespace RugWash.UI
         public Button PlayButton => playButton;
         public Button ContinueButton => continueButton;
         public Button SettingsButton => settingsButton;
-        public Button ConfirmYesButton => confirmYesButton;
-        public Button ConfirmNoButton => confirmNoButton;
-        public bool IsConfirmVisible => confirmPanel.activeSelf;
+        public SaveSlotsUI SaveSlots => saveSlotsUI;
         public bool IsLoading { get; private set; }
         public SettingsUI Settings => settingsUI;
         public RugDex.RugDexUI RugDex => rugDexUI;
@@ -78,8 +74,7 @@ namespace RugWash.UI
                 : settingsUI == null ? nameof(settingsUI) : playButton == null ? nameof(playButton) : continueButton == null ? nameof(continueButton)
                 : settingsButton == null ? nameof(settingsButton) : quitButton == null ? nameof(quitButton)
                 : continueSummary == null ? nameof(continueSummary) : messageLabel == null ? nameof(messageLabel)
-                : confirmPanel == null ? nameof(confirmPanel) : confirmYesButton == null ? nameof(confirmYesButton)
-                : confirmNoButton == null ? nameof(confirmNoButton) : loadingPanel == null ? nameof(loadingPanel)
+                : saveSlotsUI == null ? nameof(saveSlotsUI) : loadingPanel == null ? nameof(loadingPanel)
                 : rugDexUI == null ? nameof(rugDexUI) : rugDexButton == null ? nameof(rugDexButton) : rugCatalog == null ? nameof(rugCatalog)
                 : multiplayerUI == null ? nameof(multiplayerUI) : multiplayerButton == null ? nameof(multiplayerButton) : null;
             return missing == null;
@@ -109,8 +104,11 @@ namespace RugWash.UI
             continueButton.onClick.AddListener(Continue);
             settingsButton.onClick.AddListener(() => settingsUI.Open());
             quitButton.onClick.AddListener(Quit);
-            confirmYesButton.onClick.AddListener(StartNewGame);
-            confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
+            saveSlotsUI.Bind(save);
+            saveSlotsUI.SlotChosen += OnSlotChosen;
+            saveSlotsUI.SlotsChanged += Refresh;
+            audioManager.RegisterButtons(saveSlotsUI);
+            multiplayerUI.BindSaves(save, saveSlotsUI);
             rugDexBook.Restore(save.Current.rugDex);
             rugDexUI.Bind(rugCatalog, rugDexBook, orders, dirtLibrary, null);
             rugDexButton.onClick.AddListener(() => rugDexUI.Open());
@@ -126,7 +124,6 @@ namespace RugWash.UI
             audioManager.RegisterButtons(settingsUI);
             audioManager.RegisterButtons(rugDexUI);
 
-            confirmPanel.SetActive(false);
             loadingPanel.SetActive(false);
             Refresh();
             // Steam est initialisé dès le menu principal : invitations reçues et overlay disponibles sans ouvrir la
@@ -150,13 +147,16 @@ namespace RugWash.UI
             if (session.LastEndedWithError || launchedByInvite || joining) multiplayerUI.Open();
         }
 
+        /// <summary>Dernier emplacement solo joué (profil), lu sur le disque.</summary>
+        public SlotSummary LastSolo => Save.SaveSlots.ReadSummary(save.Profile.LastSlot(SaveMode.Solo));
+
         void Refresh()
         {
-            var data = save.Current;
-            bool canContinue = data.HasProgress && save.LastLoadStatus != LoadStatus.NewerVersion;
+            var last = LastSolo;
+            bool canContinue = last.HasProgress;
             continueButton.interactable = canContinue;
             continueSummary.text = canContinue
-                ? $"{WalletManager.Format(data.money)} · réputation {data.reputation} · {data.ordersDelivered} commande(s) livrée(s)"
+                ? $"{last.Slot.DisplayName} · {WalletManager.Format(last.Data.money)} · réputation {last.Data.reputation} · niveau {save.Profile.Level}"
                 : "Aucune partie en cours";
             messageLabel.text = save.LastLoadMessage ?? string.Empty;
             (canContinue ? continueButton : playButton).Select();
@@ -181,33 +181,61 @@ namespace RugWash.UI
             if (!BackPressed()) return;
             if (settingsUI.IsRebinding) return;
             if (settingsUI.IsOpen) settingsUI.Close();
+            else if (saveSlotsUI.IsConfirmVisible) saveSlotsUI.ConfirmNoButton.onClick.Invoke();
+            else if (saveSlotsUI.IsOpen) saveSlotsUI.Close();
             else if (multiplayerUI.IsOpen) multiplayerUI.Close();
             else if (rugDexUI.IsOpen) rugDexUI.Close();
             else if (characterUI != null && characterUI.IsOpen) characterUI.Close();
-            else if (confirmPanel.activeSelf) confirmPanel.SetActive(false);
         }
 
-        void OnPlay()
-        {
-            if (save.Current.HasProgress) confirmPanel.SetActive(true);
-            else StartNewGame();
-        }
+        void OnPlay() => saveSlotsUI.Open(SaveMode.Solo);
 
-        public void StartNewGame()
+        void OnSlotChosen(SaveSlot slot, SlotSummary summary)
         {
-            confirmPanel.SetActive(false);
-            if (!save.ResetProgress())
+            if (slot.Mode == SaveMode.Multiplayer)
             {
-                messageLabel.text = "Impossible de créer la nouvelle partie (sauvegarde protégée ou disque inaccessible).";
+                multiplayerUI.SetSlot(slot);
+                saveSlotsUI.Close();
                 return;
             }
+            PlaySlot(slot);
+        }
+
+        /// <summary>
+        /// Lance l'atelier sur un emplacement solo : sa progression s'il en a une, sinon une nouvelle partie (kit de départ).
+        /// Le profil (niveau, paramètres) n'est jamais remis à zéro.
+        /// </summary>
+        public bool PlaySlot(SaveSlot slot)
+        {
+            if (slot.Mode != SaveMode.Solo || IsLoading) return false;
+            var summary = Save.SaveSlots.ReadSummary(slot);
+            if (summary.Exists && !summary.Readable)
+            {
+                messageLabel.text = $"{slot.DisplayName} : {summary.Problem}.";
+                return false;
+            }
+            if (!summary.HasProgress && !save.ResetSlot(slot))
+            {
+                messageLabel.text = "Impossible de créer la nouvelle partie (sauvegarde protégée ou disque inaccessible).";
+                return false;
+            }
+            Save.SaveSlots.Selected = slot;
+            saveSlotsUI.Close();
             LoadWorkshop();
+            return true;
+        }
+
+        /// <summary>Nouvelle partie sur un emplacement solo (progression effacée, profil conservé), puis l'atelier.</summary>
+        public bool StartNewGame(SaveSlot slot)
+        {
+            if (slot.Mode != SaveMode.Solo || !save.ResetSlot(slot)) return false;
+            return PlaySlot(slot);
         }
 
         public void Continue()
         {
             if (!continueButton.interactable) return;
-            LoadWorkshop();
+            PlaySlot(save.Profile.LastSlot(SaveMode.Solo));
         }
 
         void LoadWorkshop()

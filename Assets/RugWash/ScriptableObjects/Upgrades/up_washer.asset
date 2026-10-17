@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d333a16da8f21469968da14f880b1f, type: 3}
+  m_Name: up_washer
+  m_EditorClassIdentifier: RugWash.Runtime::RugWash.Economy.UpgradeDefinition
+  id: up_washer
+  displayName: "Machine \xE0 laver professionnelle"
+  description: "Dans l'annexe : chargez-y le tapis d'une commande, sa zone de lavage
+    se lib\xE8re pour une autre. Apr\xE8s 15 minutes de jeu, poussi\xE8re, salet\xE9
+    d\xE9tach\xE9e et la plupart des taches sont parties ; le tapis ressort tremp\xE9
+    et les taches tenaces restent \xE0 finir. Les tapis fragiles s'y usent."
+  price: 1400
+  effect: 9
+  value: 1
+  targetToolId: washer
+  prerequisite: {fileID: 11400000, guid: f5a3cc4a2e5e55043b4aa3f10c948d0c, type: 2}
+  requiredReputation: 15

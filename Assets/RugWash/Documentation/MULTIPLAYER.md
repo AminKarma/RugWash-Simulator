@@ -1,7 +1,30 @@
-# Multijoueur coopératif — RugWash Simulator (jalon 5 V2, mis à jour en v0.1.2 et par la mission de corrections)
+# Multijoueur coopératif — RugWash Simulator (jalon 5 V2, mis à jour en v0.1.2, par la mission de corrections et par la grande mise à jour)
 
 Ce document décrit les choix techniques, l'architecture, la configuration Steam, la procédure de test et les limites du
 mode coopératif. **Ce qui a été réellement testé et ce qui reste à vérifier** est détaillé à la fin (et dans `VALIDATION.md`).
+
+## 0. Grande mise à jour — ce qui change (protocole `rugwash-coop-11`)
+
+- **Progression propre à chaque joueur** (remplace la règle « économie de la session = celle de l'hôte ») : chaque joueur
+  joue sur un **emplacement multijoueur** de sa sauvegarde (trois emplacements, séparés des trois emplacements solo). À la
+  **première arrivée** sur un emplacement encore vierge, sa progression de départ est une **copie de celle de l'hôte**,
+  une seule fois (l'emplacement est marqué « initialisé ») ; ensuite elle est **indépendante** : argent, réputation,
+  achats, produits et détergent de l'invité sont dans **sa** carrière, tenue et validée par l'hôte pendant la partie
+  (aucun invité ne peut se déclarer de l'argent ou un outil), renvoyée à l'invité et sauvegardée chez lui. Les achats de
+  l'hôte ne changent jamais la progression d'un invité, et inversement ; une reconnexion ne recopie jamais rien.
+- **Récompense** d'une livraison : calculée une fois par l'hôte ; chaque joueur présent la reçoit dans sa carrière.
+- **Zones de lavage** : surfaces répliquées 3 et 4 (tapis et aire de la zone 2), commande et chronomètre de chaque zone,
+  demandes de l'invité par zone (accepter dans sa zone, livrer, abandonner) ; **machine à laver** : état diffusé
+  (`WasherNetState`), demandes de l'invité validées par l'hôte. Atelier affiché : celui de l'hôte (agrandissement, machine).
+- **Outils dorés** (niveau maximal) : masque calculé par l'hôte depuis la carrière qu'il tient, diffusé sur la silhouette.
+- **Chat textuel** (hôte : nettoyage, cadence, nom de la session) et **chat vocal de proximité** (micro via Unity, μ-law,
+  relayé par l'hôte, joué depuis la silhouette) — voir `GRANDE_MISE_A_JOUR.md` § 5.
+- **Modération** (hôte) : expulsion avec confirmation (le joueur ne peut plus revenir dans cette partie), partie ouverte ou
+  fermée (refus à l'admission, salon Steam non rejoignable), « Premium uniquement » (vérification par Steam ; indisponible
+  tant qu'aucun DLC n'est déclaré).
+
+Les lignes « Économie de la session », « Livraison payée » et « Détergent » du tableau ci-dessous décrivent l'ancienne
+règle ; la règle en vigueur est celle de ce paragraphe.
 
 ## 1. Décisions techniques
 
@@ -140,8 +163,8 @@ partie »). Après une perte de connexion, le menu affiche la raison et propose 
   animation de marche simple ; pas de collision entre joueurs. Ragdoll : chaque poste simule sa copie à partir du même
   élan ; la pose exacte au sol peut donc différer légèrement d'un poste à l'autre (purement visuel, durée bornée).
 - Le tableau des commandes d'une session est celui de l'hôte. Les missions générées tiennent compte des outils de
-  l'**hôte** ; une mission livrée en ligne compte dans la sauvegarde de l'hôte seulement (l'invité ne progresse pas dans
-  sa propre sauvegarde pendant une session hébergée : c'est la règle de la mission de corrections).
+  l'**hôte** (et de sa difficulté). Grande mise à jour : une livraison en ligne rapporte à chaque joueur présent, dans SA
+  progression multijoueur (et non plus dans la sauvegarde de l'hôte seulement).
 - Protocole `rugwash-coop-8` (mission de corrections : économie de la session = celle de l'hôte, version du jeu et
   identité du joueur dans les données de connexion, cause du KO transmise ; v0.1.2 jalon 6 : farces ; jalon 5 : état de
   l'atelier, apparence et chute ; jalon 4 : raclette, robot) : les versions précédentes sont refusées avec un message clair.
@@ -149,10 +172,16 @@ partie »). Après une perte de connexion, le menu affiche la raison et propose 
   lame (quantités bornées) ; l'hôte ramasse ses propres valeurs et dépose celles de l'invité, d'où un léger écart possible
   sur l'eau déplacée, corrigé par la réplication des cellules. Sur un tapis, la raclette n'enlève que de l'eau (opération
   « essuyage » bornée), jamais la saleté, même pour un message trafiqué.
-- Robot aspirateur, machines et décor : ceux de l'atelier de l'**hôte**. Un achat demandé par un invité est fait pour
-  l'atelier de l'hôte, avec l'argent de l'atelier ; l'invité ne l'emporte pas dans sa propre sauvegarde. Traces de pas :
+- Robot aspirateur, machines, décor, agrandissement et machine à laver : ceux de l'atelier de l'**hôte**. Grande mise à
+  jour : un achat d'un invité est payé avec SON argent et rangé dans SA progression (il équipe l'atelier de l'invité quand
+  c'est lui qui héberge). Traces de pas :
   chaque joueur applique les siennes (bottes de l'atelier) comme des opérations de surface ordinaires, validées par l'hôte.
 - 4 joueurs au maximum ; version de protocole identique requise (message clair sinon).
+- Grande mise à jour, **non testé à deux instances** (aucun build lancé, consigne) : copie de départ et indépendance des
+  progressions, chat, voix, expulsion, partie fermée, zones et machine en ligne. L'autotest à deux processus
+  (`MultiplayerAutotest`, étape `multiplayer`) a été mis à jour pour ces règles mais n'a pas été exécuté.
+- Voix : μ-law 16 kHz (qualité téléphonique), sans annulation d'écho ; premier micro de Windows ; « appuyer pour parler »
+  au clavier seulement (V).
 
 ## 6. Correctif local d'Unity Transport (crash d'un invité)
 

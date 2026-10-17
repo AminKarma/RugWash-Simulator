@@ -14,6 +14,11 @@ namespace RugWash.Orders
         public const int OfferCount = 3;
         /// <summary>Offres toujours accessibles : la progression ne peut pas se bloquer, même après une baisse de réputation.</summary>
         public const int MinOpen = 2;
+        /// <summary>
+        /// Offres au plus (grande mise à jour) : une commande active de plus que la première (deuxième zone de lavage, machine
+        /// à laver) garde sa place sur le tableau sans priver le joueur d'une offre.
+        /// </summary>
+        public const int MaxOffers = OfferCount + 3;
 
         readonly List<MissionKey> offers = new List<MissionKey>();
 
@@ -24,6 +29,8 @@ namespace RugWash.Orders
         /// <summary>Dernière mission livrée (évite de reproposer la même aussitôt).</summary>
         public string LastCompleted { get; private set; } = string.Empty;
         public IReadOnlyList<MissionKey> Offers => offers;
+        /// <summary>Difficulté des prochaines missions (paramètres du joueur ; en ligne, ceux de l'hôte). Les offres affichées gardent la leur.</summary>
+        public int Difficulty { get; set; } = (int)MissionDifficulty.Normal;
 
         public static int NewSeed()
         {
@@ -40,7 +47,7 @@ namespace RugWash.Orders
             offers.Clear();
             if (savedOffers != null)
                 foreach (string id in savedOffers)
-                    if (offers.Count < OfferCount && MissionKey.TryParse(id, out var key) && key.Seed == Seed && !offers.Contains(key))
+                    if (offers.Count < MaxOffers && MissionKey.TryParse(id, out var key) && key.Seed == Seed && !offers.Contains(key))
                     {
                         offers.Add(key);
                         // Un numéro sauvegardé trop bas (fichier édité) ne doit jamais régénérer une offre déjà affichée.
@@ -78,15 +85,27 @@ namespace RugWash.Orders
         /// Complète les offres. <paramref name="signature"/> décrit une clé (catégorie + tapis) pour éviter les doublons
         /// immédiats ; <paramref name="activeId"/> (commande en cours) n'est jamais retiré. Retourne vrai si les offres ont changé.
         /// </summary>
-        public bool Refill(int reputation, int capabilities, Func<MissionKey, string> signature, string activeId)
+        public bool Refill(int reputation, int capabilities, Func<MissionKey, string> signature, string activeId) =>
+            RefillKeeping(reputation, capabilities, signature, string.IsNullOrEmpty(activeId) ? Array.Empty<string>() : new[] { activeId });
+
+        /// <summary>
+        /// Complète les offres ; les missions en cours (<paramref name="activeIds"/> : zones de lavage, machine à laver) ne
+        /// sont jamais retirées. Au-delà de la première, chaque mission en cours ajoute une offre (au plus <see cref="MaxOffers"/>).
+        /// </summary>
+        public bool RefillKeeping(int reputation, int capabilities, Func<MissionKey, string> signature, ICollection<string> activeIds)
         {
             if (!IsInitialized) return false;
+            activeIds ??= Array.Empty<string>();
             bool changed = false;
             int tier = MissionRules.TierFor(reputation);
             // Une seule offre verrouillée (celle « à viser ») : après une baisse de réputation, les autres offres devenues
-            // inaccessibles cèdent la place, la plus exigeante d'abord (jamais la commande en cours).
-            while (LockedCount(reputation, activeId) > OfferCount - MinOpen && DropLocked(reputation, activeId)) changed = true;
-            while (offers.Count < OfferCount)
+            // inaccessibles cèdent la place, la plus exigeante d'abord (jamais une commande en cours).
+            while (LockedCount(reputation, activeIds) > OfferCount - MinOpen && DropLocked(reputation, activeIds)) changed = true;
+            int active = 0;
+            foreach (var offer in offers)
+                if (activeIds.Contains(offer.Id)) active++;
+            int wanted = Math.Min(MaxOffers, OfferCount + Math.Max(0, active - 1));
+            while (offers.Count < wanted)
             {
                 bool hasStretch = offers.Exists(o => MissionRules.Threshold(o.Tier) > reputation);
                 int target = OpenCount(reputation) < MinOpen || hasStretch || tier >= MissionRules.MaxTier ? tier : tier + 1;
@@ -96,19 +115,19 @@ namespace RugWash.Orders
             return changed;
         }
 
-        int LockedCount(int reputation, string activeId)
+        int LockedCount(int reputation, ICollection<string> activeIds)
         {
             int locked = 0;
             foreach (var offer in offers)
-                if (MissionRules.Threshold(offer.Tier) > reputation && offer.Id != activeId) locked++;
+                if (MissionRules.Threshold(offer.Tier) > reputation && !activeIds.Contains(offer.Id)) locked++;
             return locked;
         }
 
-        bool DropLocked(int reputation, string activeId)
+        bool DropLocked(int reputation, ICollection<string> activeIds)
         {
             int drop = -1;
             for (int i = 0; i < offers.Count; i++)
-                if (MissionRules.Threshold(offers[i].Tier) > reputation && offers[i].Id != activeId && (drop < 0 || offers[i].Tier > offers[drop].Tier))
+                if (MissionRules.Threshold(offers[i].Tier) > reputation && !activeIds.Contains(offers[i].Id) && (drop < 0 || offers[i].Tier > offers[drop].Tier))
                     drop = i;
             if (drop < 0) return false;
             offers.RemoveAt(drop);
@@ -123,10 +142,10 @@ namespace RugWash.Orders
                 foreach (var offer in offers) avoid.Add(signature(offer));
                 if (MissionKey.TryParse(LastCompleted, out var last)) avoid.Add(signature(last));
             }
-            var key = new MissionKey(Seed, Sequence, tier, capabilities, 0);
+            var key = new MissionKey(Seed, Sequence, tier, capabilities, 0, Difficulty);
             for (int variant = 0; signature != null && variant < MissionKey.MaxVariant; variant++)
             {
-                key = new MissionKey(Seed, Sequence, tier, capabilities, variant);
+                key = new MissionKey(Seed, Sequence, tier, capabilities, variant, Difficulty);
                 if (!avoid.Contains(signature(key))) break;
             }
             Sequence++;

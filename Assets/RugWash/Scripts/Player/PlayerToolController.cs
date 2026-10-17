@@ -28,6 +28,8 @@ namespace RugWash.Player
         [SerializeField] Audio.AudioManager audioManager;
         [Tooltip("Déplacement du joueur : ralenti par un outil lourd en marche (monobrosse), optionnel.")]
         [SerializeField] FirstPersonController movement;
+        [Tooltip("Inventaire à 4 emplacements (grande mise à jour) : seuls les objets portés se sélectionnent ; optionnel.")]
+        [SerializeField] PlayerInventory inventory;
         bool wantedUse;
 
         readonly Dictionary<Collider, RugCleaningController> rugCache = new Dictionary<Collider, RugCleaningController>();
@@ -37,6 +39,7 @@ namespace RugWash.Player
         public CleaningToolBase ActiveTool => activeIndex >= 0 && activeIndex < tools.Count ? tools[activeIndex] : null;
         public ToolAim CurrentAim { get; private set; }
         public PlayerEquipment Equipment => equipment;
+        public PlayerInventory Inventory => inventory;
 
         /// <summary>Utilisation forcée (tests automatisés uniquement) ; jamais activée en jeu.</summary>
         public bool AutomationUseOverride { get; set; }
@@ -74,6 +77,8 @@ namespace RugWash.Player
         public event Action<CleaningToolBase> ActiveToolChanged;
         /// <summary>Le joueur a demandé un outil pas encore acheté.</summary>
         public event Action<CleaningToolBase> LockedToolRequested;
+        /// <summary>Touche d'un emplacement d'inventaire qui porte un gadget de farce (le contrôleur de gadgets l'équipe).</summary>
+        public event Action<Pranks.PrankGadget> GadgetRequested;
 
         public bool IsConfigured(out string missing)
         {
@@ -115,15 +120,35 @@ namespace RugWash.Player
 
         int FirstUsableIndex()
         {
+            // Premier outil porté (inventaire), dans l'ordre de l'inventaire ; sans inventaire, le premier débloqué.
+            if (inventory != null)
+                for (int slot = 0; slot < inventory.Carried.Count; slot++)
+                {
+                    var item = inventory.ItemAt(slot);
+                    if (item.IsTool && item.Tool.IsUnlocked) return tools.IndexOf(item.Tool);
+                }
             for (int i = 0; i < tools.Count; i++)
                 if (tools[i].IsUnlocked) return i;
             return 0;
         }
 
-        /// <summary>Si l'outil actif n'est pas (ou plus) utilisable, sélectionne le premier outil disponible.</summary>
+        bool IsUsable(CleaningToolBase tool) => tool != null && tool.IsUnlocked && (inventory == null || inventory.IsCarried(tool));
+
+        /// <summary>Si l'outil actif n'est pas (ou plus) utilisable (non acheté, rangé au casier), sélectionne le premier outil porté.</summary>
         public void EnsureUsableToolSelected()
         {
-            if (activeIndex >= 0 && ActiveTool != null && !ActiveTool.IsUnlocked) SelectIndex(FirstUsableIndex());
+            if (activeIndex >= 0 && ActiveTool != null && !IsUsable(ActiveTool)) SelectFirstCarried();
+        }
+
+        /// <summary>Sélectionne le premier outil porté (après le rangement de l'outil en main au casier).</summary>
+        public void SelectFirstCarried()
+        {
+            int index = FirstUsableIndex();
+            if (index == activeIndex || index < 0 || index >= tools.Count) return;
+            ActiveTool?.Unequip();
+            activeIndex = index;
+            if (!Suspended) ActiveTool.Equip();
+            ActiveToolChanged?.Invoke(ActiveTool);
         }
 
         void OnToolContact(CleaningToolBase tool)
@@ -142,8 +167,14 @@ namespace RugWash.Player
             var tool = ActiveTool;
             if (tool == null) return;
 
-            if (Suspended && gameState.IsGameplayActive && !Locked && (input.ToolSlotPressedThisFrame() > 0 || input.ToolScrollStep != 0))
-                ResumeRequested?.Invoke();
+            if (Suspended && gameState.IsGameplayActive && !Locked)
+            {
+                int pressed = input.ToolSlotPressedThisFrame();
+                var item = inventory != null && pressed > 0 ? inventory.ItemAt(pressed - 1) : default;
+                // Touche d'un gadget porté : changement de gadget ; touche d'un outil ou molette : retour aux outils.
+                if (item.IsGadget) GadgetRequested?.Invoke(item.Gadget);
+                else if (pressed > 0 || input.ToolScrollStep != 0) ResumeRequested?.Invoke();
+            }
             if (Suspended)
             {
                 if (movement != null) movement.SpeedMultiplier = 1f;
@@ -187,17 +218,25 @@ namespace RugWash.Player
             int slot = input.ToolSlotPressedThisFrame();
             if (slot > 0)
             {
-                SelectSlot(slot);
+                if (inventory == null)
+                {
+                    SelectSlot(slot);
+                    return;
+                }
+                // Touches 1 à 4 : emplacements de l'inventaire (outil ou gadget porté) ; un emplacement vide ne fait rien.
+                var item = inventory.ItemAt(slot - 1);
+                if (item.IsTool) SelectIndex(tools.IndexOf(item.Tool));
+                else if (item.IsGadget) GadgetRequested?.Invoke(item.Gadget);
                 return;
             }
             int step = input.ToolScrollStep;
             if (step == 0 || tools.Count <= 1) return;
-            // La molette saute les outils pas encore achetés.
+            // La molette parcourt les outils utilisables (achetés, et portés si l'inventaire est actif).
             int index = activeIndex;
             for (int i = 0; i < tools.Count; i++)
             {
                 index = (index - step + tools.Count) % tools.Count;
-                if (tools[index].IsUnlocked) break;
+                if (IsUsable(tools[index])) break;
             }
             SelectIndex(index);
         }
@@ -222,6 +261,8 @@ namespace RugWash.Player
         public void SelectIndex(int index)
         {
             if (index < 0 || index >= tools.Count || index == activeIndex) return;
+            // Un outil au casier ne se sort pas d'une touche : il faut d'abord le prendre au casier (sauf automatisation).
+            if (inventory != null && !inventory.IsCarried(tools[index]) && !inventory.CarryForAutomation(tools[index])) return;
             ActiveTool?.Unequip();
             activeIndex = index;
             if (!Suspended) ActiveTool.Equip();

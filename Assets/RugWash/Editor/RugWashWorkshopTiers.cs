@@ -68,7 +68,7 @@ namespace RugWash.Editor
             mesh.alignment = TextAlignment.Center;
             mesh.fontStyle = FontStyle.Bold;
             mesh.color = color;
-            go.GetComponent<MeshRenderer>().sharedMaterial = UIFont.material;
+            DepthTestedText(mesh);
         }
 
         static Light PointLight(Transform parent, string name, Vector3 position, Color color, float intensity, float range)
@@ -121,7 +121,8 @@ namespace RugWash.Editor
             Prop("Stain", cagibi, Quad(m, new Vector2(1.3f, 1.1f)), c["WallStain"], new Vector3(0.4f, 1.5f, -HalfZ + 0.012f), new Vector3(0f, 180f, 0f));
             Prop("Stain", cagibi, Quad(m, new Vector2(1.5f, 1.1f)), c["WallStain"], new Vector3(-HalfX + 0.012f, 2.75f, 0.6f), new Vector3(0f, -90f, 0f));
             Prop("Stain", cagibi, Quad(m, new Vector2(1.1f, 0.95f)), c["WallStain"], new Vector3(2.4f, 1.3f, HalfZ - 0.012f));
-            Prop("Stain", cagibi, Quad(m, new Vector2(1.2f, 1.1f)), c["WallStain"], new Vector3(HalfX - 0.012f, 2.8f, -2.6f), new Vector3(0f, 90f, 0f));
+            // Hors de l'ouverture vers l'annexe (grande mise à jour : z de -2,15 à -0,75).
+            Prop("Stain", cagibi, Quad(m, new Vector2(1.2f, 1.1f)), c["WallStain"], new Vector3(HalfX - 0.012f, 2.8f, -3.0f), new Vector3(0f, 90f, 0f));
             Add(cagibi, 0, 0);
 
             // ---- Palier 1 et plus : rangement (étagère neuve à la place des cartons), tableau de liège.
@@ -196,7 +197,8 @@ namespace RugWash.Editor
             }
             Add(loft, 3, 4);
             var art = Group("Tier3_Artworks", root);
-            foreach (var (z, material) in new[] { (-2.4f, c["RugClassic"]), (3.0f, c["RugShag"]) })
+            // Tableau avant décalé vers le bureau : il ne recouvre pas l'ouverture vers l'annexe.
+            foreach (var (z, material) in new[] { (-3.4f, c["RugClassic"]), (3.0f, c["RugShag"]) })
             {
                 Prop("Frame", art, Box(m, new Vector3(0.04f, 0.9f, 1.3f), 0.01f), c["DarkMetal"], new Vector3(HalfX - 0.03f, 2.55f, z));
                 Prop("Canvas", art, Box(m, new Vector3(0.01f, 0.8f, 1.2f), 0.002f), material, new Vector3(HalfX - 0.055f, 2.55f, z));
