@@ -3,8 +3,8 @@
 Ce document décrit la grande mise à jour (phases 1 à 7) : ce qui a été **implémenté**, ce qui a été **vérifié
 automatiquement** (tests EditMode / PlayMode exécutés dans Unity 6000.5.7f1, en mode batch), et ce qui reste **à tester à
 la main** — en particulier tout ce qui demande deux instances du jeu, un micro, Steam ou un build. Conformément à la
-consigne, **aucun build ni aucun benchmark n'a été lancé** pendant cette mise à jour : les étapes `build`, `benchmark` et
-`multiplayer` de `Tools/RugWash-CI.ps1` n'ont pas été exécutées.
+consigne, le build, le benchmark et le test à deux processus n'ont été lancés qu'à la demande, une fois la mise à jour
+terminée (§8).
 
 Résultat de la dernière vérification Unity (compilation, régénération des scènes, tests) : voir §8.
 
@@ -179,8 +179,9 @@ icônes, de l'or.
 - **Coût nul quand inutilisé** : annexe non rendue avant l'achat (cloison), machine à laver cachée et sans calcul avant
   l'achat, icônes rendues une fois, micro jamais ouvert hors ligne, chat reconstruit seulement à l'arrivée d'une ligne,
   HUD : alerte d'aire réécrite seulement si son état affiché change.
-- **Mesures** : non faites (aucun benchmark lancé, consigne). Le banc d'essai existant (`BuildBenchmark`) et l'étape
-  `benchmark` restent disponibles à la demande.
+- **Mesures** (benchmark du jeu compilé, préréglage Ultra, 1920 × 1080, RTX 5060 / i7-8700K) : 133 à 151 images/s en
+  moyenne selon le scénario, mémoire gérée stable (+0,6 Mo sur trois commandes, aucun objet en plus). Les préréglages
+  inférieurs n'ont pas été mesurés séparément (le benchmark tourne en Ultra).
 
 ---
 
@@ -198,9 +199,18 @@ câblage vérifié), `test` (EditMode), `playmode` (PlayMode).
 
 Dernière exécution : 17 octobre 2026 (détail : `VALIDATION.md` § 21).
 
-**Non exécutés** (consigne : seulement sur demande) : `build`, `benchmark`, `multiplayer` (deux processus du jeu compilé).
-L'autotest multijoueur (`MultiplayerAutotest`) a été **mis à jour** pour les nouvelles règles (emplacement multijoueur,
-copie de départ unique, carrières séparées, chat dans les deux sens, partie solo jamais touchée) mais **n'a pas été lancé**.
+Lancés ensuite à la demande (17 octobre 2026) :
+
+| Vérification | Résultat |
+|---|---|
+| Build Windows | ✅ |
+| Benchmark du jeu compilé | ✅ **15 / 15** vérifications |
+| Coopératif à deux processus (`MultiplayerAutotest` : hôte, invité, reconnexion après crash) | ✅ **62 / 62** vérifications |
+
+Le premier passage multijoueur avait échoué sur une seule vérification : l'hôte lisait la carrière de l'invité 4 s après
+la livraison, alors que l'invité venait déjà d'acheter un article (468 € → 318 €). C'était un défaut du test, pas du jeu
+(côté invité, la récompense était bien constatée). Le contrôle retient désormais le plus haut solde vu pendant cette
+fenêtre. Restent manuels : voix avec un vrai micro, Steam, kick et partie fermée, zone 2 et machine à laver en ligne.
 
 ---
 

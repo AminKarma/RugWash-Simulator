@@ -664,7 +664,7 @@ nouvelle installation reste Ultra (le joueur choisit « Moyen » dans Paramètre
 ## 21. Grande mise à jour (phases 1 à 7)
 
 Exécutions réelles du 17 octobre 2026, même machine que § 20, Unity 6000.5.7f1 en mode batch (`Tools/RugWash-CI.ps1`).
-**Aucun build, aucun benchmark, aucun test à deux processus** n'a été lancé (consigne : seulement sur demande). Détail des
+Build, benchmark et test à deux processus lancés à la demande une fois la mise à jour terminée (§ 21.1). Détail des
 fonctionnalités, limites et tests manuels : `GRANDE_MISE_A_JOUR.md`.
 
 ### 21.1 Tests automatisés
@@ -675,7 +675,9 @@ fonctionnalités, limites et tests manuels : `GRANDE_MISE_A_JOUR.md`.
 | Contenu et scènes régénérés (atelier, menu principal), câblage vérifié par `ValidateReferences` | ✅ |
 | Tests EditMode | ✅ **260 / 260** |
 | Tests PlayMode | ✅ **156 / 156** |
-| Build Windows, benchmark, coopératif à deux processus | **Non lancés** (consigne) |
+| Build Windows | ✅ |
+| Benchmark du jeu compilé (Ultra, 1920 × 1080) | ✅ **15 / 15** ; 133 à 151 images/s en moyenne, mémoire stable (+0,6 Mo) |
+| Coopératif à deux processus (`MultiplayerAutotest`) | ✅ **62 / 62** (après correction d'un contrôle du test, voir `GRANDE_MISE_A_JOUR.md` § 8) |
 
 Nouveaux tests : `SaveSlotsTests`, `SaveSlotsPlayModeTests` (phase 2) ; `InventoryRulesTests`, `InventoryPlayModeTests`,
 `BatPlayModeTests`, `WorkshopExtensionTests`, `ExtensionPlayModeTests`, `ToolLevelsPlayModeTests` (phase 3) ;
@@ -688,10 +690,10 @@ l'autorité).
 ### 21.2 Ce qui n'est pas vérifiable automatiquement ici
 
 - **Deux instances** : copie de départ et indépendance des progressions, chat, voix, expulsion, partie fermée, zones et
-  machine à laver en ligne, outil doré vu sur une silhouette. `MultiplayerAutotest` (étape `multiplayer`, build requis) a
-  été mis à jour pour les nouvelles règles de progression et le chat ; il n'a pas été exécuté.
+  machine à laver en ligne, outil doré vu sur une silhouette. `MultiplayerAutotest` couvre la progression (copie unique,
+  carrières séparées, reconnexion) et le chat ; le reste demande deux joueurs.
 - **Micro** (chat vocal) et **Steam** (salons, Premium : aucun DLC déclaré, option indisponible).
-- **Coût de rendu** des quatre préréglages : non mesuré (pas de benchmark). Les réglages de chaque palier sont vérifiés
+- **Coût de rendu** des préréglages inférieurs à Ultra : non mesuré (le benchmark tourne en Ultra). Les réglages de chaque palier sont vérifiés
   (`GraphicsSettingsTests`).
 - **Rendu à l'œil** : captures `Logs/ci/screens/40_…` à `54_…` (annexe, machine à laver, icônes, boutique, casier, flacon,
   outil doré, paramètres graphiques, tapis presque noir).

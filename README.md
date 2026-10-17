@@ -555,7 +555,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel (grande mise à jour) : 260 / 260 tests EditMode et 156 / 156 tests PlayMode. Le benchmark du jeu compilé (15 / 15) et les 43 / 43 vérifications multijoueur entre deux processus datent de v0.1.2 jalon 7 : ils n'ont pas été relancés pour la grande mise à jour (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel (grande mise à jour) : 260 / 260 tests EditMode, 156 / 156 tests PlayMode, benchmark du jeu compilé 15 / 15 et 62 / 62 vérifications multijoueur entre deux processus (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

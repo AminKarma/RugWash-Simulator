@@ -514,15 +514,21 @@ namespace RugWash.Diagnostics
                 balanceAtDelivery = game.Wallet.Balance;
             };
             yield return WaitFor(() => delivered != null, 60f);
-            yield return new WaitForSeconds(4f);
+            // L'invité enchaîne aussitôt sur un achat : on retient le plus haut solde vu dans sa carrière (un achat le fait baisser).
+            int guestBestMoney = int.MinValue;
+            for (float waited = 0f; waited < 4f; waited += Time.unscaledDeltaTime)
+            {
+                var career = NetworkWorkshop.Instance.CareerOf(guestId);
+                if (career != null) guestBestMoney = Mathf.Max(guestBestMoney, career.Money);
+                yield return null;
+            }
             Record("Livraison demandée par l'invité, validée par l'hôte", delivered != null && delivered.Accepted,
                 delivered == null ? "aucune" : $"note {OrderEvaluator.GradeLabel(delivered.Grade)}");
             Record("Récompense versée une seule fois dans la carrière de l'hôte (deux demandes de livraison)",
                 delivered != null && positiveChanges == 1 && gained == delivered.Reward && balanceAtDelivery == MultiplayerAutotest.HostStartMoney + delivered.Reward,
                 delivered == null ? "-" : $"{positiveChanges} versement(s), {gained} € pour {delivered.Reward} € ; solde à la livraison {balanceAtDelivery} €");
-            var rewarded = NetworkWorkshop.Instance.CareerOf(guestId);
-            Record("Récompense aussi versée à l'invité présent, dans SA carrière", delivered != null && rewarded != null
-                && rewarded.Money == MultiplayerAutotest.HostStartMoney + delivered.Reward, rewarded != null ? $"{rewarded.Money} €" : "-");
+            Record("Récompense aussi versée à l'invité présent, dans SA carrière", delivered != null
+                && guestBestMoney == MultiplayerAutotest.HostStartMoney + delivered.Reward, guestBestMoney != int.MinValue ? $"{guestBestMoney} €" : "-");
             values["argentApresLivraison"] = balanceAtDelivery.ToString();
             values["missionsTableau"] = GeneratedOffers(game);
             Record("Trois missions générées proposées sur le tableau de l'hôte", game.Orders.Missions.Offers.Count == 3, values["missionsTableau"]);
