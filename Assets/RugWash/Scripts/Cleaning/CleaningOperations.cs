@@ -88,6 +88,11 @@ namespace RugWash.Cleaning
         /// <summary>Humidité ajoutée par seconde.</summary>
         public float WettingPerSecond;
         public float DeltaTime;
+        /// <summary>
+        /// V0.2.5 — lance au niveau maximal : dans le cœur du jet (poids de la zone au moins égal à cette valeur), la mousse et
+        /// les résidus de produit (le savon) partent d'un coup. 0 = désactivé. La saleté n'est jamais concernée.
+        /// </summary>
+        public float FlushSoapAbove;
 
         /// <summary>Statistique de sortie : saleté évacuée du tapis.</summary>
         public float Removed;
@@ -114,6 +119,11 @@ namespace RugWash.Cleaning
 
             cell.Foam -= Mathf.Min(cell.Foam, k * 1.5f);
             cell.Residue -= Mathf.Min(cell.Residue, k * 0.35f);
+            if (FlushSoapAbove > 0f && weight >= FlushSoapAbove)
+            {
+                cell.Foam = 0f;
+                cell.Residue = 0f;
+            }
             cell.Moisture += WettingPerSecond * DeltaTime * weight;
         }
     }

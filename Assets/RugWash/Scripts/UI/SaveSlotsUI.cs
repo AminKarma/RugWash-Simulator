@@ -136,7 +136,7 @@ namespace RugWash.UI
         {
             if (!summary.Exists) return "Vide";
             if (!summary.Readable) return "Inutilisable";
-            return summary.Slot.Mode == SaveMode.Multiplayer && !summary.Data.multiplayerInitialized ? "Prête (en attente d'un hôte)" : "En cours";
+            return summary.Slot.Mode == SaveMode.Multiplayer && !summary.Data.HasProgress ? "Prête (à héberger)" : "En cours";
         }
 
         /// <summary>Résumé lisible d'un emplacement (valeurs du fichier).</summary>

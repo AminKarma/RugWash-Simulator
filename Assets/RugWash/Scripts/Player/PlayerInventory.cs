@@ -55,6 +55,18 @@ namespace RugWash.Player
         public static PrankGadget GadgetOf(string id) =>
             id == "prank:bat" ? PrankGadget.Bat : id == "prank:blaster" ? PrankGadget.Blaster : PrankGadget.None;
 
+        /// <summary>
+        /// Identifiant d'inventaire de l'objet que débloque cet achat : l'outil (son identifiant) ou le gadget porté ; null
+        /// pour tout ce qui ne se porte pas (améliorations, atelier, pipi qui n'occupe aucun emplacement).
+        /// </summary>
+        public static string ItemIdOf(Economy.UpgradeDefinition upgrade)
+        {
+            if (upgrade == null || string.IsNullOrEmpty(upgrade.targetToolId)) return null;
+            if (upgrade.effect == Economy.UpgradeEffect.UnlockTool) return upgrade.targetToolId;
+            if (upgrade.effect != Economy.UpgradeEffect.PrankGadget) return null;
+            return upgrade.targetToolId == "bat" ? GadgetId(PrankGadget.Bat) : upgrade.targetToolId == "blaster" ? GadgetId(PrankGadget.Blaster) : null;
+        }
+
         /// <summary>Ordre de départ (sauvegarde sans inventaire) : détergent, brosse, seau, puis les outils dans l'ordre des touches.</summary>
         public static readonly string[] Preferred = { "soap", "brush", "bucket", "rinse", "vacuum", "extractor" };
 

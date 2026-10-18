@@ -120,6 +120,33 @@ namespace RugWash.Editor
                 float pitch = 0.85f + i * 0.12f;
                 Write(Footsteps[i], force, false, 0.22f, (float t, float d, ref State s) => Footstep(t, d, ref s, pitch));
             }
+            ConfigureImports();
+        }
+
+        /// <summary>
+        /// V0.2.5 — réglages d'import des sons. Avant : importés sans préchargement, compressés (Vorbis) et décompressés au
+        /// chargement… de leur première lecture. Le premier passage de chaque outil sur un tapis chargeait et décodait son son
+        /// pendant la partie (`SoundManager.LoadFMODSound`, 20 à 30 ms d'un coup, relevé par le diagnostic de premier contact).
+        /// Désormais les effets sont chargés avec la scène (préchargement, décodés une fois) ; les deux musiques, longues,
+        /// sont lues en continu depuis le disque (aucun décodage complet ni gros bloc en mémoire).
+        /// </summary>
+        public static void ConfigureImports()
+        {
+            foreach (string guid in AssetDatabase.FindAssets("t:AudioClip", new[] { Folder }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!(AssetImporter.GetAtPath(path) is AudioImporter importer)) continue;
+                bool music = path == MusicMenu || path == MusicWorkshop;
+                var settings = importer.defaultSampleSettings;
+                var loadType = music ? AudioClipLoadType.Streaming : AudioClipLoadType.DecompressOnLoad;
+                bool preload = !music;
+                if (settings.loadType == loadType && settings.preloadAudioData == preload && !importer.loadInBackground) continue;
+                settings.loadType = loadType;
+                settings.preloadAudioData = preload;
+                importer.defaultSampleSettings = settings;
+                importer.loadInBackground = false;
+                importer.SaveAndReimport();
+            }
         }
 
         // ------------------------------------------------------------------ Synthèses

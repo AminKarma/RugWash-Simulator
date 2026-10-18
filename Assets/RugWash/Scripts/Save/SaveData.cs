@@ -39,14 +39,36 @@ namespace RugWash.Save
         public float stickDeadZone = 0.15f;
         /// <summary>Intensité des vibrations de la manette (0 = désactivées).</summary>
         public float vibration = 1f;
-        /// <summary>Difficulté des nouvelles missions générées (0 détendu, 1 normal, 2 exigeant) ; en ligne, celle de l'hôte.</summary>
-        public int missionDifficulty = 1;
         /// <summary>Micro du chat vocal en ligne (0 appuyer pour parler, 1 toujours ouvert, 2 coupé).</summary>
         public int voiceMode;
         /// <summary>Volume des voix des autres joueurs (0 = coupées).</summary>
         public float voiceVolume = 1f;
 
         public SettingsData Clone() => (SettingsData)MemberwiseClone();
+    }
+
+    /// <summary>
+    /// Fiche d'un joueur dans la sauvegarde d'une partie en ligne (V0.2.5), retrouvée par son identité de joueur à chaque
+    /// arrivée : ses achats personnels (outils, améliorations d'outils, équipement, gadgets), ce qu'il porte et sa réserve de
+    /// détergent. Rien de cette fiche n'est écrit chez le joueur : elle appartient à la sauvegarde de l'hôte.
+    /// </summary>
+    [Serializable]
+    public sealed class SessionMemberData
+    {
+        /// <summary>Identité du joueur (Steam ou clé locale), jamais vide.</summary>
+        public string key = string.Empty;
+        /// <summary>Dernier nom affiché (repère dans la sauvegarde).</summary>
+        public string name = string.Empty;
+        public List<string> upgrades = new List<string>();
+        public List<string> carried = new List<string>();
+        /// <summary>Réserve de détergent emportée (litres) ; -1 = pleine (premier passage).</summary>
+        public float soapReserve = -1f;
+
+        public SessionMemberData Clone() => new SessionMemberData
+        {
+            key = key, name = name, upgrades = new List<string>(upgrades ?? new List<string>()),
+            carried = new List<string>(carried ?? new List<string>()), soapReserve = soapReserve,
+        };
     }
 
     /// <summary>Stock d'un produit spécialisé (litres).</summary>
@@ -76,6 +98,20 @@ namespace RugWash.Save
         public string workSurface2 = string.Empty;
         /// <summary>Machine à laver : tapis en cours de lavage et temps restant (grande mise à jour).</summary>
         public Workshop.WasherSaveData washer = new Workshop.WasherSaveData();
+        /// <summary>Objets tombés au sol (V0.2.5, parties en ligne) : ils y restent jusqu'à ce qu'un joueur les ramasse.</summary>
+        public List<DroppedItemData> drops = new List<DroppedItemData>();
+    }
+
+    /// <summary>Objet tombé au sol (coup de batte en partie en ligne), sans propriétaire tant qu'il n'est pas ramassé.</summary>
+    [Serializable]
+    public sealed class DroppedItemData
+    {
+        /// <summary>Achat que représente l'objet (outil ou gadget).</summary>
+        public string upgrade = string.Empty;
+        public float x;
+        public float y;
+        public float z;
+        public float yaw;
     }
 
     /// <summary>
@@ -97,10 +133,10 @@ namespace RugWash.Save
         /// <summary>Temps de jeu cumulé sur cet emplacement (secondes passées dans l'atelier).</summary>
         public double playSeconds;
         /// <summary>
-        /// Emplacement multijoueur : la progression de départ a déjà été copiée depuis un hôte (une seule fois, à la première
-        /// arrivée). Ensuite cette progression est indépendante : jamais recopiée à une reconnexion.
+        /// Emplacement multijoueur hébergé (V0.2.5) : fiche de chaque joueur venu dans cette partie (ses outils et leurs
+        /// améliorations). L'argent, la réputation et l'atelier de l'emplacement sont communs à la session.
         /// </summary>
-        public bool multiplayerInitialized;
+        public List<SessionMemberData> members = new List<SessionMemberData>();
         /// <summary>Inventaire porté (grande mise à jour : 4 emplacements, outils et gadgets) ; le reste est au casier.</summary>
         public List<string> carried = new List<string>();
 
@@ -174,7 +210,6 @@ namespace RugWash.Save
             s.gamepadLookSpeed = Mathf.Clamp(s.gamepadLookSpeed, 30f, 360f);
             s.stickDeadZone = Mathf.Clamp(s.stickDeadZone, 0.02f, 0.5f);
             s.vibration = Mathf.Clamp01(s.vibration);
-            s.missionDifficulty = Mathf.Clamp(s.missionDifficulty, 0, 2);
             if (System.Array.IndexOf(SettingsRules.FrameRateCaps, s.frameRateCap) < 0) s.frameRateCap = 0;
             s.voiceMode = Mathf.Clamp(s.voiceMode, 0, 2);
             s.voiceVolume = Mathf.Clamp01(s.voiceVolume);

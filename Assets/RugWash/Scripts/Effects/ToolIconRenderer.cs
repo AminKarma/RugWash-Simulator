@@ -153,6 +153,32 @@ namespace RugWash.Effects
             DestroyImmediate(copy);
         }
 
+        /// <summary>
+        /// V0.2.5 — copie décorative d'un objet (sans scripts, sons, effets, gants ni tuyaux), posée dans le monde : objet
+        /// tombé au sol. Null si l'objet n'a pas de modèle connu.
+        /// </summary>
+        public GameObject CreateWorldCopy(string id, Transform parent)
+        {
+            if (string.IsNullOrEmpty(id) || !models.TryGetValue(id, out var source) || source == null) return null;
+            var copy = Instantiate(source.gameObject, parent);
+            copy.name = $"Dropped_{id}";
+            foreach (var system in copy.GetComponentsInChildren<ParticleSystem>(true)) DestroyImmediate(system.gameObject);
+            foreach (var behaviour in copy.GetComponentsInChildren<MonoBehaviour>(true)) DestroyImmediate(behaviour);
+            foreach (var audio in copy.GetComponentsInChildren<AudioSource>(true)) DestroyImmediate(audio);
+            foreach (var renderer in copy.GetComponentsInChildren<Renderer>(true))
+            {
+                bool keep = renderer is MeshRenderer && !Hidden(renderer) && !Uses(renderer, ignoredForFraming);
+                renderer.enabled = keep;
+                if (keep) renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            }
+            foreach (var t in copy.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = 0;
+            copy.transform.localPosition = Vector3.zero;
+            copy.transform.localRotation = Quaternion.identity;
+            copy.transform.localScale = Vector3.one;
+            copy.SetActive(true);
+            return copy;
+        }
+
         bool Hidden(Renderer renderer) => Uses(renderer, hiddenMaterials);
 
         static bool Uses(Renderer renderer, List<Material> materials)

@@ -30,7 +30,6 @@ namespace RugWash.Orders
         public string LastCompleted { get; private set; } = string.Empty;
         public IReadOnlyList<MissionKey> Offers => offers;
         /// <summary>Difficulté des prochaines missions (paramètres du joueur ; en ligne, ceux de l'hôte). Les offres affichées gardent la leur.</summary>
-        public int Difficulty { get; set; } = (int)MissionDifficulty.Normal;
 
         public static int NewSeed()
         {
@@ -142,10 +141,11 @@ namespace RugWash.Orders
                 foreach (var offer in offers) avoid.Add(signature(offer));
                 if (MissionKey.TryParse(LastCompleted, out var last)) avoid.Add(signature(last));
             }
-            var key = new MissionKey(Seed, Sequence, tier, capabilities, 0, Difficulty);
+            // V0.2.5 : difficulté unique (normale) ; la progression vient du palier (réputation) et de la taille des tapis.
+            var key = new MissionKey(Seed, Sequence, tier, capabilities, 0);
             for (int variant = 0; signature != null && variant < MissionKey.MaxVariant; variant++)
             {
-                key = new MissionKey(Seed, Sequence, tier, capabilities, variant, Difficulty);
+                key = new MissionKey(Seed, Sequence, tier, capabilities, variant);
                 if (!avoid.Contains(signature(key))) break;
             }
             Sequence++;

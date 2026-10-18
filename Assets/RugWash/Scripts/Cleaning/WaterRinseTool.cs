@@ -16,9 +16,27 @@ namespace RugWash.Cleaning
         [SerializeField] float splashRate = 140f;
         [Tooltip("Seau : le modèle s'incline pour verser au lieu de reculer comme une lance.")]
         [SerializeField] bool pourMotion;
+        [Header("Lance au niveau maximal (dorée, V0.2.5)")]
+        [Tooltip("Jet tendu : vitesse des gouttes (m/s), sans retombée ni dispersion.")]
+        [SerializeField, Range(10f, 40f)] float maxLevelJetSpeed = 24f;
+        [Tooltip("Cœur du jet (poids de la zone traitée) où la mousse et les résidus partent d'un coup.")]
+        [SerializeField, Range(0.05f, 1f)] float flushSoapAbove = 0.2f;
+        [Tooltip("Débit de gouttes du jet tendu (× débit normal).")]
+        [SerializeField, Range(1f, 3f)] float maxLevelRateBoost = 1.4f;
 
         float removedPerSecond;
         float recoil;
+        ParticleSystemRenderer jetRenderer;
+        ParticleSystem.MinMaxCurve baseJetSpeed;
+        float baseJetGravity, baseJetAngle;
+        bool jetCaptured, jetMaxLevel;
+
+        /// <summary>
+        /// Lance au niveau maximal (outil doré) : jet tendu dans l'axe de la lance, sans retombée, qui chasse la mousse et les
+        /// résidus d'un seul passage. Le seau n'est jamais concerné.
+        /// </summary>
+        public bool IsMaxLevelJet => !pourMotion && IsGolden;
+        public float FlushSoapAbove => flushSoapAbove;
 
         public float LastRemovedPerSecond => removedPerSecond;
         public override string ActionVerb => "rincer";
@@ -40,6 +58,7 @@ namespace RugWash.Cleaning
                 Power = EffectivePower * supply,
                 WettingPerSecond = definition.wettingPerSecond * supply,
                 DeltaTime = deltaTime,
+                FlushSoapAbove = IsMaxLevelJet ? flushSoapAbove : 0f,
             };
             ApplyArea(rug, aim, ref operation);
             removedPerSecond = operation.Removed / deltaTime;
@@ -52,8 +71,9 @@ namespace RugWash.Cleaning
 
             if (jetParticles != null)
             {
+                ConfigureJet();
                 var emission = jetParticles.emission;
-                emission.rateOverTimeMultiplier = IsUsing ? EffectBudget.Rate(jetRate) : 0f;
+                emission.rateOverTimeMultiplier = IsUsing ? EffectBudget.Rate(jetRate * (jetMaxLevel ? maxLevelRateBoost : 1f)) : 0f;
                 if (IsUsing)
                 {
                     Vector3 target = aim.HasHit && aim.Distance <= Range ? aim.Point : aim.Ray.GetPoint(Range);
@@ -78,6 +98,40 @@ namespace RugWash.Cleaning
                     if (!splashParticles.isPlaying) splashParticles.Play();
                 }
             }
+        }
+
+        /// <summary>
+        /// Jet selon le niveau : réglages d'origine, ou jet tendu au niveau maximal (vitesse élevée, aucune gravité, cône
+        /// fermé). Dans les deux cas, l'émission est avancée de la traînée des gouttes : le jet part de la buse.
+        /// </summary>
+        void ConfigureJet()
+        {
+            if (!jetCaptured)
+            {
+                jetCaptured = true;
+                jetRenderer = jetParticles.GetComponent<ParticleSystemRenderer>();
+                baseJetSpeed = jetParticles.main.startSpeed;
+                baseJetGravity = jetParticles.main.gravityModifierMultiplier;
+                baseJetAngle = jetParticles.shape.angle;
+                jetMaxLevel = !IsMaxLevelJet;
+            }
+            if (jetMaxLevel == IsMaxLevelJet) return;
+            jetMaxLevel = IsMaxLevelJet;
+            var main = jetParticles.main;
+            var shape = jetParticles.shape;
+            if (jetMaxLevel)
+            {
+                main.startSpeed = new ParticleSystem.MinMaxCurve(maxLevelJetSpeed * 0.95f, maxLevelJetSpeed * 1.05f);
+                main.gravityModifierMultiplier = 0f;
+                shape.angle = Mathf.Min(baseJetAngle, 0.5f);
+            }
+            else
+            {
+                main.startSpeed = baseJetSpeed;
+                main.gravityModifierMultiplier = baseJetGravity;
+                shape.angle = baseJetAngle;
+            }
+            StretchedJet.AlignToNozzle(jetParticles, jetRenderer, StretchedJet.SlowestStartSpeed(jetParticles));
         }
 
         protected override void AnimateViewModel(Transform model, Vector3 restPosition, Quaternion restRotation, float deltaTime)

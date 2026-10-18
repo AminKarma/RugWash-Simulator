@@ -132,11 +132,31 @@ namespace RugWash.Editor
             return station;
         }
 
+        /// <summary>Fût de stock (V0.2.5) : rayon, hauteur, et hauteurs (repère du liquide) du fond et du niveau maximal.</summary>
+        const float StockDrumRadius = 0.27f, StockDrumHeight = 0.85f;
+        public const float StockLiquidBottom = 0.03f;
+        public const float StockLiquidTop = StockDrumHeight * 0.84f;
+
+        /// <summary>Liquide du fût : volume fermé un peu plus étroit que la paroi (il ne la traverse jamais), jusqu'à l'épaule.</summary>
+        static Mesh StockLiquid(MeshStore store) => store.Add("SoapDrumLiquid", () => Lathe(new[]
+        {
+            new Vector2(0f, StockLiquidBottom), new Vector2(StockDrumRadius * 0.86f, StockLiquidBottom),
+            new Vector2(StockDrumRadius * 0.93f, StockLiquidBottom + 0.03f), new Vector2(StockDrumRadius * 0.93f, StockLiquidTop),
+            new Vector2(0f, StockLiquidTop),
+        }, 28));
+
         public static ResourceStation SoapStation(Transform parent, RugWashContentBuilder.Content c, MeshStore m, AudioManager audio)
         {
             var root = Group("SoapStation", parent, new Vector3(-HalfX + 0.45f, 0f, -0.9f));
             Pallet(root, c, m, new Vector3(0f, 0f, 0f), new Vector2(0.7f, 0.7f));
-            Prop("Drum", root, RibbedDrum(m, "SoapDrum", 0.27f, 0.85f, 4, 0.06f), c["GreenPlastic"], new Vector3(0f, 0.12f, 0f));
+            // V0.2.5 : fût de stock (bidons de 40 L) vert translucide ; le liquide visible à l'intérieur suit le stock réel de
+            // détergent (ContainerLevel relié au stock par le constructeur de scène), vide quand le stock est vide.
+            Prop("Drum", root, RibbedDrum(m, "SoapDrum", StockDrumRadius, StockDrumHeight, 4, 0.06f), c["StockDrumShell"], new Vector3(0f, 0.12f, 0f));
+            var liquid = Prop("Drum_Liquid", root, StockLiquid(m), c["LiquidStock"], new Vector3(0f, 0.12f, 0f));
+            var liquidRenderer = liquid.GetComponent<MeshRenderer>();
+            liquidRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var level = liquid.gameObject.AddComponent<ContainerLevel>();
+            Wire(level, ("target", liquidRenderer));
             Prop("Pump", root, Cyl(m, 0.025f, 0.22f), c["WhitePlastic"], new Vector3(0f, 1.12f, 0f));
             Prop("Spout", root, m.Add("SoapSpout", () => Tube(Smooth(new[]
             {

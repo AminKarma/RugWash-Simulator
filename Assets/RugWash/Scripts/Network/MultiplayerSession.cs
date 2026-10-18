@@ -118,6 +118,16 @@ namespace RugWash.Network
         /// <summary>Nom affiché d'un joueur connu de l'hôte (identifiant Netcode).</summary>
         public string NameOf(ulong clientId) => names.TryGetValue(clientId, out var name) ? name : $"Joueur {clientId + 1}";
 
+        /// <summary>
+        /// Hôte : identité de joueur annoncée par ce client à la connexion (la sienne pour l'hôte) ; vide si inconnue. Sert à
+        /// retrouver la fiche du joueur dans la sauvegarde de la session (V0.2.5).
+        /// </summary>
+        public string KeyOf(ulong clientId)
+        {
+            if (manager != null && clientId == manager.LocalClientId) return LocalPlayerKey;
+            return playerKeys.TryGetValue(clientId, out string key) ? key ?? string.Empty : string.Empty;
+        }
+
         void SetState(SessionState state, string message = null)
         {
             State = state;

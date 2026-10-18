@@ -113,7 +113,8 @@ namespace RugWash.Tests
             Assert.AreEqual(SaveMigration.CurrentVersion, data.version);
             Assert.AreEqual(string.Empty, data.mode);
             Assert.AreEqual(0, data.playSeconds);
-            Assert.IsFalse(data.multiplayerInitialized);
+            Assert.IsNotNull(data.members, "v6 : liste des fiches de joueurs (vide).");
+            Assert.AreEqual(0, data.members.Count);
             Assert.IsFalse(SaveValidator.IsValid(new SaveData { mode = "coop" }, out _), "Mode inconnu refusé.");
         }
 
@@ -162,39 +163,25 @@ namespace RugWash.Tests
         }
 
         [Test]
-        public void GuestArrival_FirstTimeCopiesTheHost_ThenKeepsItsOwnCareer_NeverTouchingTheHost()
+        public void SaveV5_MigratesToV6_MembersAndDropsAreCleanedUp()
         {
-            var host = new PlayerCareer { Money = 5000, Reputation = 12, DetergentStock = 80f };
-            host.Upgrades.Add("up_water_1");
-            var guest = new PlayerCareer { Money = 300, Reputation = 1 };
-            guest.Upgrades.Add("up_brush");
-            var catalog = new System.Collections.Generic.List<UpgradeDefinition>();
-            foreach (string id in new[] { "up_water_1", "up_brush" })
-            {
-                var upgrade = ScriptableObject.CreateInstance<UpgradeDefinition>();
-                upgrade.id = id;
-                catalog.Add(upgrade);
-            }
+            var v5 = JsonUtility.ToJson(new SaveData { version = 5, money = 12 });
+            Assert.AreEqual(SaveMigration.Outcome.Migrated, SaveMigration.TryParse(v5, out var data));
+            Assert.AreEqual(SaveMigration.CurrentVersion, data.version);
+            Assert.AreEqual(0, data.members.Count);
+            Assert.AreEqual(0, data.workshop.drops.Count);
 
-            var first = CareerRules.Arrival(true, guest, host, catalog, null, 160f);
-            Assert.AreEqual(5000, first.Money, "Première partie sur l'emplacement : copie de l'hôte.");
-            Assert.AreEqual(12, first.Reputation);
-            CollectionAssert.AreEquivalent(new[] { "up_water_1" }, first.Upgrades);
-            first.Money -= 1000;
-            first.Upgrades.Add("up_brush");
-            Assert.AreEqual(5000, host.Money, "La copie est indépendante : l'hôte n'est jamais modifié.");
-            Assert.IsFalse(host.Upgrades.Contains("up_brush"));
-
-            var later = CareerRules.Arrival(false, guest, host, catalog, null, 160f);
-            Assert.AreEqual(300, later.Money, "Emplacement déjà initialisé : la carrière de l'invité, pas celle de l'hôte.");
-            CollectionAssert.AreEquivalent(new[] { "up_brush" }, later.Upgrades);
-
-            var forged = new PlayerCareer { Money = -50, Reputation = -3 };
-            forged.Upgrades.Add("up_inconnu");
-            var bounded = CareerRules.Arrival(false, forged, host, catalog, null, 160f);
-            Assert.GreaterOrEqual(bounded.Money, 0, "Valeurs bornées par l'hôte.");
-            Assert.IsFalse(bounded.Upgrades.Contains("up_inconnu"));
-            foreach (var upgrade in catalog) UnityEngine.Object.DestroyImmediate(upgrade);
+            // Fiches abîmées (clé vide, doublon) et objets au sol invalides : nettoyés à la lecture.
+            var raw = new SaveData();
+            raw.members.Add(new SessionMemberData { key = "steam:1", upgrades = new System.Collections.Generic.List<string> { "up_brush" } });
+            raw.members.Add(new SessionMemberData { key = "" });
+            raw.members.Add(new SessionMemberData { key = "steam:1", upgrades = new System.Collections.Generic.List<string> { "up_water_1", " " } });
+            raw.workshop.drops.Add(new DroppedItemData { upgrade = "up_tool_vacuum", x = 1f });
+            raw.workshop.drops.Add(new DroppedItemData { upgrade = "" });
+            Assert.AreEqual(SaveMigration.Outcome.UpToDate, SaveMigration.TryParse(JsonUtility.ToJson(raw), out var clean));
+            Assert.AreEqual(1, clean.members.Count, "Une fiche par joueur.");
+            CollectionAssert.AreEqual(new[] { "up_water_1" }, clean.members[0].upgrades, "La dernière fiche lue l'emporte, sans identifiant vide.");
+            Assert.AreEqual(1, clean.workshop.drops.Count);
         }
     }
 }

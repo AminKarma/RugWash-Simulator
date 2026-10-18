@@ -6,10 +6,10 @@ using UnityEngine;
 namespace RugWash.Economy
 {
     /// <summary>
-    /// Progression de carrière d'un joueur (argent, réputation, améliorations, produits spécialisés). En partie en ligne,
-    /// l'hôte tient une carrière par invité : il y applique les achats, les consommations et les récompenses que lui seul
-    /// valide, puis renvoie le résultat à l'invité, qui la sauvegarde chez lui. La carrière de l'hôte n'est jamais copiée
-    /// chez un invité, et inversement.
+    /// Progression telle qu'un joueur la voit (argent, réputation, achats, produits spécialisés, stock de détergent). En
+    /// partie en ligne (V0.2.5), c'est la vue de la session envoyée par l'hôte à un invité : argent, réputation, atelier,
+    /// produits et stock de la sauvegarde de l'hôte (communs), plus les achats personnels, les objets portés et la réserve de
+    /// détergent de cet invité (sa fiche dans cette sauvegarde). L'invité l'applique sans jamais l'écrire chez lui.
     /// </summary>
     public sealed class PlayerCareer
     {
@@ -20,12 +20,20 @@ namespace RugWash.Economy
         public string ActiveProduct = string.Empty;
         /// <summary>Stock de détergent en bidons (litres).</summary>
         public float DetergentStock;
+        /// <summary>Objets portés (inventaire à 4 emplacements) ; vide : inchangé.</summary>
+        public readonly List<string> Carried = new List<string>();
+        /// <summary>Réserve de détergent emportée (litres) ; -1 : pleine.</summary>
+        public float SoapReserve = -1f;
 
         public PlayerCareer Clone()
         {
-            var copy = new PlayerCareer { Money = Money, Reputation = Reputation, ActiveProduct = ActiveProduct, DetergentStock = DetergentStock };
+            var copy = new PlayerCareer
+            {
+                Money = Money, Reputation = Reputation, ActiveProduct = ActiveProduct, DetergentStock = DetergentStock, SoapReserve = SoapReserve,
+            };
             copy.Upgrades.UnionWith(Upgrades);
             foreach (var pair in Products) copy.Products[pair.Key] = pair.Value;
+            copy.Carried.AddRange(Carried);
             return copy;
         }
 
@@ -50,8 +58,8 @@ namespace RugWash.Economy
         public const int MaxReputation = 1_000_000;
 
         /// <summary>
-        /// Carrière annoncée par un invité à son arrivée (lue dans SA sauvegarde) : bornée et filtrée sur le catalogue de
-        /// l'hôte (identifiants inconnus ignorés, stocks ramenés à la capacité). Pendant la partie, seul l'hôte la modifie.
+        /// Progression lue d'une source extérieure (message réseau, fichier) : bornée et filtrée sur le catalogue (identifiants
+        /// inconnus ignorés, stocks ramenés à la capacité).
         /// </summary>
         public static PlayerCareer Sanitize(PlayerCareer raw, IReadOnlyList<UpgradeDefinition> upgrades, IReadOnlyList<ProductDefinition> products,
             float maxDetergent = 160f)
@@ -73,18 +81,6 @@ namespace RugWash.Economy
                     if (raw.ActiveProduct == product.id) clean.ActiveProduct = product.id;
                 }
             return clean;
-        }
-
-        /// <summary>
-        /// Carrière tenue par l'hôte pour un invité qui arrive (règle des emplacements multijoueur) : première partie sur
-        /// l'emplacement de l'invité → copie de la carrière de l'hôte (une seule fois) ; sinon → la carrière annoncée par
-        /// l'invité, bornée (<see cref="Sanitize"/>). Jamais l'inverse : la carrière de l'hôte n'est pas modifiée.
-        /// </summary>
-        public static PlayerCareer Arrival(bool initialSync, PlayerCareer announced, PlayerCareer hostCareer, IReadOnlyList<UpgradeDefinition> upgrades,
-            IReadOnlyList<ProductDefinition> products, float maxDetergentStock)
-        {
-            var source = initialSync ? (hostCareer ?? new PlayerCareer()).Clone() : announced ?? new PlayerCareer();
-            return Sanitize(source, upgrades, products, maxDetergentStock);
         }
 
         /// <summary>Achat d'une amélioration avec l'argent de cette carrière (mêmes règles que la boutique).</summary>

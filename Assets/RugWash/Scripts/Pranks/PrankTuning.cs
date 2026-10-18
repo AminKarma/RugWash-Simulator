@@ -106,6 +106,8 @@ namespace RugWash.Pranks
         [Range(0.1f, 0.8f)] public float batImpactFraction = 0.38f;
 
         [Header("Batte sur un coéquipier : chute comique")]
+        [Tooltip("V0.2.5 : objets achetés portés que perd un joueur touché (en ligne) ; ils tombent au sol et se ramassent.")]
+        [Range(0, 4)] public int batItemsLost = 1;
         [Range(0.5f, 3f)] public float knockSeconds = 1.4f;
         [Min(0f)] public float knockImpulse = 6f;
         [Tooltip("Après un coup, le même joueur est protégé pendant ce délai (s).")]

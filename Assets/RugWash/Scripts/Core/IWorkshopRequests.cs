@@ -24,5 +24,9 @@ namespace RugWash.Core
         void RequestMachine(string machineId);
         /// <summary>Farce (v0.1.2) : validée et appliquée par l'hôte, qui répond au demandeur.</summary>
         void RequestPrank(Pranks.PrankRequest request);
+        /// <summary>V0.2.5 : revente d'un objet rangé au casier (50 % du prix de base, versés dans l'argent de la session).</summary>
+        void RequestSale(string upgradeId);
+        /// <summary>V0.2.5 : ramassage d'un objet tombé au sol (le premier qui le demande l'obtient).</summary>
+        void RequestPickup(uint dropId);
     }
 }

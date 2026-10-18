@@ -19,6 +19,8 @@ namespace RugWash.Effects
         [SerializeField] Renderer target;
         [SerializeField] PlayerEquipment equipment;
         [SerializeField] ToolResource resource = ToolResource.Soap;
+        [Tooltip("V0.2.5 : stock de détergent en bidons (fût du poste détergent) suivi à la place d'un réservoir de l'équipement.")]
+        [SerializeField] DetergentSupply stock;
         [SerializeField, Range(1f, 30f)] float smoothing = 10f;
         [Header("Ballottement")]
         [Tooltip("Inclinaison de la surface par m/s² d'accélération de l'outil.")]
@@ -37,12 +39,20 @@ namespace RugWash.Effects
         public float ShownFill => shown;
         public Vector2 Wobble => wobble;
 
+        /// <summary>Niveau visé : la part réelle du stock (fût) ou du réservoir suivi ; négatif si rien n'est suivi.</summary>
+        float WantedFill()
+        {
+            if (stock != null) return stock.MaxStock > 0f ? Mathf.Clamp01(stock.Stock / stock.MaxStock) : 0f;
+            if (equipment == null) return -1f;
+            var tank = equipment.Get(resource);
+            return tank != null ? Mathf.Clamp01(tank.Fraction01) : -1f;
+        }
+
         void LateUpdate()
         {
-            if (target == null || equipment == null) return;
-            var tank = equipment.Get(resource);
-            if (tank == null) return;
-            float wanted = Mathf.Clamp01(tank.Fraction01);
+            if (target == null) return;
+            float wanted = WantedFill();
+            if (wanted < 0f) return;
             bool moved = UpdateWobble(Time.unscaledDeltaTime);
             // Au repos (niveau atteint, liquide immobile) : rien à envoyer. L'écart se mesure à la cible, pas au pas de l'image :
             // à fréquence d'image élevée, un pas minuscule ne doit pas figer le niveau loin de la valeur réelle.

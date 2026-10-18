@@ -125,12 +125,17 @@ namespace RugWash.Tests
         }
 
         [Test]
-        public void Board_GeneratesNewOffers_WithTheChosenDifficulty()
+        public void Board_GeneratesNewOffers_WithTheSingleDifficulty_LegacyIdsStillReadable()
         {
-            var board = new MissionBoard { Difficulty = (int)MissionDifficulty.Demanding };
+            // V0.2.5 : plus de choix de difficulté ; la progression vient des paliers (réputation) et de la taille des tapis.
+            var board = new MissionBoard();
             board.Restore(3, 0, null, null);
             board.Refill(0, 0, key => MissionGenerator.Signature(key, rugs), null);
-            foreach (var offer in board.Offers) Assert.AreEqual((int)MissionDifficulty.Demanding, offer.Difficulty);
+            foreach (var offer in board.Offers) Assert.AreEqual((int)MissionDifficulty.Normal, offer.Difficulty);
+            // Une mission « exigeante » enregistrée avant (identifiant à 7 champs) reste lisible et identique.
+            var legacy = new MissionKey(7, 3, 2, 5, 1, (int)MissionDifficulty.Demanding);
+            Assert.IsTrue(MissionKey.TryParse(legacy.Id, out var parsed));
+            Assert.AreEqual(legacy, parsed);
             var kept = new List<string>();
             foreach (var offer in board.Offers) kept.Add(offer.Id);
             var restored = new MissionBoard();

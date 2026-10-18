@@ -18,7 +18,7 @@ namespace RugWash.Save
     /// </summary>
     public static class SaveMigration
     {
-        public const int CurrentVersion = 5;
+        public const int CurrentVersion = 6;
 
         /// <summary>Stock de détergent d'une nouvelle partie (litres) : trois remplissages de la réserve de 4 L.</summary>
         public const float StarterDetergentStock = 12f;
@@ -84,8 +84,9 @@ namespace RugWash.Save
                     data = JsonUtility.FromJson<SaveData>(json);
                     return Normalize(data) ? Outcome.UpToDate : Outcome.Invalid;
                 }
-                // v4 → v5 : champs ajoutés seulement (valeurs par défaut) ; le mode est fixé par l'emplacement qui la charge.
-                if (version == 4)
+                // v4 → v5 → v6 : champs ajoutés seulement (valeurs par défaut) ; le mode est fixé par l'emplacement qui la charge.
+                // v6 (V0.2.5) : fiches des joueurs d'une partie en ligne ; le marqueur « copie depuis l'hôte » n'existe plus.
+                if (version == 4 || version == 5)
                 {
                     data = JsonUtility.FromJson<SaveData>(json);
                     return Normalize(data) ? Outcome.Migrated : Outcome.Invalid;
@@ -192,11 +193,29 @@ namespace RugWash.Save
             data.rugDex.RemoveAll(r => r == null || string.IsNullOrWhiteSpace(r.id));
             data.workshop.workSurface ??= string.Empty;
             data.workshop.floor ??= string.Empty;
+            data.workshop.drops ??= new System.Collections.Generic.List<DroppedItemData>();
+            data.workshop.drops.RemoveAll(d => d == null || string.IsNullOrWhiteSpace(d.upgrade) || float.IsNaN(d.x) || float.IsNaN(d.y) || float.IsNaN(d.z));
             if (string.IsNullOrWhiteSpace(data.profileId)) data.profileId = "profile0";
             data.savedAtUtc ??= string.Empty;
             data.mode ??= string.Empty;
             data.carried ??= new System.Collections.Generic.List<string>();
             data.carried.RemoveAll(string.IsNullOrWhiteSpace);
+            data.members ??= new System.Collections.Generic.List<SessionMemberData>();
+            data.members.RemoveAll(m => m == null || string.IsNullOrWhiteSpace(m.key));
+            foreach (var member in data.members)
+            {
+                member.name ??= string.Empty;
+                member.upgrades ??= new System.Collections.Generic.List<string>();
+                member.upgrades.RemoveAll(string.IsNullOrWhiteSpace);
+                member.carried ??= new System.Collections.Generic.List<string>();
+                member.carried.RemoveAll(string.IsNullOrWhiteSpace);
+                if (float.IsNaN(member.soapReserve) || float.IsInfinity(member.soapReserve)) member.soapReserve = -1f;
+            }
+            // Une fiche par joueur (la dernière lue l'emporte).
+            var unique = new System.Collections.Generic.List<SessionMemberData>();
+            for (int i = data.members.Count - 1; i >= 0; i--)
+                if (!unique.Exists(m => m.key == data.members[i].key)) unique.Insert(0, data.members[i]);
+            data.members = unique;
             if (double.IsNaN(data.playSeconds) || double.IsInfinity(data.playSeconds) || data.playSeconds < 0) data.playSeconds = 0;
             data.upgrades.RemoveAll(string.IsNullOrWhiteSpace);
             data.completedOrders.RemoveAll(string.IsNullOrWhiteSpace);

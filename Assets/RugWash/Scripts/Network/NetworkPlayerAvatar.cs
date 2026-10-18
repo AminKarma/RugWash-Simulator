@@ -179,9 +179,20 @@ namespace RugWash.Network
         public ParticleSystem LiquidEffect => liquidEffect;
         Transform effectsRoot;
 
+        ParticleSystemRenderer liquidRenderer;
+        float liquidMinSpeed, liquidMaxSpeed, liquidGravity;
+
         void Awake()
         {
             effectsRoot = liquidEffect != null ? liquidEffect.transform.parent : null;
+            if (liquidEffect != null)
+            {
+                liquidRenderer = liquidEffect.GetComponent<ParticleSystemRenderer>();
+                var speed = liquidEffect.main.startSpeed;
+                liquidMinSpeed = speed.mode == ParticleSystemCurveMode.TwoConstants ? speed.constantMin : speed.constant;
+                liquidMaxSpeed = speed.mode == ParticleSystemCurveMode.TwoConstants ? speed.constantMax : speed.constant;
+                liquidGravity = liquidEffect.main.gravityModifierMultiplier;
+            }
             EffectBudget.Configure(liquidEffect);
             EffectBudget.Configure(dustEffect);
             poses = new ToolPose[tools.Count];
@@ -462,8 +473,14 @@ namespace RugWash.Network
                 {
                     liquidEffect.transform.SetPositionAndRotation(tool.tip.position, rotation);
                     var main = liquidEffect.main;
-                    // Vitesse de départ du préfabriqué : 2,5 à 4 m/s (moyenne 3,25) ; mise à l'échelle pour atteindre la cible.
-                    main.startSpeedMultiplier = Mathf.Clamp(toTarget.magnitude / LiquidFlightSeconds, 2.5f, 16f) / 3.25f;
+                    // Vitesse de départ du préfabriqué (2,5 à 4 m/s) mise à l'échelle pour atteindre la cible ; les deux bornes sont
+                    // réglées (un multiplicateur ne change que la borne haute). Outil doré : jet tendu, sans retombée (V0.2.5).
+                    float scale = Mathf.Clamp(toTarget.magnitude / LiquidFlightSeconds, 2.5f, 16f) / (0.5f * (liquidMinSpeed + liquidMaxSpeed));
+                    bool golden = slot >= 1 && slot <= 31 && (goldenTools.Value & (1 << (slot - 1))) != 0;
+                    main.startSpeed = new ParticleSystem.MinMaxCurve(liquidMinSpeed * scale, liquidMaxSpeed * scale);
+                    main.gravityModifierMultiplier = golden ? 0f : liquidGravity;
+                    // Gouttes étirées : émission avancée de leur traînée, le jet part de la buse et non du corps.
+                    StretchedJet.AlignToNozzle(liquidEffect, liquidRenderer, liquidMinSpeed * scale);
                 }
                 if (dustEffect != null && tool.effect == 2) dustEffect.transform.SetPositionAndRotation(tool.tip.position, Quaternion.identity);
             }

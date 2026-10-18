@@ -140,5 +140,62 @@ namespace RugWash.Tests
             WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "54_grime_rug.png"));
             Debug.Log($"[RugWash] Captures de la grande mise à jour : {folder}");
         }
+
+        /// <summary>V0.2.5 : fût de stock (plein, à moitié, vide), jet de la lance (niveau 2, puis dorée), objet tombé au sol.</summary>
+        [UnityTest, Category("Capture")]
+        public IEnumerator Capture_V025()
+        {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) Assert.Ignore("Pas de GPU (mode -nographics) : captures ignorées.");
+            string folder = Path.Combine(Directory.GetCurrentDirectory(), "Logs", "ci", "screens");
+            Directory.CreateDirectory(folder);
+            var camera = game.ToolController.GetComponentInChildren<Camera>();
+
+            // Fût du poste détergent (contre le mur gauche).
+            game.PlayerController.Teleport(new Vector3(-4.3f, 0.06f, -0.9f), 270f, 22f);
+            game.Detergent.Restore(game.Detergent.MaxStock);
+            yield return new WaitForSeconds(0.8f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "80_stock_drum_full.png"));
+            game.Detergent.Restore(game.Detergent.MaxStock * 0.4f);
+            yield return new WaitForSeconds(0.8f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "81_stock_drum_40.png"));
+            game.Detergent.Restore(0f);
+            yield return new WaitForSeconds(0.8f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "82_stock_drum_empty.png"));
+
+            // Jet de la lance vers le tapis : niveau 2, puis dorée (jet tendu).
+            Player.PlayerInventory.AutomationCarriesOnSelect = true;
+            var owned = new List<string>(game.Upgrades.OwnedIds) { "up_tool_rinse", "up_rinse", "up_rinse_lvl2" };
+            game.Upgrades.Restore(owned);
+            game.Rug.LoadRug(game.AvailableRugs[0]);
+            game.ToolController.SelectSlot(4);
+            game.PlayerController.Teleport(new Vector3(0.4f, 0.06f, -2.4f), 0f, 26f);
+            yield return new WaitForSeconds(0.5f);
+            game.ToolController.Equipment.Water.Refill();
+            game.ToolController.AutomationUseOverride = true;
+            yield return new WaitForSeconds(0.45f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "83_lance_jet_level2.png"));
+            game.ToolController.AutomationUseOverride = false;
+            owned.Add("up_rinse_lvl3");
+            game.Upgrades.Restore(owned);
+            game.ToolController.SelectSlot(4);
+            yield return new WaitForSeconds(0.4f);
+            game.ToolController.Equipment.Water.Refill();
+            game.ToolController.AutomationUseOverride = true;
+            yield return new WaitForSeconds(0.45f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "84_lance_jet_golden.png"));
+            game.ToolController.AutomationUseOverride = false;
+            Player.PlayerInventory.AutomationCarriesOnSelect = false;
+
+            // Objet tombé au sol (copie posée par les parties en ligne), vu de près.
+            var holder = new GameObject("CaptureDrop");
+            holder.transform.SetPositionAndRotation(new Vector3(0.3f, 0.02f, -3.3f), Quaternion.Euler(0f, 30f, 0f));
+            var copy = game.ToolIcons.CreateWorldCopy("vacuum", holder.transform);
+            Assert.IsNotNull(copy, "Copie posée au sol de l'aspirateur.");
+            copy.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            game.PlayerController.Teleport(new Vector3(0.3f, 0.06f, -4.6f), 0f, 40f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "85_dropped_item.png"));
+            Object.Destroy(holder);
+        }
     }
 }

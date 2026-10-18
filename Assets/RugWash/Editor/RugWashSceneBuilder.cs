@@ -94,7 +94,7 @@ namespace RugWash.Editor
             var orderCounter = RugWashDecor.OrderDesk(environment, content, meshes);
             RugWashDecor.DryingArea(environment, content, meshes);
             RugWashDecor.Shelves(environment, content, meshes);
-            RugWashDecor.SoapStation(environment, content, meshes, audio);
+            var soapStation = RugWashDecor.SoapStation(environment, content, meshes, audio);
             RugWashDecor.Ceiling(environment, content, meshes);
             RugWashDecor.WallDetails(environment, content, meshes);
             BuildLights(lighting, content, meshes);
@@ -124,6 +124,9 @@ namespace RugWash.Editor
             var cleanPool = BuildCleanFeedbackPool(effects, content, audio);
             var player = BuildPlayer(gameplay, content, meshes, effects, gameState, audio, cleanPool,
                 out var input, out var fps, out var toolController, out var interactor);
+            // Fût du poste détergent (V0.2.5) : son liquide suit le stock réel du joueur (en ligne : celui de la session).
+            var stockLevel = soapStation.GetComponentInChildren<ContainerLevel>(true);
+            if (stockLevel != null) Wire(stockLevel, ("stock", player.GetComponent<DetergentSupply>()));
 
             // Plan de travail : reçoit le ruissellement du tapis et recontamine le tapis suivant s'il reste sale.
             var workSurface = game.AddComponent<WorkSurface>();
@@ -175,7 +178,7 @@ namespace RugWash.Editor
             var shop = game.AddComponent<ShopManager>();
             Wire(shop, ("reputation", reputation));
             Wire(shop, ("wallet", wallet), ("upgrades", upgrades), ("audioManager", audio), ("products", productInventory),
-                ("detergent", player.GetComponent<DetergentSupply>()));
+                ("detergent", player.GetComponent<DetergentSupply>()), ("inventory", player.GetComponent<PlayerInventory>()));
             var orders = game.AddComponent<OrderManager>();
             Wire(orders, ("upgrades", upgrades));
             WireList(orders, "extraBays", new[] { bay2 });
@@ -2245,6 +2248,10 @@ namespace RugWash.Editor
             // ---- Emplacement de sauvegarde multijoueur (jamais un emplacement solo)
             var slotLabel = AddText(CreateRect("SlotLabel", window, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(40f, 104f), new Vector2(1060f, 56f)),
                 "Sauvegarde : …", 20, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f));
+            // V0.2.5 : la ligne explique aussi qu'en rejoignant, on joue sur la sauvegarde de l'hôte.
+            slotLabel.resizeTextForBestFit = true;
+            slotLabel.resizeTextMinSize = 13;
+            slotLabel.resizeTextMaxSize = 20;
             slotLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
             slotLabel.resizeTextForBestFit = true;
             slotLabel.resizeTextMinSize = 14;
@@ -2374,9 +2381,7 @@ namespace RugWash.Editor
             var effects = SliderRow(audioColumn, "Effets", sprites, out var effectsValue);
             var interfaceSlider = SliderRow(audioColumn, "Interface", sprites, out var interfaceValue);
             var musicSlider = SliderRow(audioColumn, "Musique", sprites, out var musicValue);
-            // Grande mise à jour : difficulté des missions générées (s'applique aux nouvelles offres).
-            SectionTitle(audioColumn, "Jeu");
-            var difficulty = StepperRow(audioColumn, "Difficulté des missions", sprites);
+            // V0.2.5 : plus de choix de difficulté ; elle suit la progression des missions (réputation, taille des tapis).
             var displayColumn = Column(general, false);
             SectionTitle(displayColumn, "Affichage");
             var resolution = StepperRow(displayColumn, "Résolution", sprites);
@@ -2477,7 +2482,7 @@ namespace RugWash.Editor
             Wire(ui, ("panel", panel), ("masterSlider", master), ("effectsSlider", effects), ("interfaceSlider", interfaceSlider),
                 ("sensitivitySlider", sensitivity), ("masterValue", masterValue), ("effectsValue", effectsValue), ("interfaceValue", interfaceValue),
                 ("sensitivityValue", sensitivityValue), ("motionSlider", motion), ("motionValue", motionValue), ("invertYStepper", invert), ("resolutionStepper", resolution),
-                ("displayModeStepper", display), ("qualityStepper", quality), ("difficultyStepper", difficulty), ("rebindRoot", list), ("rebindTemplate", rebindRow),
+                ("displayModeStepper", display), ("qualityStepper", quality), ("rebindRoot", list), ("rebindTemplate", rebindRow),
                 ("resetBindingsButton", reset), ("closeButton", close), ("messageLabel", message),
                 ("gamepadLookSlider", padLook), ("deadZoneSlider", deadZone), ("vibrationSlider", vibration),
                 ("gamepadLookValue", padLookValue), ("deadZoneValue", deadZoneValue), ("vibrationValue", vibrationValue), ("monitor", uiMonitor));

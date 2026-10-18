@@ -4,12 +4,12 @@ using RugWash.Economy;
 namespace RugWash.Network
 {
     /// <summary>
-    /// Format réseau d'une carrière de joueur (version 1). Lecture bornée : un message tronqué ou trafiqué lève
-    /// <see cref="FormatException"/> et est ignoré ; les valeurs lues sont ensuite bornées par <see cref="CareerRules.Sanitize"/>.
+    /// Format réseau de la progression vue par un joueur (version 3, V0.2.5 : objets portés et réserve de détergent). Lecture
+    /// bornée : un message tronqué ou trafiqué lève <see cref="FormatException"/> et est ignoré.
     /// </summary>
     public static class CareerCodec
     {
-        public const byte Version = 2;
+        public const byte Version = 3;
         public const int MaxEntries = 64;
 
         public static byte[] Encode(PlayerCareer career)
@@ -41,6 +41,9 @@ namespace RugWash.Network
             }
             writer.String(career.ActiveProduct ?? string.Empty);
             writer.Float(Math.Max(0f, career.DetergentStock));
+            writer.Byte((byte)Math.Min(MaxEntries, career.Carried.Count));
+            for (int i = 0; i < career.Carried.Count && i < MaxEntries; i++) writer.String(career.Carried[i] ?? string.Empty);
+            writer.Float(career.SoapReserve);
         }
 
         public static PlayerCareer Decode(byte[] data)
@@ -72,6 +75,11 @@ namespace RugWash.Network
             }
             career.ActiveProduct = reader.String();
             career.DetergentStock = reader.Float();
+            int carried = reader.Byte();
+            if (carried > MaxEntries) throw new FormatException("trop d'objets portés");
+            for (int i = 0; i < carried; i++) career.Carried.Add(reader.String());
+            career.SoapReserve = reader.Float();
+            if (float.IsNaN(career.DetergentStock) || float.IsNaN(career.SoapReserve)) throw new FormatException("réserve invalide");
             return career;
         }
     }

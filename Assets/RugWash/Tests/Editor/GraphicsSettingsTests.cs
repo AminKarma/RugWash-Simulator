@@ -39,11 +39,13 @@ namespace RugWash.Tests
             Assert.AreEqual(30, SettingsRules.StepCap(0, 1));
             Assert.AreEqual(240, SettingsRules.StepCap(0, -1), "La liste boucle.");
             Assert.AreEqual(30, SettingsRules.StepCap(57, 1), "Valeur inconnue : reprise au début.");
-            var data = new SettingsData { frameRateCap = 57, missionDifficulty = 9, voiceVolume = 3f };
+            var data = new SettingsData { frameRateCap = 57, voiceVolume = 3f };
             SaveValidator.ClampSettings(data);
             Assert.AreEqual(0, data.frameRateCap, "Limite modifiée à la main : illimitée.");
-            Assert.AreEqual(2, data.missionDifficulty);
             Assert.AreEqual(1f, data.voiceVolume);
+            // V0.2.5 : plus de difficulté dans les paramètres ; un ancien profil qui en contient une se lit sans erreur.
+            var legacy = JsonUtility.FromJson<SettingsData>("{\"missionDifficulty\":2,\"voiceVolume\":0.5}");
+            Assert.AreEqual(0.5f, legacy.voiceVolume, 1e-4f);
         }
 
         static UniversalRenderPipelineAsset LevelPipeline(int level) => QualitySettings.GetRenderPipelineAssetAt(level) as UniversalRenderPipelineAsset;

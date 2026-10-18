@@ -37,7 +37,7 @@ namespace RugWash.Tests
         public IEnumerator Cleanup()
         {
             if (game != null && game.ToolController != null) game.ToolController.AutomationUseOverride = false;
-            if (game != null && game.SaveSystem != null) game.SaveSystem.GuestCareerMode = false;
+            if (game != null && game.SaveSystem != null) game.SaveSystem.SessionGuest = false;
             Time.timeScale = 1f;
             yield return null;
         }
@@ -47,35 +47,39 @@ namespace RugWash.Tests
         // ------------------------------------------------------------------ 3. Sauvegardes et multijoueur
 
         /// <summary>
-        /// Grande mise à jour (règle des emplacements multijoueur) : un invité sauvegarde SA carrière (validée par l'hôte) dans
-        /// son emplacement, jamais l'atelier de l'hôte (aire de lavage, sol, robot, tableau) ; ses paramètres vont au profil.
+        /// V0.2.5 (sauvegarde de session) : un invité joue sur la sauvegarde choisie par l'hôte. Rien de la partie (argent,
+        /// atelier, achats, livraisons) n'est écrit dans ses propres emplacements ; seuls ses paramètres vont à son profil.
         /// </summary>
         [UnityTest]
-        public IEnumerator Guest_SavesItsOwnCareer_NeverTheHostsWorkshop_PreferencesGoToTheProfile()
+        public IEnumerator Guest_NeverWritesItsOwnSlots_PreferencesGoToTheProfile()
         {
             yield return LoadWorkshop();
             Assert.IsTrue(game.SaveSystem.SaveNow("départ"));
             var personal = ReadSave();
             string workshopBefore = personal.workshop.workSurface;
+            int countBefore = game.SaveSystem.SaveCount;
 
-            game.SaveSystem.GuestCareerMode = true;
-            // L'atelier affiché est celui de l'hôte : le salir ne doit pas entrer dans la sauvegarde de l'invité.
+            game.SaveSystem.SessionGuest = true;
+            // L'atelier affiché et l'argent sont ceux de la session de l'hôte : rien n'entre dans la sauvegarde de l'invité.
             var pad = game.WorkSurface.Surface.Grid;
             var mud = new Cleaning.DepositOperation { Type = Cleaning.DirtType.Mud, Mud = 0.5f, Water = 0.3f };
             pad.ApplyRect(new RectInt(0, 0, pad.Width, pad.Height), 1f, ref mud);
-            // Carrière validée par l'hôte (simulée ici) : argent gagné et achat effectué par cet invité.
             game.Wallet.Wallet.Restore(personal.money + 420);
             game.Settings.SetMusicVolume(0.25f);
-            Assert.IsTrue(game.SaveSystem.SaveNow("progression en ligne"));
+            Assert.IsTrue(game.SaveSystem.SaveNow("partie en ligne"), "Le profil est écrit.");
+            game.Orders.TryStart(game.Orders.Book.Orders[0]);
+            yield return null;
+            GameLoopPlayModeTests.CleanThoroughly(game.Rug.Grid);
+            game.Orders.Deliver();
             yield return null;
 
             var after = ReadSave();
-            Assert.AreEqual(personal.money + 420, after.money, "La carrière de l'invité est la sienne : elle est sauvegardée.");
+            Assert.AreEqual(personal.money, after.money, "L'argent de la session n'est jamais écrit chez l'invité.");
+            Assert.AreEqual(personal.ordersDelivered, after.ordersDelivered, "La livraison appartient à la sauvegarde de l'hôte.");
             Assert.AreEqual(workshopBefore, after.workshop.workSurface, "L'atelier de l'hôte n'est jamais écrit chez l'invité.");
+            Assert.AreEqual(countBefore, game.SaveSystem.SaveCount, "Aucun emplacement écrit.");
             var profile = new ProfileStore(TestSaveSandbox.Directory).Load(out _);
             Assert.AreEqual(0.25f, profile.settings.musicVolume, 1e-4f, "Les préférences vont au profil du joueur.");
-            game.SaveSystem.MarkMultiplayerInitialized();
-            Assert.IsFalse(ReadSave().multiplayerInitialized, "Un emplacement solo n'est jamais marqué « synchronisé avec un hôte ».");
         }
 
         // ------------------------------------------------------------------ 2.5 Fusil : KO cartoon de 5 s

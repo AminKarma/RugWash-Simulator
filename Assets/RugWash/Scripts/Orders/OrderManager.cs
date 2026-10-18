@@ -79,8 +79,6 @@ namespace RugWash.Orders
         /// <summary>Position du joueur local : désigne la zone courante (la plus proche).</summary>
         public Transform Viewer { get; set; }
         /// <summary>Difficulté des prochaines missions générées (paramètres du joueur ; solo et hôte).</summary>
-        public Func<int> DifficultySource { get; set; }
-        public int CurrentMissionDifficulty => DifficultySource != null ? DifficultySource() : (int)Orders.MissionDifficulty.Normal;
 
         /// <summary>Commande de la zone courante (null si aucune zone n'a de commande).</summary>
         public OrderDefinition ActiveOrder => Book != null && bays.Count > 0 ? bays[CurrentBay].Order : null;
@@ -89,6 +87,11 @@ namespace RugWash.Orders
         public int Reputation => reputation.Points;
 
         public event Action<OrderDefinition> OrderStarted;
+        /// <summary>
+        /// Écran de résultats quitté (bouton, ou nouvelle commande acceptée — V0.2.5 : jamais bloqué par un résumé resté
+        /// ouvert) : l'interface du résumé se ferme et le tapis livré est retiré.
+        /// </summary>
+        public event Action ReturnedToWorkshop;
         public event Action<OrderResult> OrderFinished;
         /// <summary>Déclenché une seule fois par commande quand la propreté atteint l'objectif.</summary>
         public event Action<OrderDefinition> ObjectiveReached;
@@ -188,6 +191,12 @@ namespace RugWash.Orders
         public OrderDefinition OrderOf(int index) => Valid(index) ? bays[index].Order : null;
         public float ElapsedOf(int index) => Valid(index) ? bays[index].Elapsed : 0f;
         public bool IsBayFree(int index) => Valid(index) && bays[index].IsUnlocked && bays[index].IsFree;
+
+        /// <summary>
+        /// Zone où accepter une commande (V0.2.5) : sans commande. Le tapis livré qui attend la fermeture d'un résumé ne la
+        /// bloque plus : il est retiré à l'acceptation.
+        /// </summary>
+        bool IsBayAvailable(int index) => Valid(index) && bays[index].IsUnlocked && bays[index].Order == null;
         public static string BayLabel(int index) => $"Zone {index + 1}";
 
         /// <summary>Zone qui porte cette commande, ou -1 (machine à laver, commande inconnue).</summary>
@@ -300,7 +309,6 @@ namespace RugWash.Orders
             if (!generatedMissions || IsReplica || remoteOffers || !Missions.IsInitialized) return;
             activeIds.Clear();
             foreach (var order in Book.ActiveOrders) activeIds.Add(order.id);
-            Missions.Difficulty = CurrentMissionDifficulty;
             Missions.RefillKeeping(reputation.Points, MissionCapabilities, key => MissionGenerator.Signature(key, missionRugs), activeIds);
             var ids = new List<string>(Missions.Offers.Count);
             foreach (var offer in Missions.Offers) ids.Add(offer.Id);
@@ -407,7 +415,7 @@ namespace RugWash.Orders
         {
             problem = OrderStartResult.AnotherOrderActive;
             bool anyFree = false;
-            if (IsBayFree(preferred))
+            if (IsBayAvailable(preferred))
             {
                 anyFree = true;
                 if (AreaAllows(preferred))
@@ -418,7 +426,7 @@ namespace RugWash.Orders
             }
             for (int i = 0; i < bays.Count; i++)
             {
-                if (i == preferred || !IsBayFree(i)) continue;
+                if (i == preferred || !IsBayAvailable(i)) continue;
                 anyFree = true;
                 if (!AreaAllows(i)) continue;
                 problem = OrderStartResult.Started;
@@ -450,6 +458,9 @@ namespace RugWash.Orders
         {
             var result = Book.Start(order, BoardReputation, int.MaxValue);
             if (result != OrderStartResult.Started) return result;
+            // Transition centrale (V0.2.5) : un nouveau tapis accepté ferme le résumé du précédent et retire le tapis livré,
+            // même si personne n'a fermé l'écran de résultats ; en ligne, l'hôte le fait aussi chez chaque invité.
+            if (gameState.State == GameState.Results || AnyPendingUnload) ReturnToWorkshop();
             var bay = bays[index];
             bay.Order = order;
             bay.Elapsed = 0f;
@@ -566,7 +577,18 @@ namespace RugWash.Orders
             }
             if (gameState.State == GameState.Results || GameStateRules.IsGameplay(gameState.State))
                 gameState.SetState(AnyBayOrder ? GameState.ActiveOrder : GameState.Workshop);
+            ReturnedToWorkshop?.Invoke();
             Changed?.Invoke();
+        }
+
+        bool AnyPendingUnload
+        {
+            get
+            {
+                foreach (var bay in bays)
+                    if (bay.PendingUnload) return true;
+                return false;
+            }
         }
 
         // ---------------------------------------------------------------- Machine à laver (autorité : solo, hôte)
@@ -666,6 +688,8 @@ namespace RugWash.Orders
         public void ApplyRemoteStart(OrderDefinition order, float elapsedSeconds, int index = 0)
         {
             if (order == null || !Valid(index)) return;
+            // Invité resté sur le résumé du tapis précédent : il revient à l'atelier, comme tout le monde (V0.2.5).
+            if (gameState.State == GameState.Results) ReturnToWorkshop();
             var bay = bays[index];
             if (bay.Order == order)
             {
@@ -698,9 +722,25 @@ namespace RugWash.Orders
         /// Affiche la livraison validée par l'hôte : le résultat est recalculé avec les mesures de l'hôte (même règle pure),
         /// sans paiement local — l'argent et la réputation arrivent par la réplication de l'atelier.
         /// </summary>
-        public OrderResult ApplyRemoteDelivery(OrderDefinition order, in RugCleaningSummary summary, float elapsedSeconds, int index = 0)
+        /// <param name="enterResults">
+        /// Faux pour une livraison reçue après qu'un nouveau tapis a déjà été accepté (messages réseau dans le désordre) : elle
+        /// est enregistrée, sans ouvrir de résumé qui retiendrait ce joueur.
+        /// </param>
+        public OrderResult ApplyRemoteDelivery(OrderDefinition order, in RugCleaningSummary summary, float elapsedSeconds, int index = 0, bool enterResults = true)
         {
             if (order == null) return null;
+            if (!enterResults)
+            {
+                var late = OrderEvaluator.Evaluate(order, summary, elapsedSeconds);
+                late.Bay = index;
+                Book.ForceActive(order);
+                Book.Complete(late);
+                held.Remove(order);
+                if (late.Accepted && MissionKey.IsGenerated(order.id)) Book.Remove(order);
+                LastResult = late;
+                Changed?.Invoke();
+                return late;
+            }
             snapshots.CaptureAfter(Valid(index) ? bays[index].Rug : rug);
             var result = OrderEvaluator.Evaluate(order, summary, elapsedSeconds);
             result.Bay = index;

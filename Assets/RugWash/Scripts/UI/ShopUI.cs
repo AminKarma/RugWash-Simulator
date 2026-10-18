@@ -119,6 +119,7 @@ namespace RugWash.UI
         {
             if (IsOpen || !gameState.IsGameplayActive) return false;
             messageLabel.text = string.Empty;
+            pendingSale = null;
             panel.SetActive(true);
             IsOpen = true;
             gameState.PushModal();
@@ -155,6 +156,7 @@ namespace RugWash.UI
             CurrentTab = tab;
             ShowingProducts = tab == Tab.Products;
             messageLabel.text = string.Empty;
+            pendingSale = null;
             Refresh();
         }
 
@@ -200,7 +202,7 @@ namespace RugWash.UI
                     // Onglet « Produits » : la première ligne est le bidon de détergent, puis les produits spécialisés.
                     if (ShowingProducts && HasDetergentRow && index == 0) BuyDetergentCan();
                     else if (ShowingProducts) BuyProduct(index - (HasDetergentRow ? 1 : 0));
-                    else if (index < equipmentDisplay.Count) Buy(IndexInCatalog(equipmentDisplay[index]));
+                    else if (index < equipmentDisplay.Count) Activate(equipmentDisplay[index]);
                 });
                 rows.Add(row);
             }
@@ -238,13 +240,21 @@ namespace RugWash.UI
                 var upgrade = equipmentDisplay[i];
                 var check = shop.Check(upgrade);
                 bool owned = check == PurchaseResult.AlreadyOwned;
+                // En ligne (V0.2.5) : un invité consulte l'atelier, mais seul l'hôte l'achète (vérifié aussi par l'hôte).
+                bool hostOnly = check == PurchaseResult.HostOnly;
+                // V0.2.5 : un objet acheté qui se porte (outil, gadget) se revend à la moitié de son prix de base.
+                bool resellable = owned && SessionEconomyRules.IsResellable(upgrade);
+                int resale = SessionEconomyRules.ResaleValue(upgrade);
                 string details = $"{upgrade.description}\n{shop.Upgrades.DescribeEffect(upgrade)}";
-                string status = owned ? "Acheté"
+                string status = owned ? (resellable ? $"Acheté · revente {WalletManager.Format(resale)}" : "Acheté")
+                    : hostOnly ? $"{WalletManager.Format(upgrade.price)} · hôte seulement"
                     : check == PurchaseResult.ReputationTooLow ? $"Réputation {upgrade.requiredReputation}"
                     : WalletManager.Format(upgrade.price);
                 Color statusColor = owned ? Ok : check == PurchaseResult.Purchased ? Neutral : Warn;
+                string action = resellable ? (pendingSale == upgrade ? $"Confirmer +{resale} €" : "Revendre")
+                    : owned || hostOnly ? null : "Acheter";
                 // Le bouton reste cliquable si les fonds manquent : le refus est expliqué au joueur.
-                rows[i].Set(upgrade.displayName, details, status, statusColor, owned ? null : "Acheter", true, owned ? RowOwned : RowColor);
+                rows[i].Set(upgrade.displayName, details, status, statusColor, action, true, owned ? RowOwned : RowColor);
                 SetIcon(rows[i], IconOf(upgrade));
             }
         }
@@ -334,6 +344,63 @@ namespace RugWash.UI
             for (int i = 0; i < catalog.Count; i++)
                 if (catalog[i] == upgrade) return i;
             return -1;
+        }
+
+        UpgradeDefinition pendingSale;
+
+        /// <summary>Revente annoncée, en attente de confirmation (V0.2.5).</summary>
+        public UpgradeDefinition PendingSale => pendingSale;
+
+        /// <summary>Ligne d'un article : achat, ou revente en deux temps pour un objet possédé.</summary>
+        void Activate(UpgradeDefinition upgrade)
+        {
+            if (shop.Upgrades.IsOwned(upgrade) && SessionEconomyRules.IsResellable(upgrade))
+            {
+                if (pendingSale == upgrade) ConfirmSale();
+                else AskSale(upgrade);
+                return;
+            }
+            pendingSale = null;
+            Buy(IndexInCatalog(upgrade));
+        }
+
+        /// <summary>
+        /// Premier temps de la revente : le montant récupéré est annoncé (moitié du prix de base), sans rien vendre. Faux si
+        /// l'objet ne peut pas être revendu maintenant (porté, non revendable…), avec la raison affichée.
+        /// </summary>
+        public bool AskSale(UpgradeDefinition upgrade)
+        {
+            var check = shop.CheckSale(upgrade);
+            if (check != SaleResult.Sold)
+            {
+                pendingSale = null;
+                messageLabel.text = $"Revente impossible : {SessionEconomyRules.Describe(check)}";
+                messageLabel.color = Warn;
+                Refresh();
+                return false;
+            }
+            pendingSale = upgrade;
+            messageLabel.text = $"Revendre {upgrade.displayName} pour {WalletManager.Format(SessionEconomyRules.ResaleValue(upgrade))} " +
+                                $"(moitié du prix d'achat de {WalletManager.Format(upgrade.price)}) ? Appuyez sur « Confirmer ».";
+            messageLabel.color = Neutral;
+            Refresh();
+            return true;
+        }
+
+        /// <summary>Second temps : la revente annoncée est exécutée (une seule fois).</summary>
+        public SaleResult ConfirmSale()
+        {
+            var upgrade = pendingSale;
+            pendingSale = null;
+            if (upgrade == null) return SaleResult.Unknown;
+            int value = SessionEconomyRules.ResaleValue(upgrade);
+            var result = shop.TrySell(upgrade);
+            messageLabel.text = result == SaleResult.Sold ? $"{upgrade.displayName} revendu : +{WalletManager.Format(value)}"
+                : result == SaleResult.Requested ? SessionEconomyRules.Describe(result)
+                : $"Revente refusée : {SessionEconomyRules.Describe(result)}";
+            messageLabel.color = result == SaleResult.Sold || result == SaleResult.Requested ? Ok : Warn;
+            Refresh();
+            return result;
         }
 
         /// <summary>Achat de l'amélioration d'indice <paramref name="index"/> dans le catalogue.</summary>

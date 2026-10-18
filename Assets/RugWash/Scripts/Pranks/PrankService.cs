@@ -36,6 +36,8 @@ namespace RugWash.Pranks
         public RugCleaningController Rug => rug;
         /// <summary>Joueurs visables (partie en ligne, hôte) ; null en solo.</summary>
         public IPrankVictims Victims { get; set; }
+        /// <summary>V0.2.5 : objets perdus par un joueur touché par la batte (partie en ligne, hôte) ; null en solo.</summary>
+        public IItemLoss ItemLoss { get; set; }
         /// <summary>Saleté ajoutée par les farces au tapis de la zone 1 (remise à zéro à chaque tapis).</summary>
         public float AddedToRug => AddedTo(rug);
 
@@ -161,6 +163,8 @@ namespace RugWash.Pranks
                     float seconds = blast ? tuning.blasterKnockSeconds : tuning.knockSeconds;
                     knockProtectedUntil[request.Victim] = now + Mathf.Max(tuning.knockProtectionSeconds, seconds + 10f);
                     Victims.Knock(request.Victim, push, seconds, actor.Name, request.Gadget);
+                    // Coup de batte validé : le joueur touché perd des objets achetés qu'il porte (ils tombent au sol).
+                    if (!blast && tuning.batItemsLost > 0) ItemLoss?.LoseItems(request.Victim, victimFeet, push, tuning.batItemsLost);
                     // Faux sang stylisé au sol, sous le joueur touché (tapis ou aire de lavage, comme toute salissure).
                     if (blast) outcome.Added = StainUnder(gadget, victimFeet);
                 }

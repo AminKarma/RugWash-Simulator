@@ -51,6 +51,7 @@ namespace RugWash.UI
             snapshots = snapshotService;
             board = orderBoard;
             orders.OrderFinished += Show;
+            orders.ReturnedToWorkshop += Hide;
             workshopButton.onClick.AddListener(BackToWorkshop);
             nextOrderButton.onClick.AddListener(ChooseNextOrder);
             panel.SetActive(false);
@@ -58,7 +59,11 @@ namespace RugWash.UI
 
         void OnDestroy()
         {
-            if (orders != null) orders.OrderFinished -= Show;
+            if (orders != null)
+            {
+                orders.OrderFinished -= Show;
+                orders.ReturnedToWorkshop -= Hide;
+            }
         }
 
         void Show(OrderResult result)
@@ -92,10 +97,17 @@ namespace RugWash.UI
         public void BackToWorkshop()
         {
             if (!panel.activeSelf) return;
+            orders.ReturnToWorkshop();
+            Hide();
+        }
+
+        /// <summary>Résumé fermé (bouton, ou nouveau tapis accepté par n'importe quel joueur) : plus aucune référence à l'ancien tapis.</summary>
+        void Hide()
+        {
+            if (!panel.activeSelf) return;
             panel.SetActive(false);
             beforeImage.texture = null;
             afterImage.texture = null;
-            orders.ReturnToWorkshop();
         }
 
         public void ChooseNextOrder()

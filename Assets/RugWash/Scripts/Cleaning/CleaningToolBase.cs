@@ -125,6 +125,13 @@ namespace RugWash.Cleaning
 
         /// <summary>Puissance réellement appliquée (définition × améliorations).</summary>
         public float EffectivePower => definition != null ? definition.power * PowerMultiplier : 0f;
+
+        /// <summary>
+        /// V0.2.5 — outils à mousse (pulvérisateur, canon) : leurs niveaux font plus de mousse par seconde, mais pas plus de
+        /// résidus par seconde (mesuré : le pulvérisateur doré laissait +18 % de résidus de plus que le niveau 2, donc une
+        /// moins bonne note). Les résidus déposés par unité de mousse sont divisés d'autant.
+        /// </summary>
+        protected float FoamResidueScale => 1f / Mathf.Max(1f, PowerMultiplier);
         public float EffectiveConsumptionPerSecond => definition != null ? definition.resourcePerSecond * ConsumptionMultiplier : 0f;
 
         public float Range => definition != null ? definition.range : 0f;

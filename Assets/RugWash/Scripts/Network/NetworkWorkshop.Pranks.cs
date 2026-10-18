@@ -8,8 +8,8 @@ using UnityEngine;
 namespace RugWash.Network
 {
     /// <summary>
-    /// Farces en ligne (v0.1.2). Un invité demande, l'hôte décide : achat (carrière de l'invité tenue par l'hôte), recharge,
-    /// coût (débité sur la carrière du demandeur), portée mesurée depuis la position de sa silhouette chez l'hôte (jamais
+    /// Farces en ligne (v0.1.2). Un invité demande, l'hôte décide : achat (fiche de l'invité dans la sauvegarde de la session),
+    /// recharge, coût (débité sur l'argent de la session), portée mesurée depuis la position de sa silhouette chez l'hôte (jamais
     /// celle annoncée), cible, plafond de saleté et protection des joueurs déjà visés. Ensuite : taches par la réplication
     /// des cellules, gouttes ou chute envoyées au seul joueur visé, effets (jet, tir, sons) rejoués par chaque poste.
     /// </summary>
@@ -21,6 +21,7 @@ namespace RugWash.Network
         {
             if (game.Pranks == null || game.Gadgets == null) return;
             game.Pranks.Victims = this;
+            game.Pranks.ItemLoss = this;
             game.Pranks.Executed += OnPrankExecuted;
             SetUpLocalGadgets();
         }
@@ -94,6 +95,7 @@ namespace RugWash.Network
             if (game.Pranks != null)
             {
                 if (ReferenceEquals(game.Pranks.Victims, this)) game.Pranks.Victims = null;
+                if (ReferenceEquals(game.Pranks.ItemLoss, this)) game.Pranks.ItemLoss = null;
                 game.Pranks.Executed -= OnPrankExecuted;
             }
             if (game.Gadgets == null) return;
@@ -130,12 +132,12 @@ namespace RugWash.Network
             ulong sender = rpcParams.Receive.SenderClientId;
             var target1 = RpcTarget.Single(sender, RpcTargetUse.Temp);
             if (game.Pranks == null || gadget < 1 || gadget > 3 || target > 1 || !syncedClients.Contains(sender)
-                || !careers.TryGetValue(sender, out var career) || AvatarOf(sender) == null)
+                || !members.TryGetValue(sender, out var member) || AvatarOf(sender) == null)
             {
                 PrankResultRpc(gadget, (byte)PrankResult.Unavailable, false, target1);
                 return;
             }
-            var actor = new GuestPrankActor(this, sender, career);
+            var actor = new GuestPrankActor(this, sender, member);
             var request = new PrankRequest
             {
                 Gadget = (PrankGadget)gadget, Target = (PrankTarget)target, Point = point, Victim = victim,
@@ -143,7 +145,6 @@ namespace RugWash.Network
             };
             var result = game.Pranks.Execute(actor, request, out var outcome);
             PrankResultRpc(gadget, (byte)result, outcome.HitPlayer, target1);
-            if (actor.Spent) careerDirty.Add(sender);
         }
 
         [Rpc(SendTo.SpecifiedInParams)]
@@ -243,16 +244,14 @@ namespace RugWash.Network
         {
             readonly NetworkWorkshop owner;
             readonly ulong id;
-            readonly PlayerCareer career;
+            readonly SessionMember member;
 
-            public GuestPrankActor(NetworkWorkshop owner, ulong id, PlayerCareer career)
+            public GuestPrankActor(NetworkWorkshop owner, ulong id, SessionMember member)
             {
                 this.owner = owner;
                 this.id = id;
-                this.career = career;
+                this.member = member;
             }
-
-            public bool Spent { get; private set; }
 
             public ulong Id => id;
             public string Name => owner.session?.NameOf(id) ?? "Un joueur";
@@ -272,18 +271,13 @@ namespace RugWash.Network
             public bool Owns(PrankGadget gadget)
             {
                 var settings = owner.game.Pranks.Tuning.Get(gadget);
-                return settings != null && career.Upgrades.Contains(settings.upgradeId);
+                return settings != null && member.Personal.Contains(settings.upgradeId);
             }
 
-            public int Money => career.Money;
+            /// <summary>Argent de la session (sauvegarde de l'hôte) : le coût d'un tir est payé par tous.</summary>
+            public int Money => owner.game.Wallet.Balance;
 
-            public bool TrySpend(int amount)
-            {
-                if (amount < 0 || career.Money < amount) return false;
-                career.Money -= amount;
-                Spent = true;
-                return true;
-            }
+            public bool TrySpend(int amount) => amount >= 0 && owner.game.Wallet.Wallet.TrySpend(amount);
         }
     }
 }

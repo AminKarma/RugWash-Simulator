@@ -37,6 +37,12 @@ et voit le motif d'origine réapparaître progressivement.
 > débordement, **4 préréglages graphiques** et synchronisation verticale indépendante — détail, tests et limites :
 > [Assets/RugWash/Documentation/GRANDE_MISE_A_JOUR.md](Assets/RugWash/Documentation/GRANDE_MISE_A_JOUR.md) (aucun build ni
 > benchmark lancé pour cette mise à jour).
+> **V0.2.5** : en ligne, la partie se joue sur **la sauvegarde choisie par l'hôte** (argent et réputation communs, outils
+> et améliorations propres à chaque joueur, atelier réservé à l'hôte), **revente** des objets à 50 %, **objets perdus sous
+> la batte** et ramassés par les coéquipiers, outils dorés vraiment plus efficaces, jet qui part de la buse et **lance
+> dorée** (jet tendu, savon chassé d'un passage), plus de résumé bloquant, plus d'à-coup au premier nettoyage, **fût de
+> détergent translucide** dont le niveau suit le stock, choix de difficulté supprimé — détail, tests et limites :
+> [Assets/RugWash/Documentation/V0_2_5.md](Assets/RugWash/Documentation/V0_2_5.md) (aucun build ni benchmark lancé).
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
 > Voir [Assets/RugWash/Documentation/PRODUCTION.md](Assets/RugWash/Documentation/PRODUCTION.md) pour le suivi détaillé.
@@ -103,8 +109,8 @@ Dans les menus, la fenêtre ouverte reçoit le focus (premier élément, ou celu
 par-dessus) et les listes défilent jusqu'à l'élément sélectionné.
 
 **Paramètres** (menu principal ou pause → « Paramètres », quatre onglets) — chaque option est réellement appliquée :
-- **Général** : volumes général / effets / interface / **musique** (0 % = muette), **difficulté des missions** (Détendu,
-  Normal, Exigeant : nouvelles missions), résolution, mode d'affichage (plein écran, plein écran fenêtré, fenêtré),
+- **Général** : volumes général / effets / interface / **musique** (0 % = muette), résolution, mode d'affichage (plein écran,
+  plein écran fenêtré, fenêtré) — V0.2.5 : plus de choix de difficulté, elle suit la progression des missions ;
   **chat vocal** (micro : appuyer pour parler, toujours ouvert, coupé ; volume des voix des autres) ;
 - **Graphismes** (grande mise à jour) : qualité en **4 préréglages** (Très bas, Bas, Moyen, Ultra — ils changent vraiment le
   rendu : échelle de rendu, ombres, occlusion ambiante, MSAA, HDR), **synchronisation verticale** (indépendante du
@@ -499,8 +505,10 @@ maximal), l'ajouter à `ScriptableObjects/ProductLibrary`. Il apparaît dans la 
 Grande mise à jour : dossier `%USERPROFILE%\AppData\LocalLow\RugWash Studio\RugWash Simulator\` (`Application.persistentDataPath`) :
 - `rugwash_profile.json` : **profil du joueur** (niveau et expérience, paramètres, apparence, derniers emplacements) ;
 - `rugwash_solo_1..3.json` et `rugwash_multi_1..3.json` : **six emplacements** (format v5), jamais mélangés ; aperçu
-  (temps de jeu, dernière session, progression) dans l'écran des emplacements ; un emplacement multijoueur reçoit une seule
-  fois la progression de l'hôte à la première arrivée, puis reste indépendant ;
+  (temps de jeu, dernière session, progression) dans l'écran des emplacements. V0.2.5 : un emplacement multijoueur est la
+  sauvegarde des parties que ce joueur **héberge** (format v6 : fiche de chaque joueur venu — ses outils, ce qu'il porte —
+  et objets tombés au sol) ; un joueur qui rejoint joue sur la sauvegarde de l'hôte, ses propres emplacements ne sont ni
+  lus ni modifiés ;
 - l'ancienne `rugwash_save.json` est reprise dans « Solo 1 » puis renommée `.migrated`.
 Section `workshop` : en plus, aire de la zone 2 (`workSurface2`) et machine à laver (`washer` : commande, temps restant,
 état du tapis). Les commandes posées dans les zones de lavage ne sont pas sauvegardées (abandonnées en quittant) ; celle
@@ -555,7 +563,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel (grande mise à jour) : 260 / 260 tests EditMode, 156 / 156 tests PlayMode, benchmark du jeu compilé 15 / 15 et 62 / 62 vérifications multijoueur entre deux processus (détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel (V0.2.5) : 265 / 265 tests EditMode, 164 / 164 tests PlayMode (plus 2 diagnostics lancés à la main). Le benchmark du jeu compilé (15 / 15) et les 62 / 62 vérifications multijoueur entre deux processus datent de la grande mise à jour : ils n'ont pas été relancés pour la V0.2.5 (l'autotest multijoueur a été réécrit pour les nouvelles règles ; détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

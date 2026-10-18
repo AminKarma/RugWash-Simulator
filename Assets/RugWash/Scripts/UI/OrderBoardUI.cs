@@ -135,8 +135,7 @@ namespace RugWash.UI
             headerLabel.text = $"Solde : {WalletManager.Format(wallet.Balance)}     Réputation : {orders.Reputation}";
             if (orders.BoardReputation != orders.Reputation) headerLabel.text += $"     Tableau de l'hôte (réputation {orders.BoardReputation})";
             if (orders.Missions.IsInitialized || orders.IsReplica)
-                headerLabel.text += $"\nMissions : niveau {MissionRules.TierFor(orders.BoardReputation) + 1}" +
-                                    (orders.IsReplica ? string.Empty : $" · difficulté {MissionGenerator.DifficultyLabel(orders.CurrentMissionDifficulty).ToLowerInvariant()}");
+                headerLabel.text += $"\nMissions : niveau {MissionRules.TierFor(orders.BoardReputation) + 1}";
             headerLabel.text += WorkAreaWarning();
             BuildDisplay();
             var list = display;

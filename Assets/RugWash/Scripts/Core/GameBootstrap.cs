@@ -95,6 +95,8 @@ namespace RugWash.Core
         IModalPanel[] modalPanels;
 
         public GameStateManager GameState => gameState;
+        /// <summary>Modèles et icônes 3D des objets (aussi copies posées au sol, V0.2.5) ; null si absent.</summary>
+        public Effects.ToolIconRenderer ToolIcons => toolIcons;
         public PlayerToolController ToolController => toolController;
         /// <summary>Stock de détergent en bidons du joueur local.</summary>
         public DetergentSupply Detergent => toolController.Equipment.Detergent;
@@ -295,7 +297,6 @@ namespace RugWash.Core
             hud.BindFeedback(dirtScanner, progressFeedback);
             // Zones de lavage (grande mise à jour) : la zone courante est celle où se trouve le joueur local.
             orders.Viewer = playerController.transform;
-            orders.DifficultySource = () => settingsManager.Current.missionDifficulty;
             gadgets.Orders = orders;
             hud.BindWorkSurface(workSurface, orders.WorkSurfaceOf(1));
             hud.BindWasher(Washer);

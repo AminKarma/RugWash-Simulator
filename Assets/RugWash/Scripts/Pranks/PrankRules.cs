@@ -68,6 +68,15 @@ namespace RugWash.Pranks
         void Knock(ulong clientId, Vector3 impulse, float seconds, string from, PrankGadget cause);
     }
 
+    /// <summary>
+    /// V0.2.5 : perte d'objets d'un joueur touché par un coup (batte). Appelée par l'autorité seulement, après un coup validé
+    /// (portée, recharge, protection du joueur déjà à terre) : un même coup ne la déclenche qu'une fois.
+    /// </summary>
+    public interface IItemLoss
+    {
+        void LoseItems(ulong victim, Vector3 feet, Vector3 push, int count);
+    }
+
     /// <summary>Règles pures des farces (testées en EditMode).</summary>
     public static class PrankRules
     {

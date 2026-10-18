@@ -36,8 +36,6 @@ namespace RugWash.UI
         [SerializeField] StepperView resolutionStepper;
         [SerializeField] StepperView displayModeStepper;
         [SerializeField] StepperView qualityStepper;
-        [Tooltip("Difficulté des missions générées (grande mise à jour).")]
-        [SerializeField] StepperView difficultyStepper;
         [Header("Graphismes (grande mise à jour)")]
         [SerializeField] StepperView vSyncStepper;
         [SerializeField] StepperView frameCapStepper;
@@ -90,7 +88,6 @@ namespace RugWash.UI
         public Slider VibrationSlider => vibrationSlider;
         public StepperView InvertYStepper => invertYStepper;
         public StepperView QualityStepper => qualityStepper;
-        public StepperView DifficultyStepper => difficultyStepper;
         public StepperView VSyncStepper => vSyncStepper;
         public StepperView FrameCapStepper => frameCapStepper;
         public string GraphicsInfo => graphicsInfoLabel.text;
@@ -109,7 +106,6 @@ namespace RugWash.UI
                 : resolutionStepper == null || !resolutionStepper.IsConfigured ? nameof(resolutionStepper)
                 : displayModeStepper == null || !displayModeStepper.IsConfigured ? nameof(displayModeStepper)
                 : qualityStepper == null || !qualityStepper.IsConfigured ? nameof(qualityStepper)
-                : difficultyStepper == null || !difficultyStepper.IsConfigured ? nameof(difficultyStepper)
                 : vSyncStepper == null || !vSyncStepper.IsConfigured ? nameof(vSyncStepper)
                 : frameCapStepper == null || !frameCapStepper.IsConfigured ? nameof(frameCapStepper)
                 : postProcessStepper == null || !postProcessStepper.IsConfigured ? nameof(postProcessStepper)
@@ -172,11 +168,6 @@ namespace RugWash.UI
             voiceVolumeSlider.minValue = 0f;
             voiceVolumeSlider.maxValue = 1f;
             voiceVolumeSlider.onValueChanged.AddListener(v => { settings.SetVoiceVolume(v); RefreshLabels(); });
-            difficultyStepper.Stepped += direction =>
-            {
-                settings.SetMissionDifficulty(Mathf.Clamp(settings.Current.missionDifficulty + direction, 0, 2));
-                RefreshValues();
-            };
             resetBindingsButton.onClick.AddListener(ResetBindings);
             closeButton.onClick.AddListener(Close);
             for (int i = 0; i < tabButtons.Count; i++)
@@ -299,7 +290,6 @@ namespace RugWash.UI
             frameCapStepper.SetValue(SettingsRules.FrameRateLabel(s.vSync, s.frameRateCap));
             postProcessStepper.SetValue(s.postProcessing ? "Activé" : "Désactivé");
             graphicsInfoLabel.text = SettingsRules.PresetDescriptions[preset] + "\n" + SettingsManager.RayTracingStatus;
-            difficultyStepper.SetValue(Orders.MissionGenerator.DifficultyLabel(s.missionDifficulty));
             voiceModeStepper.SetValue(SettingsManager.VoiceModeLabel(s.voiceMode));
             voiceVolumeSlider.SetValueWithoutNotify(s.voiceVolume);
             RefreshLabels();

@@ -44,7 +44,7 @@ namespace RugWash.Cleaning
                 FoamPerSecond = EffectivePower * supply,
                 WettingPerSecond = definition.wettingPerSecond * supply,
                 DeltaTime = deltaTime,
-                ResiduePerFoam = residuePerFoam * residueFactor,
+                ResiduePerFoam = residuePerFoam * residueFactor * FoamResidueScale,
                 Product = product,
             };
             ApplyArea(rug, aim, ref operation);

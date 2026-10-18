@@ -53,6 +53,31 @@ namespace RugWash.Economy
         /// <summary>Vrai si l'identifiant correspond à une amélioration du catalogue.</summary>
         public bool IsKnown(string id) => id != null && catalog.Exists(u => u != null && u.id == id);
 
+        /// <summary>Définition du catalogue de cet identifiant, ou null.</summary>
+        public UpgradeDefinition Find(string id) => id == null ? null : catalog.Find(u => u != null && u.id == id);
+
+        /// <summary>Définition de l'objet porté (outil acheté ou gadget de farce) de cet identifiant d'inventaire, ou null (kit de départ).</summary>
+        public UpgradeDefinition ItemUpgrade(string itemId) => catalog.Find(u => u != null && Player.InventoryRules.ItemIdOf(u) == itemId && itemId != null);
+
+        /// <summary>
+        /// V0.2.5 — l'objet quitte les achats (revendu, perdu sous un coup de batte). Les niveaux d'amélioration de l'outil
+        /// restent acquis : ils resservent si l'outil est racheté ou ramassé. Faux si l'objet n'était pas possédé.
+        /// </summary>
+        public bool Revoke(string id)
+        {
+            if (string.IsNullOrEmpty(id) || !owned.Remove(id)) return false;
+            ApplyAll();
+            return true;
+        }
+
+        /// <summary>V0.2.5 — objet obtenu sans achat (ramassé au sol). Faux s'il est inconnu ou déjà possédé.</summary>
+        public bool Grant(string id)
+        {
+            if (!IsKnown(id) || !owned.Add(id)) return false;
+            ApplyAll();
+            return true;
+        }
+
         /// <summary>Calcule et applique les effets de toutes les améliorations possédées.</summary>
         public void ApplyAll()
         {
@@ -145,7 +170,10 @@ namespace RugWash.Economy
                     string power = $"Puissance {ToolName(upgrade.targetToolId)} : ×{current:0.##} → ×{current * upgrade.value:0.##}";
                     if (upgrade.level <= 0) return power;
                     int max = MaxToolLevel(upgrade.targetToolId);
-                    return $"Niveau {upgrade.level}/{max} (actuel : {stats.ToolLevel(upgrade.targetToolId)}) · {power}" +
+                    int currentLevel = stats.ToolLevel(upgrade.targetToolId);
+                    float reachNow = EquipmentStats.LevelReach(currentLevel), reachNext = EquipmentStats.LevelReach(Mathf.Max(currentLevel, upgrade.level));
+                    if (reachNext > reachNow + 1e-3f) power += $" · largeur ×{reachNow:0.##} → ×{reachNext:0.##}";
+                    return $"Niveau {upgrade.level}/{max} (actuel : {currentLevel}) · {power}" +
                            (EquipmentStats.IsGolden(upgrade.level, max) ? " · outil doré, visible par tous" : string.Empty) + Requirement(upgrade);
                 }
                 case UpgradeEffect.ToolConsumption:

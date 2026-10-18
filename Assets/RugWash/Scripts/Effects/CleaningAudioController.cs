@@ -35,6 +35,10 @@ namespace RugWash.Effects
         float contactLevel;
         bool released;
 
+        /// <summary>Boucles de l'outil (préchargées avec la scène, V0.2.5).</summary>
+        public AudioClip Loop => loop;
+        public AudioClip ContactLoop => contactLoop;
+
         public bool IsAudible => (source != null && source.isPlaying && source.volume > 0.001f) || IsContactAudible;
         public bool IsContactAudible => contactSource != null && contactSource.isPlaying && contactSource.volume > 0.001f;
 
@@ -47,6 +51,15 @@ namespace RugWash.Effects
                 contactSource = gameObject.AddComponent<AudioSource>();
                 Configure(contactSource, contactLoop);
             }
+            // V0.2.5 : sons chargés avec la scène, jamais à la première utilisation de l'outil (chargement et décodage d'un
+            // coup en pleine partie). Sans effet s'ils le sont déjà (préchargement à l'import).
+            Preload(loop);
+            Preload(contactLoop);
+        }
+
+        static void Preload(AudioClip clip)
+        {
+            if (clip != null && clip.loadState == AudioDataLoadState.Unloaded) clip.LoadAudioData();
         }
 
         static void Configure(AudioSource audioSource, AudioClip clip)

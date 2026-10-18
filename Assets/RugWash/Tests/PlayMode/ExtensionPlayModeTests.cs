@@ -254,6 +254,8 @@ namespace RugWash.Tests
             public void RequestDetergentRefill(float liters) { }
             public void RequestMachine(string machineId) { }
             public void RequestPrank(PrankRequest request) { }
+            public void RequestSale(string upgradeId) { }
+            public void RequestPickup(uint dropId) { }
         }
 
         [UnityTest]

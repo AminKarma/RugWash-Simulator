@@ -697,3 +697,29 @@ l'autorité).
   (`GraphicsSettingsTests`).
 - **Rendu à l'œil** : captures `Logs/ci/screens/40_…` à `54_…` (annexe, machine à laver, icônes, boutique, casier, flacon,
   outil doré, paramètres graphiques, tapis presque noir).
+
+## 22. V0.2.5
+
+Exécutions réelles du 18 octobre 2026, même machine que § 20, Unity 6000.5.7f1 en mode batch (`Tools/RugWash-CI.ps1`).
+**Aucun build, aucun benchmark, aucun test à deux processus** n'a été lancé (consigne). Détail : `V0_2_5.md`.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation (runtime, éditeur, tests) | ✅ 0 erreur |
+| Contenu et scènes régénérés (fût translucide, sons préchargés), câblage vérifié par `ValidateReferences` | ✅ |
+| Tests EditMode | ✅ **265 / 265** |
+| Tests PlayMode | ✅ **164 / 164** (+ 2 diagnostics manuels ignorés : `FirstUseDiagnosticsPlayModeTests`) |
+| Build Windows, benchmark, coopératif à deux processus | **Non lancés** (consigne) |
+
+Nouveaux tests : `SessionEconomyRulesTests` (revente, achats communs ou personnels, atelier réservé à l'hôte, vue réseau v3),
+`SaveSlotsTests.SaveV5_MigratesToV6…`, `V025PlayModeTests` (revente, outils dorés mesurés, lance dorée, transition depuis un
+résumé, fût de 40 L, atelier côté invité, sons préchargés), captures `80_…` à `85_…`. Adaptés : `BugfixPlayModeTests`
+(l'invité n'écrit plus ses emplacements), `MissionProgressionTests` et `GraphicsSettingsTests` (difficulté supprimée).
+
+Diagnostic du premier nettoyage (dans l'éditeur, relevé des marqueurs du profileur, pas un benchmark) : avant, 20 à 30 ms de
+`SoundManager.LoadFMODSound` au premier usage de chaque outil (pire image des 20 premières : 33 à 38 ms) ; après, plus de
+chargement de son en partie (pire image : 4 à 5 ms). Niveaux d'outil mesurés sur un même tapis : aspirateur doré +12 % de
+saleté retirée par rapport au niveau 2 (avant +5 %), lance dorée +21 %.
+
+Non vérifiable ici : deux instances (sauvegarde de session, objets perdus et ramassés, transition depuis un résumé, atelier
+refusé en ligne), Steam, coût réel dans le jeu compilé.

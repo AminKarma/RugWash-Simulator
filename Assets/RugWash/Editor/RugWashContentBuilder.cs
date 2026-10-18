@@ -849,6 +849,10 @@ namespace RugWash.Editor
             content.Materials["LiquidBottle"] = EnsureLiquid("M_LiquidBottle", new Color(0.42f, 0.85f, 0.5f, 0.95f), new Color(0.16f, 0.58f, 0.27f, 0.88f), -0.196f, -0.062f);
             content.Materials["LiquidCanister"] = EnsureLiquid("M_LiquidCanister", new Color(1f, 1f, 1f, 0.95f), new Color(0.88f, 0.94f, 1f, 0.85f), -0.166f, -0.045f);
             content.Materials["BottleShell"] = EnsurePlastic("M_BottleShell", new Color(0.42f, 0.88f, 0.52f, 0.22f), new Color(0.7f, 1f, 0.75f, 0.55f));
+            // V0.2.5 : fût de stock du poste détergent, vert translucide, et son liquide (niveau = stock réel).
+            content.Materials["StockDrumShell"] = EnsurePlastic("M_StockDrumShell", new Color(0.3f, 0.78f, 0.42f, 0.3f), new Color(0.62f, 1f, 0.7f, 0.6f));
+            content.Materials["LiquidStock"] = EnsureLiquid("M_LiquidStock", new Color(0.42f, 0.85f, 0.5f, 0.95f), new Color(0.13f, 0.5f, 0.24f, 0.9f),
+                RugWashDecor.StockLiquidBottom, RugWashDecor.StockLiquidTop);
             content.Materials["CanisterShell"] = EnsurePlastic("M_CanisterShell", new Color(0.86f, 0.93f, 1f, 0.18f), new Color(0.92f, 0.97f, 1f, 0.5f));
             content.Materials["Hazard"] = EnsureLit("M_Hazard", Color.white, 0.3f, Tex(RugWashTextureGenerator.Hazard), null, tiling: 2f);
             content.Materials["Paper"] = EnsureLit("M_Paper", Color.white, 0.05f, Tex(RugWashTextureGenerator.Paper), null, tiling: 1f);

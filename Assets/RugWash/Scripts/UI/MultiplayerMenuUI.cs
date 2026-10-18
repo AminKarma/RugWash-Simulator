@@ -56,7 +56,10 @@ namespace RugWash.UI
         SaveManager save;
         SaveSlotsUI saveSlots;
 
-        /// <summary>Emplacement multijoueur utilisé pour héberger ou rejoindre (jamais un emplacement solo).</summary>
+        /// <summary>
+        /// Emplacement multijoueur de la partie que ce joueur héberge (jamais un emplacement solo). V0.2.5 : pour rejoindre,
+        /// aucun emplacement n'est choisi — l'invité joue sur la sauvegarde choisie par l'hôte.
+        /// </summary>
         public SaveSlot ChosenSlot { get; private set; } = new SaveSlot(SaveMode.Multiplayer, 1);
         public Button SlotButton => slotButton;
         public string SlotText => slotLabel.text;
@@ -91,14 +94,14 @@ namespace RugWash.UI
         void RefreshSlot()
         {
             var summary = SaveSlots.ReadSummary(ChosenSlot);
-            string state = !summary.Exists ? "vide : progression de départ copiée depuis l'hôte à la première partie"
+            string state = !summary.Exists ? "vide : nouvelle partie"
                 : !summary.Readable ? summary.Problem
-                : !summary.Data.multiplayerInitialized ? "pas encore jouée : progression copiée depuis l'hôte à la première partie"
                 : $"{Economy.WalletManager.Format(summary.Data.money)} · réputation {summary.Data.reputation} · {summary.PlayTimeText}";
-            slotLabel.text = $"Sauvegarde : {ChosenSlot.DisplayName} — {state}";
+            slotLabel.text = $"Sauvegarde de la partie que vous hébergez : {ChosenSlot.DisplayName} — {state}. " +
+                             "Pour rejoindre, rien à choisir : vous jouez sur la sauvegarde de l'hôte.";
         }
 
-        /// <summary>Avant d'héberger ou de rejoindre : l'atelier chargera cet emplacement.</summary>
+        /// <summary>Avant d'héberger : l'atelier chargera cet emplacement (sauvegarde de la session).</summary>
         void UseChosenSlot() => SaveSlots.Selected = ChosenSlot;
 
         public bool IsOpen { get; private set; }
@@ -206,7 +209,6 @@ namespace RugWash.UI
         public void JoinDirect()
         {
             ApplyName();
-            UseChosenSlot();
             if (!SessionRules.TryParseAddress(addressField.text, content.defaultPort, out string address, out ushort port))
             {
                 Show("Adresse invalide : indiquez une adresse IPv4, éventuellement suivie de « :port » (ex. 192.168.1.20:7777).", false);

@@ -181,7 +181,6 @@ namespace RugWash.Save
         public void SetStickDeadZone(float value) { Current.stickDeadZone = Mathf.Clamp(value, 0.02f, 0.5f); ApplyGamepad(); Changed?.Invoke(); }
         public void SetVibration(float value) { Current.vibration = Mathf.Clamp01(value); ApplyGamepad(); Changed?.Invoke(); }
         /// <summary>Difficulté des prochaines missions générées (les offres déjà affichées gardent la leur).</summary>
-        public void SetMissionDifficulty(int value) { Current.missionDifficulty = Mathf.Clamp(value, 0, 2); Changed?.Invoke(); }
         /// <summary>Chat vocal : micro (appuyer pour parler, toujours ouvert, coupé) et volume des voix des autres.</summary>
         public void SetVoiceMode(int value) { Current.voiceMode = Mathf.Clamp(value, 0, 2); Changed?.Invoke(); }
         public void SetVoiceVolume(float value) { Current.voiceVolume = Mathf.Clamp01(value); Changed?.Invoke(); }

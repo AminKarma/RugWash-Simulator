@@ -77,7 +77,7 @@ namespace RugWash.Network
                     break;
                 case SurfaceOpType.Rinse:
                     var rinse = (RinseOperation)boxed;
-                    w.Float(rinse.Power); w.Float(rinse.WettingPerSecond); w.Float(rinse.DeltaTime);
+                    w.Float(rinse.Power); w.Float(rinse.WettingPerSecond); w.Float(rinse.DeltaTime); w.Float(rinse.FlushSoapAbove);
                     break;
                 case SurfaceOpType.Vacuum:
                     var vacuum = (VacuumOperation)boxed;
@@ -186,7 +186,11 @@ namespace RugWash.Network
                 }
                 case SurfaceOpType.Rinse:
                 {
-                    var op = new RinseOperation { Table = surface.DirtTable, Power = Clamp(r.Float(), 0f, 5f), WettingPerSecond = Clamp(r.Float(), 0f, 5f), DeltaTime = Delta(r.Float()) };
+                    var op = new RinseOperation
+                    {
+                        Table = surface.DirtTable, Power = Clamp(r.Float(), 0f, 5f), WettingPerSecond = Clamp(r.Float(), 0f, 5f), DeltaTime = Delta(r.Float()),
+                        FlushSoapAbove = Clamp(r.Float(), 0f, 1f),
+                    };
                     result.DeltaTime = op.DeltaTime;
                     result.Touched = surface.ApplyLocal(g, allowRunoff, ref op);
                     break;

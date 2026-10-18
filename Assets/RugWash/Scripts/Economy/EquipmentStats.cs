@@ -66,11 +66,20 @@ namespace RugWash.Economy
                     case UpgradeEffect.WorkshopTier: stats.WorkshopTier = Mathf.Max(stats.WorkshopTier, Mathf.RoundToInt(upgrade.value)); break;
                 }
             }
+            foreach (var pair in stats.levels) Multiply(stats.radius, pair.Key, LevelReach(pair.Value));
             return stats;
         }
 
         /// <summary>Outil doré : il a plusieurs niveaux et le dernier est atteint.</summary>
         public static bool IsGolden(int level, int maxLevel) => maxLevel >= 2 && level >= maxLevel;
+
+        /// <summary>
+        /// V0.2.5 — largeur de travail apportée par les niveaux d'outil (×1,08 au niveau 2, ×1,2 au niveau 3 doré). Mesuré sur
+        /// un même tapis, la puissance seule plafonnait : un passage vide déjà les cellules visées, et l'aspirateur doré ne
+        /// retirait que 5 % de plus qu'au niveau 2 (×2,1 de puissance contre ×1,75). Une zone plus large, elle, retire plus à
+        /// chaque passage : le doré couvre ~23 % de surface en plus que le niveau 2.
+        /// </summary>
+        public static float LevelReach(int level) => level >= 3 ? 1.2f : level == 2 ? 1.08f : 1f;
 
         static void Multiply(Dictionary<string, float> table, string id, float value)
         {
@@ -90,6 +99,8 @@ namespace RugWash.Economy
         ReputationTooLow,
         /// <summary>Multijoueur (invité) : demande envoyée à l'hôte.</summary>
         Requested = 100,
+        /// <summary>V0.2.5 : amélioration de l'atelier, achetable par l'hôte seulement.</summary>
+        HostOnly = 101,
     }
 
     public enum ProductPurchaseResult
@@ -157,6 +168,7 @@ namespace RugWash.Economy
                 case PurchaseResult.InsufficientFunds: return "Fonds insuffisants";
                 case PurchaseResult.ReputationTooLow: return "Réputation insuffisante";
                 case PurchaseResult.Requested: return "Demande envoyée à l'hôte…";
+                case PurchaseResult.HostOnly: return "Amélioration de l'atelier : seul l'hôte peut l'acheter";
                 default: return "Article inconnu";
             }
         }

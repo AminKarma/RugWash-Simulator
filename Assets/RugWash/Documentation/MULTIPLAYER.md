@@ -3,6 +3,22 @@
 Ce document décrit les choix techniques, l'architecture, la configuration Steam, la procédure de test et les limites du
 mode coopératif. **Ce qui a été réellement testé et ce qui reste à vérifier** est détaillé à la fin (et dans `VALIDATION.md`).
 
+## 0 bis. V0.2.5 — sauvegarde de session (protocole `rugwash-coop-12`)
+
+**Remplace la règle du § 0 ci-dessous** (progression propre à chaque joueur, copiée une fois depuis l'hôte) :
+
+- La partie se joue sur **l'emplacement multijoueur choisi par l'hôte**, et sur lui seul. Un joueur qui rejoint ne choisit
+  aucune sauvegarde ; ses propres emplacements ne sont ni lus, ni écrits, ni fusionnés (`SaveManager.SessionGuest`).
+- **Partagés** (sauvegarde de l'hôte) : argent, réputation, atelier, commandes et missions, produits, stock de détergent.
+  **Individuels** (fiche du joueur dans la sauvegarde de l'hôte, retrouvée par son identité Steam ou sa clé locale) :
+  outils, améliorations d'outils, équipement, gadgets, objets portés, réserve de détergent.
+- L'hôte applique tout (achats, ventes, consommations, récompense unique de la livraison) ; l'invité reçoit une vue de la
+  session (`CareerCodec` v3). **Améliorations de l'atelier : hôte seulement**, refus vérifié par l'hôte.
+- Objets : revente à 50 % du prix de base ; objet perdu sous un coup de batte validé, au sol et sans propriétaire jusqu'au
+  premier ramassage valable (liste diffusée `NetworkList<DroppedItemNet>`, sauvegardée).
+- Transition : chaque tapis accepté fait revenir tous les joueurs à l'atelier (`orderEpoch`), même depuis un résumé.
+- Détail : `V0_2_5.md`. L'autotest à deux processus a été réécrit en conséquence (non relancé pour la V0.2.5).
+
 ## 0. Grande mise à jour — ce qui change (protocole `rugwash-coop-11`)
 
 - **Progression propre à chaque joueur** (remplace la règle « économie de la session = celle de l'hôte ») : chaque joueur
