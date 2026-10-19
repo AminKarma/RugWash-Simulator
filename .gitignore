@@ -35,3 +35,6 @@ crashlytics-build.properties
 
 # Créé automatiquement par Steamworks.NET dans l'éditeur ; le jeu transmet l'App ID par variable d'environnement (NetworkContent).
 steam_appid.txt
+
+# Caches Python des scripts de Tools/ (Blender, textures)
+__pycache__/

@@ -14,9 +14,9 @@ namespace RugWash.UI
     [DisallowMultipleComponent]
     public sealed class PlayersUI : MonoBehaviour, IModalPanel
     {
-        static readonly Color RowColor = new Color(0.12f, 0.15f, 0.18f, 0.95f);
-        static readonly Color Speaking = new Color(0.55f, 0.95f, 0.6f);
-        static readonly Color Muted = new Color(0.7f, 0.74f, 0.78f);
+        static readonly Color RowColor = UITheme.Row;
+        static readonly Color Speaking = UITheme.Success;
+        static readonly Color Muted = UITheme.TextSecondary;
 
         [SerializeField] GameObject panel;
         [SerializeField] List<PlayerRowView> rows = new List<PlayerRowView>();

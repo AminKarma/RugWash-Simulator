@@ -43,6 +43,12 @@ et voit le motif d'origine réapparaître progressivement.
 > dorée** (jet tendu, savon chassé d'un passage), plus de résumé bloquant, plus d'à-coup au premier nettoyage, **fût de
 > détergent translucide** dont le niveau suit le stock, choix de difficulté supprimé — détail, tests et limites :
 > [Assets/RugWash/Documentation/V0_2_5.md](Assets/RugWash/Documentation/V0_2_5.md) (aucun build ni benchmark lancé).
+> **V0.3.0 — refonte graphique** : direction artistique « atelier artisanal moderne » (palette pétrole, safran, crème),
+> matériaux PBR réels (textures CC0 Poly Haven et micro-détails) sur tout l'atelier, 28 accessoires réels (étagères garnies de
+> produits d'entretien, panneau « sol glissant », plante, dévidoir, diable…), gant, pièces d'outils et personnage modélisés
+> dans Blender (dont machines, robot et derniers outils via le MCP Blender), motifs de tapis rendus nœud par nœud (nouveau tapis de hall) avec velours des fibres, nouvelle interface
+> (Inter, cartes à contour, ombres, icônes, titres à gauche), éclairage et étalonnage revus — détail, outils utilisés et limites :
+> [Assets/RugWash/Documentation/V0_3_0.md](Assets/RugWash/Documentation/V0_3_0.md) (aucun build ni benchmark lancé).
 > Rapport de validation : [Assets/RugWash/Documentation/VALIDATION.md](Assets/RugWash/Documentation/VALIDATION.md).
 > Les sons sont des **substituts temporaires synthétisés** (voir § Audio).
 > Voir [Assets/RugWash/Documentation/PRODUCTION.md](Assets/RugWash/Documentation/PRODUCTION.md) pour le suivi détaillé.
@@ -415,6 +421,10 @@ Inventaire complet, règles de lecture (catégories, pause, anti-empilement) et 
 - Atelier habillé : tapis à sécher, tapis roulés en attente, poste d'eau avec flexible enroulé, fût de détergent,
   étagères, établi à tiroirs, panneau d'outils, comptoir avec écran, poutres, conduits, horloge à l'heure réelle,
   affiche « Les 5 étapes » (aide en jeu), marquage au sol.
+- V0.3.0 : surfaces PBR réelles (`RugWashSurfaceLibrary`, `RugWashArtDirection`), accessoires et modèles importés de Blender
+  (`RugWashModelLibrary`, scripts `Tools/Blender`), motifs des tapis (`Tools/Textures/gen_rugs.py`), charte de l'interface
+  (`Scripts/UI/UITheme.cs`, `RugWashUIStyle`, polices Inter sous licence OFL), rais de lumière, verre armé, étalonnage
+  (`SplitToning`). Voir `Documentation/V0_3_0.md`.
 
 ## 5. Architecture
 
@@ -563,7 +573,7 @@ powershell -ExecutionPolicy Bypass -File "Tools/RugWash-CI.ps1" -Step all
 `playmode` (avec GPU, produit des captures dans `Logs/ci/screens`), `build` (exécutable Windows),
 `benchmark` (lance le jeu compilé en mode vérification) et `multiplayer` (deux exemplaires du jeu compilé, hôte et invité,
 en connexion directe locale : scénario coopératif automatique, rapports comparés). `all` enchaîne les cinq premières étapes.
-État actuel (V0.2.5) : 265 / 265 tests EditMode, 164 / 164 tests PlayMode (plus 2 diagnostics lancés à la main). Le benchmark du jeu compilé (15 / 15) et les 62 / 62 vérifications multijoueur entre deux processus datent de la grande mise à jour : ils n'ont pas été relancés pour la V0.2.5 (l'autotest multijoueur a été réécrit pour les nouvelles règles ; détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
+État actuel (V0.3.0) : 265 / 265 tests EditMode, 168 / 168 tests PlayMode (plus 2 diagnostics lancés à la main), dont les captures de contrôle de la refonte (`V030CapturePlayModeTests`, `Logs/ci/screens/v30_*`). Le benchmark du jeu compilé (15 / 15) et les 62 / 62 vérifications multijoueur entre deux processus datent de la grande mise à jour : ils n'ont pas été relancés pour la V0.2.5 ni pour la V0.3.0 (l'autotest multijoueur a été réécrit pour les nouvelles règles ; détail : `Assets/RugWash/Documentation/VALIDATION.md`). Les tests utilisent un dossier de
 sauvegarde temporaire et ne touchent jamais la sauvegarde réelle. Résultats NUnit XML dans `Logs/ci/`.
 Fermer l'éditeur Unity avant (le mode batch refuse un projet déjà ouvert).
 

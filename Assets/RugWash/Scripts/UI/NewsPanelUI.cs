@@ -15,7 +15,7 @@ namespace RugWash.UI
         [Tooltip("Fichier JSON dans un dossier Resources (sans extension).")]
         [SerializeField] string resourcePath = "RugWashNews";
         [SerializeField] Text bodyLabel;
-        [SerializeField] Color metaColor = new Color(0.95f, 0.78f, 0.35f);
+        [SerializeField] Color metaColor = UITheme.Saffron;
 
         ResourceRequest request;
 

@@ -8,6 +8,10 @@ namespace RugWash.Editor
     /// <summary>Modèles du robot aspirateur et de sa base (maillages procéduraux, avant = +Z, posés sur y = 0).</summary>
     public static class RugWashWorkshopModels
     {
+
+        /// <summary>V0.3.0 : pièce modélisée dans Blender (Tools/Blender/models_machines.py, même repère) si elle existe, sinon procédurale.</summary>
+        static Mesh Modeled(MeshStore store, string key, System.Func<Mesh> procedural) =>
+            RugWashModelLibrary.Mesh(store, "Machines", key) ?? store.Add(key, procedural);
         public sealed class RobotParts
         {
             public Transform Root;
@@ -38,7 +42,7 @@ namespace RugWash.Editor
             var root = new GameObject("RobotVacuum").transform;
             root.SetParent(parent, false);
 
-            Part("Body", root, store.Add("Robot_Body", () => Lathe(new[]
+            Part("Body", root, Modeled(store, "Robot_Body", () => Lathe(new[]
                 {
                     new Vector2(0f, 0.012f), new Vector2(0.16f, 0.012f), new Vector2(0.17f, 0.022f), new Vector2(0.17f, 0.058f),
                     new Vector2(0.158f, 0.074f), new Vector2(0.13f, 0.078f), new Vector2(0f, 0.078f),
@@ -85,7 +89,7 @@ namespace RugWash.Editor
             root.SetPositionAndRotation(position, rotation);
             Part("Plate", root, store.Add("Dock_Plate", () => RoundedBox(new Vector3(0.4f, 0.012f, 0.3f), 0.004f)), c["RobotDark"],
                 new Vector3(0f, 0.006f, -0.06f), Quaternion.identity);
-            Part("Tower", root, store.Add("Dock_Tower", () => RoundedBox(new Vector3(0.34f, 0.13f, 0.07f), 0.02f)), c["RobotShell"],
+            Part("Tower", root, Modeled(store, "Dock_Tower", () => RoundedBox(new Vector3(0.34f, 0.13f, 0.07f), 0.02f)), c["RobotShell"],
                 new Vector3(0f, 0.065f, -0.205f), Quaternion.identity);
             var led = Part("Led", root, store.Add("Dock_Led", () => Cylinder(0.01f, 0.004f, 12)), c["RobotLed"],
                 new Vector3(0f, 0.105f, -0.168f), Quaternion.Euler(90f, 0f, 0f));

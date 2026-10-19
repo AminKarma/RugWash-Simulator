@@ -97,6 +97,10 @@ namespace RugWash.Editor
             int ring = segments + 1;
 
             float length = 0f;
+            // V0.3.0 : U en mètres aussi (périmètre au plus grand rayon), pour une échelle de texture homogène.
+            float maxRadius = 0f;
+            foreach (var point in profile) maxRadius = Mathf.Max(maxRadius, point.x);
+            float perimeter = Mathf.Max(1e-3f, maxRadius * Mathf.PI * 2f);
             for (int k = 0; k < profile.Count; k++)
             {
                 if (k > 0) length += Vector2.Distance(profile[k], profile[k - 1]);
@@ -109,7 +113,7 @@ namespace RugWash.Editor
                     float c = Mathf.Cos(angle), si = Mathf.Sin(angle);
                     v.Add(new Vector3(c * profile[k].x, profile[k].y, si * profile[k].x));
                     n.Add(new Vector3(c * normal2D.x, normal2D.y, si * normal2D.x).normalized);
-                    uv.Add(new Vector2(s / (float)segments, length));
+                    uv.Add(new Vector2(s / (float)segments * perimeter, length));
                 }
             }
             for (int k = 0; k < profile.Count - 1; k++)
@@ -185,7 +189,8 @@ namespace RugWash.Editor
                     Vector3 dir = nrm * Mathf.Cos(angle) - b * Mathf.Sin(angle);
                     v.Add(p + dir * radius);
                     n.Add(dir);
-                    uv.Add(new Vector2(s / (float)radial, length / (radius * Mathf.PI * 2f)));
+                    // V0.3.0 : UV en mètres (périmètre, longueur).
+                    uv.Add(new Vector2(s / (float)radial * radius * Mathf.PI * 2f, length));
                 }
             }
             for (int i = 0; i < frames.Count - 1; i++)

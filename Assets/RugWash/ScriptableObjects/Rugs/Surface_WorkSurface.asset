@@ -18,13 +18,16 @@ MonoBehaviour:
   pileType: 0
   surfaceKind: 1
   dryingPerSecond: 0.012
+  accumulatesDirt: 1
+  fragility: 0
+  sheen: 0
   sizeMeters: {x: 4.6, y: 3.6}
   thickness: 0.004
   cellsPerMeter: 20
-  patternTexture: {fileID: 2800000, guid: 4693b5d2a5c720a47ad9ff73fc9b5390, type: 3}
-  fiberNormal: {fileID: 2800000, guid: 4909a7b81af2dd240a1deac18dad1ad8, type: 3}
-  fiberTilesPerMeter: 0.7
-  fiberNormalStrength: 0.6
+  patternTexture: {fileID: 2800000, guid: eee1ca9c861ea994ea86c67edf197fbc, type: 3}
+  fiberNormal: {fileID: 2800000, guid: a13e205119f8cbd49bbe1198b57f95bf, type: 3}
+  fiberTilesPerMeter: 0.4
+  fiberNormalStrength: 1
   hasFringe: 0
   fringeColor: {r: 0.9, g: 0.86, b: 0.75, a: 1}
   dirtSeed: 5

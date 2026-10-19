@@ -1,0 +1,894 @@
+{
+ "WetFloorSign": {
+  "asset": "WetFloorSign_01",
+  "size": [
+   0.3000548481941223,
+   0.6295440196990967,
+   0.3585093021392822
+  ],
+  "materials": {
+   "WetFloorSign_01": {
+    "albedo": "textures/WetFloorSign_01_diff_1k.jpg",
+    "normal": "textures/WetFloorSign_01_nor_gl_1k.jpg",
+    "orm": "textures/WetFloorSign_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "WetFloorSign_Wetfloorsign01",
+    "cutout": false
+   }
+  }
+ },
+ "CleanerSpray": {
+  "asset": "all_purpose_cleaner",
+  "size": [
+   0.15678289532661438,
+   0.3197592794895172,
+   0.11759971082210541
+  ],
+  "materials": {
+   "all_purpose_cleaner": {
+    "albedo": "textures/all_purpose_cleaner_diff_1k.jpg",
+    "normal": "textures/all_purpose_cleaner_nor_gl_1k.jpg",
+    "orm": "textures/all_purpose_cleaner_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "CleanerSpray_AllPurposeCleaner",
+    "cutout": false
+   }
+  }
+ },
+ "BleachBottle": {
+  "asset": "bleach_bottle",
+  "size": [
+   0.08839231729507446,
+   0.2937431037425995,
+   0.06121089309453964
+  ],
+  "materials": {
+   "bleach_bottle": {
+    "albedo": "textures/bleach_bottle_01_diff_1k.jpg",
+    "normal": "textures/bleach_bottle_01_nor_gl_1k.jpg",
+    "orm": "textures/bleach_bottle_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "BleachBottle_BleachBottle",
+    "cutout": false
+   }
+  }
+ },
+ "Cleaner5L": {
+  "asset": "multi_cleaner_5_litre",
+  "size": [
+   0.21927526593208313,
+   0.3005032241344452,
+   0.10580014437437057
+  ],
+  "materials": {
+   "multi_cleaner_5_litre": {
+    "albedo": "textures/multi_cleaner_5_litre_diff_1k.jpg",
+    "normal": "textures/multi_cleaner_5_litre_nor_gl_1k.jpg",
+    "orm": "textures/multi_cleaner_5_litre_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Cleaner5L_MultiCleaner5Litre",
+    "cutout": false
+   }
+  }
+ },
+ "CleanerBottle": {
+  "asset": "multi_cleaner_bottle",
+  "size": [
+   0.08893561363220215,
+   0.2286520153284073,
+   0.08989584445953369
+  ],
+  "materials": {
+   "multi_cleaner_bottle": {
+    "albedo": "textures/multi_cleaner_bottle_diff_1k.jpg",
+    "normal": "textures/multi_cleaner_bottle_nor_gl_1k.jpg",
+    "orm": "textures/multi_cleaner_bottle_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "CleanerBottle_MultiCleanerBottle",
+    "cutout": false
+   }
+  }
+ },
+ "GallonBottle": {
+  "asset": "plastic_bottle_gallon",
+  "size": [
+   0.1666378378868103,
+   0.27449852228164673,
+   0.12661127746105194
+  ],
+  "materials": {
+   "plastic_bottle_gallon": {
+    "albedo": "textures/plastic_bottle_gallon_diff_1k.jpg",
+    "normal": "textures/plastic_bottle_gallon_nor_gl_1k.jpg",
+    "orm": "textures/plastic_bottle_gallon_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "GallonBottle_PlasticBottleGallon",
+    "cutout": false
+   }
+  }
+ },
+ "DrainCleaner": {
+  "asset": "drain_cleaner",
+  "size": [
+   0.1652841717004776,
+   0.17867696285247803,
+   0.056335341185331345
+  ],
+  "materials": {
+   "drain_cleaner": {
+    "albedo": "textures/drain_cleaner_diff_1k.jpg",
+    "normal": "textures/drain_cleaner_nor_gl_1k.jpg",
+    "orm": "textures/drain_cleaner_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "DrainCleaner_DrainCleaner",
+    "cutout": false
+   }
+  }
+ },
+ "SteelShelves": {
+  "asset": "steel_frame_shelves_01",
+  "size": [
+   10.974145889282227,
+   21.405006408691406,
+   5.021175384521484
+  ],
+  "materials": {
+   "steel_frame_shelves_01": {
+    "albedo": "textures/steel_frame_shelves_01_diff_1k.jpg",
+    "normal": "textures/steel_frame_shelves_01_nor_gl_1k.jpg",
+    "orm": "textures/steel_frame_shelves_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "SteelShelves_SteelFrameShelves01",
+    "cutout": false
+   }
+  }
+ },
+ "CardboardBox": {
+  "asset": "cardboard_box_01",
+  "size": [
+   0.38715651631355286,
+   0.34062114357948303,
+   0.5150973200798035
+  ],
+  "materials": {
+   "cardboard_box_01": {
+    "albedo": "textures/cardboard_box_01_diff_1k.jpg",
+    "normal": "textures/cardboard_box_01_nor_gl_1k.jpg",
+    "orm": "textures/cardboard_box_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "CardboardBox_CardboardBox01",
+    "cutout": false
+   }
+  }
+ },
+ "CrateYellow": {
+  "asset": "plastic_crate_02",
+  "size": [
+   0.505501389503479,
+   0.2540891766548157,
+   0.40550142526626587
+  ],
+  "materials": {
+   "plastic_crate_02": {
+    "albedo": "textures/plastic_crate_02_diff_1k.jpg",
+    "normal": "textures/plastic_crate_02_nor_gl_1k.jpg",
+    "orm": "textures/plastic_crate_02_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     0.40816283226013184,
+     0,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "BLEND",
+    "doubleSided": false,
+    "stem": "CrateYellow_PlasticCrate02",
+    "cutout": false
+   }
+  }
+ },
+ "CrateRed": {
+  "asset": "plastic_crate_01",
+  "size": [
+   0.2992437183856964,
+   0.26417484879493713,
+   0.4124815762042999
+  ],
+  "materials": {
+   "plastic_crate_01": {
+    "albedo": "textures/plastic_crate_01_diff_1k.jpg",
+    "normal": "textures/plastic_crate_01_nor_gl_1k.jpg",
+    "orm": "textures/plastic_crate_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "CrateRed_PlasticCrate01",
+    "cutout": false
+   }
+  }
+ },
+ "Tote": {
+  "asset": "industrial_pastic_container",
+  "size": [
+   0.45716291666030884,
+   0.41985753178596497,
+   0.6316196918487549
+  ],
+  "materials": {
+   "industrial_pastic_container": {
+    "albedo": "textures/industrial_pastic_container_diff_1k.jpg",
+    "normal": "textures/industrial_pastic_container_nor_gl_1k.jpg",
+    "orm": "textures/industrial_pastic_container_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Tote_IndustrialPasticContainer",
+    "cutout": false
+   }
+  }
+ },
+ "Plant": {
+  "asset": "potted_plant_02",
+  "size": [
+   0.7009063363075256,
+   0.8418658375740051,
+   0.6578211784362793
+  ],
+  "materials": {
+   "potted_plant_02_pot": {
+    "albedo": "textures/potted_plant_02_pot_diff_1k.jpg",
+    "normal": "textures/potted_plant_02_pot_nor_gl_1k.jpg",
+    "orm": "textures/potted_plant_02_pot_rough_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Plant_PottedPlant02Pot",
+    "cutout": false
+   },
+   "potted_plant_02_leaves": {
+    "albedo": "textures/potted_plant_02_leaves_diff_1k.jpg",
+    "normal": "textures/potted_plant_02_leaves_nor_gl_1k.jpg",
+    "orm": "textures/potted_plant_02_leaves_rough_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "MASK",
+    "doubleSided": true,
+    "stem": "Plant_PottedPlant02Leaves",
+    "cutout": false
+   }
+  }
+ },
+ "Broom": {
+  "asset": "plastic_broom",
+  "size": [
+   0.40718135237693787,
+   1.1974047422409058,
+   0.5608903169631958
+  ],
+  "materials": {
+   "plastic_broom_bristles": {
+    "albedo": "textures/plastic_broom_diff_1k.jpg",
+    "normal": "textures/plastic_broom_nor_gl_1k.jpg",
+    "orm": "textures/plastic_broom_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "BLEND",
+    "doubleSided": true,
+    "stem": "Broom_PlasticBroomBristles",
+    "cutout": false
+   },
+   "plastic_broom": {
+    "albedo": "textures/plastic_broom_diff_1k.jpg",
+    "normal": "textures/plastic_broom_nor_gl_1k.jpg",
+    "orm": "textures/plastic_broom_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Broom_PlasticBroom",
+    "cutout": false
+   }
+  }
+ },
+ "Dustpan": {
+  "asset": "dustpan",
+  "size": [
+   0.33210447430610657,
+   0.10031896829605103,
+   0.36798107624053955
+  ],
+  "materials": {
+   "dustpan": {
+    "albedo": "textures/dustpan_diff_1k.jpg",
+    "normal": "textures/dustpan_nor_gl_1k.jpg",
+    "orm": "textures/dustpan_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Dustpan_Dustpan",
+    "cutout": false
+   }
+  }
+ },
+ "Boots": {
+  "asset": "rubber_boots",
+  "size": [
+   0.8913629055023193,
+   0.37325987219810486,
+   0.2672736644744873
+  ],
+  "materials": {
+   "rubber_boots_dirty": {
+    "albedo": "textures/rubber_boots_dirty_diff_1k.jpg",
+    "normal": "textures/rubber_boots_dirty_nor_gl_1k.jpg",
+    "orm": "textures/rubber_boots_dirty_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Boots_RubberBootsDirty",
+    "cutout": false
+   },
+   "rubber_boots": {
+    "albedo": "textures/rubber_boots_diff_1k.jpg",
+    "normal": "textures/rubber_boots_nor_gl_1k.jpg",
+    "orm": "textures/rubber_boots_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Boots_RubberBoots",
+    "cutout": false
+   }
+  }
+ },
+ "HoseReel": {
+  "asset": "garden_hose_wall_mounted_01",
+  "size": [
+   0.4667471945285797,
+   0.5570019483566284,
+   0.25030913949012756
+  ],
+  "materials": {
+   "garden_hose_wall_mounted_01": {
+    "albedo": "textures/garden_hose_wall_mounted_01_diff_1k.jpg",
+    "normal": "textures/garden_hose_wall_mounted_01_nor_gl_1k.jpg",
+    "orm": "textures/garden_hose_wall_mounted_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "HoseReel_GardenHoseWallMounted01",
+    "cutout": false
+   }
+  }
+ },
+ "PowerBox": {
+  "asset": "power_box_01",
+  "size": [
+   0.460854709148407,
+   0.5036278963088989,
+   0.39942020177841187
+  ],
+  "materials": {
+   "power_box_01": {
+    "albedo": "textures/power_box_01_diff_1k.jpg",
+    "normal": "textures/power_box_01_nor_gl_1k.jpg",
+    "orm": "textures/power_box_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "PowerBox_PowerBox01",
+    "cutout": false
+   }
+  }
+ },
+ "SecurityCamera": {
+  "asset": "security_camera_01",
+  "size": [
+   0.1695517897605896,
+   0.28597840666770935,
+   0.5536943674087524
+  ],
+  "materials": {
+   "security_camera_01_glass": {
+    "albedo": "textures/security_camera_01_diff_1k.jpg",
+    "normal": "textures/security_camera_01_nor_gl_1k.jpg",
+    "orm": "textures/security_camera_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "BLEND",
+    "doubleSided": true,
+    "stem": "SecurityCamera_SecurityCamera01Glass",
+    "cutout": false
+   },
+   "security_camera_01": {
+    "albedo": "textures/security_camera_01_diff_1k.jpg",
+    "normal": "textures/security_camera_01_nor_gl_1k.jpg",
+    "orm": "textures/security_camera_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "SecurityCamera_SecurityCamera01",
+    "cutout": false
+   }
+  }
+ },
+ "HandTruck": {
+  "asset": "hand_truck",
+  "size": [
+   0.5932528972625732,
+   1.4041177034378052,
+   0.6930725574493408
+  ],
+  "materials": {
+   "hand_truck": {
+    "albedo": "textures/hand_truck_diff_1k.jpg",
+    "normal": "textures/hand_truck_nor_gl_1k.jpg",
+    "orm": "textures/hand_truck_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "HandTruck_HandTruck",
+    "cutout": false
+   }
+  }
+ },
+ "Chair": {
+  "asset": "plastic_monobloc_chair_01",
+  "size": [
+   0.6418612599372864,
+   0.8798412084579468,
+   0.627683162689209
+  ],
+  "materials": {
+   "plastic_monobloc_chair_01": {
+    "albedo": "textures/plastic_monobloc_chair_01_diff_1k.jpg",
+    "normal": "textures/plastic_monobloc_chair_01_nor_gl_1k.jpg",
+    "orm": "textures/plastic_monobloc_chair_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Chair_PlasticMonoblocChair01",
+    "cutout": false
+   }
+  }
+ },
+ "ToolChest": {
+  "asset": "metal_tool_chest",
+  "size": [
+   0.685404896736145,
+   0.6518356204032898,
+   0.40715324878692627
+  ],
+  "materials": {
+   "metal_tool_chest": {
+    "albedo": "textures/metal_tool_chest_diff_1k.jpg",
+    "normal": "textures/metal_tool_chest_nor_gl_1k.jpg",
+    "orm": "textures/metal_tool_chest_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "ToolChest_MetalToolChest",
+    "cutout": false
+   }
+  }
+ },
+ "DeskLamp": {
+  "asset": "desk_lamp_arm_01",
+  "size": [
+   0.2016870379447937,
+   0.8927286863327026,
+   0.6157345175743103
+  ],
+  "materials": {
+   "desk_lamp_arm_01": {
+    "albedo": "textures/desk_lamp_arm_01_diff_1k.jpg",
+    "normal": "textures/desk_lamp_arm_01_nor_gl_1k.jpg",
+    "orm": "textures/desk_lamp_arm_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "DeskLamp_DeskLampArm01",
+    "cutout": false
+   },
+   "desk_lamp_arm_01_light": {
+    "albedo": "textures/desk_lamp_arm_01_diff_1k.jpg",
+    "normal": "textures/desk_lamp_arm_01_nor_gl_1k.jpg",
+    "orm": "textures/desk_lamp_arm_01_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "DeskLamp_DeskLampArm01Light",
+    "cutout": false
+   }
+  }
+ },
+ "Clipboard": {
+  "asset": "clipboard",
+  "size": [
+   0.22792716324329376,
+   0.04216863214969635,
+   0.3369635343551636
+  ],
+  "materials": {
+   "clipboard": {
+    "albedo": "textures/clipboard_diff_1k.jpg",
+    "normal": "textures/clipboard_nor_gl_1k.jpg",
+    "orm": "textures/clipboard_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Clipboard_Clipboard",
+    "cutout": false
+   }
+  }
+ },
+ "Stationery": {
+  "asset": "stationery_supplies",
+  "size": [
+   0.30186522006988525,
+   0.16434769332408905,
+   0.08366207033395767
+  ],
+  "materials": {
+   "stationery_supplies": {
+    "albedo": "textures/stationery_supplies_diff_1k.jpg",
+    "normal": "textures/stationery_supplies_nor_gl_1k.jpg",
+    "orm": "textures/stationery_supplies_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "stem": "Stationery_StationerySupplies",
+    "cutout": false
+   }
+  }
+ },
+ "Sofa": {
+  "asset": "sofa_02",
+  "size": [
+   1.8071672916412354,
+   0.7094888687133789,
+   0.817751407623291
+  ],
+  "materials": {
+   "sofa_02": {
+    "albedo": "textures/sofa_02_diff_1k.jpg",
+    "normal": "textures/sofa_02_nor_gl_1k.jpg",
+    "orm": "textures/sofa_02_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 1.0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "cutout": false,
+    "stem": "Sofa_Sofa02"
+   }
+  }
+ },
+ "PlantTall": {
+  "asset": "potted_plant_01",
+  "size": [
+   0.5853689312934875,
+   1.3568847179412842,
+   0.630465030670166
+  ],
+  "materials": {
+   "potted_plant_01_leaves": {
+    "albedo": "textures/potted_plant_01_leaves_diff_1k.jpg",
+    "normal": "textures/potted_plant_01_leaves_nor_gl_1k.jpg",
+    "orm": "textures/potted_plant_01_leaves_rough_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "MASK",
+    "doubleSided": true,
+    "cutout": false,
+    "stem": "PlantTall_PottedPlant01Leaves"
+   },
+   "potted_plant_01_pot": {
+    "albedo": "textures/potted_plant_01_pot_diff_1k.jpg",
+    "normal": "textures/potted_plant_01_pot_nor_gl_1k.jpg",
+    "orm": "textures/potted_plant_01_pot_rough_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "cutout": false,
+    "stem": "PlantTall_PottedPlant01Pot"
+   }
+  }
+ },
+ "Succulent": {
+  "asset": "potted_plant_04",
+  "size": [
+   0.16900892555713654,
+   0.2674129605293274,
+   0.18525023758411407
+  ],
+  "materials": {
+   "potted_plant_04": {
+    "albedo": "textures/potted_plant_04_diff_1k.jpg",
+    "normal": "textures/potted_plant_04_nor_gl_1k.jpg",
+    "orm": "textures/potted_plant_04_arm_1k.jpg",
+    "occlusion": null,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallic": 0,
+    "roughness": 1.0,
+    "alpha": "OPAQUE",
+    "doubleSided": true,
+    "cutout": false,
+    "stem": "Succulent_PottedPlant04"
+   }
+  }
+ }
+}

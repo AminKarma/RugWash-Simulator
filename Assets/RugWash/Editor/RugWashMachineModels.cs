@@ -16,6 +16,10 @@ namespace RugWash.Editor
     /// </summary>
     public static class RugWashMachineModels
     {
+
+        /// <summary>V0.3.0 : pièce modélisée dans Blender (Tools/Blender/models_machines.py, même repère) si elle existe, sinon procédurale.</summary>
+        static Mesh Modeled(MeshStore store, string key, System.Func<Mesh> procedural) =>
+            RugWashModelLibrary.Mesh(store, "Machines", key) ?? store.Add(key, procedural);
         static GameObject Part(string name, Transform parent, Mesh mesh, Material material, Vector3 position, Quaternion rotation)
         {
             var go = new GameObject(name);
@@ -69,11 +73,11 @@ namespace RugWash.Editor
         /// <summary>Pupitre de commande (interaction E) : colonne, panneau incliné, gros bouton, étiquette.</summary>
         static void Pedestal(Transform root, MeshStore m, RugWashContentBuilder.Content c, string label)
         {
-            Part("Column", root, m.Add("Machine_PedestalColumn", () => RoundedBox(new Vector3(0.3f, 0.95f, 0.26f), 0.02f)), c["DarkMetal"],
+            Part("Column", root, Modeled(m, "Machine_PedestalColumn", () => RoundedBox(new Vector3(0.3f, 0.95f, 0.26f), 0.02f)), c["DarkMetal"],
                 new Vector3(0f, 0.475f, 0f), Quaternion.identity);
-            Part("Panel", root, m.Add("Machine_PedestalPanel", () => RoundedBox(new Vector3(0.36f, 0.04f, 0.3f), 0.012f)), c["SafetyYellow"],
+            Part("Panel", root, Modeled(m, "Machine_PedestalPanel", () => RoundedBox(new Vector3(0.36f, 0.04f, 0.3f), 0.012f)), c["SafetyYellow"],
                 new Vector3(0f, 0.97f, 0f), Quaternion.Euler(-25f, 0f, 0f));
-            Part("Button", root, m.Add("Machine_Button", () => Cylinder(0.05f, 0.03f, 20)), c["RedPlastic"],
+            Part("Button", root, Modeled(m, "Machine_Button", () => Cylinder(0.05f, 0.03f, 20)), c["RedPlastic"],
                 new Vector3(0f, 1.0f, -0.02f), Quaternion.Euler(-25f, 0f, 0f));
             Label(root, label, new Vector3(0f, 0.72f, -0.135f), 0.012f);
             var collider = root.gameObject.AddComponent<BoxCollider>();
@@ -88,7 +92,7 @@ namespace RugWash.Editor
             OrderManager orders, AudioClip loop, Vector3 position, float yaw)
         {
             var root = Group("Machine_Blower", parent, position, Quaternion.Euler(0f, yaw, 0f));
-            Part("Base", root, m.Add("Blower_Base", () => RoundedBox(new Vector3(0.62f, 0.06f, 0.46f), 0.02f)), c["DarkMetal"],
+            Part("Base", root, Modeled(m, "Blower_Base", () => RoundedBox(new Vector3(0.62f, 0.06f, 0.46f), 0.02f)), c["DarkMetal"],
                 new Vector3(0f, 0.03f, 0f), Quaternion.identity);
             foreach (float x in new[] { -0.36f, 0.36f })
                 Part("Arm", root, m.Add("Blower_Arm", () => RoundedBox(new Vector3(0.04f, 0.62f, 0.05f), 0.01f)), c["Steel"],
@@ -101,15 +105,15 @@ namespace RugWash.Editor
                 float a = i / 36f * Mathf.PI * 2f;
                 ring.Add(new Vector3(Mathf.Cos(a) * 0.34f, Mathf.Sin(a) * 0.34f, 0f));
             }
-            Part("Housing", fan, m.Add("Blower_Housing", () => Tube(ring, 0.035f, 10)), c["SafetyYellow"], Vector3.zero, Quaternion.identity);
-            Part("Motor", fan, m.Add("Blower_Motor", () => Cylinder(0.09f, 0.16f, 20)), c["DarkMetal"], new Vector3(0f, 0f, -0.1f), Quaternion.Euler(90f, 0f, 0f));
+            Part("Housing", fan, Modeled(m, "Blower_Housing", () => Tube(ring, 0.035f, 10)), c["SafetyYellow"], Vector3.zero, Quaternion.identity);
+            Part("Motor", fan, Modeled(m, "Blower_Motor", () => Cylinder(0.09f, 0.16f, 20)), c["DarkMetal"], new Vector3(0f, 0f, -0.1f), Quaternion.Euler(90f, 0f, 0f));
             for (int i = 0; i < 4; i++)
                 Part("Grille", fan, m.Add("Blower_Grille", () => RoundedBox(new Vector3(0.66f, 0.01f, 0.01f), 0.003f)), c["Steel"],
                     new Vector3(0f, 0f, 0.05f), Quaternion.Euler(0f, 0f, i * 45f));
             var blades = Group("Blades", fan, new Vector3(0f, 0f, 0.01f), Quaternion.identity);
             Part("Hub", blades, m.Add("Blower_Hub", () => Cylinder(0.06f, 0.05f, 16)), c["Steel"], Vector3.zero, Quaternion.Euler(90f, 0f, 0f));
             for (int i = 0; i < 3; i++)
-                Part("Blade", blades, m.Add("Blower_Blade", () => RoundedBox(new Vector3(0.1f, 0.27f, 0.012f), 0.01f)), c["DarkMetal"],
+                Part("Blade", blades, Modeled(m, "Blower_Blade", () => RoundedBox(new Vector3(0.1f, 0.27f, 0.012f), 0.01f)), c["DarkMetal"],
                     Quaternion.Euler(0f, 0f, i * 120f) * new Vector3(0f, 0.17f, 0f), Quaternion.Euler(0f, 0f, i * 120f) * Quaternion.Euler(0f, 18f, 0f));
             var collider = root.gameObject.AddComponent<BoxCollider>();
             collider.center = new Vector3(0f, 0.5f, 0f);

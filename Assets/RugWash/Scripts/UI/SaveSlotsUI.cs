@@ -18,11 +18,11 @@ namespace RugWash.UI
     [DisallowMultipleComponent]
     public sealed class SaveSlotsUI : MonoBehaviour, IModalPanel
     {
-        static readonly Color RowEmpty = new Color(0.12f, 0.15f, 0.18f, 0.95f);
-        static readonly Color RowUsed = new Color(0.1f, 0.2f, 0.24f, 0.95f);
-        static readonly Color RowChosen = new Color(0.12f, 0.3f, 0.2f, 0.95f);
-        static readonly Color Muted = new Color(0.7f, 0.74f, 0.78f);
-        static readonly Color Warn = new Color(1f, 0.7f, 0.4f);
+        static readonly Color RowEmpty = UITheme.Row;
+        static readonly Color RowUsed = UITheme.RowActive;
+        static readonly Color RowChosen = UITheme.RowOwned;
+        static readonly Color Muted = UITheme.TextSecondary;
+        static readonly Color Warn = UITheme.Warning;
 
         [SerializeField] GameObject panel;
         [SerializeField] Text titleLabel;

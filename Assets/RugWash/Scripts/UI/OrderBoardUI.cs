@@ -17,12 +17,12 @@ namespace RugWash.UI
     [DisallowMultipleComponent]
     public sealed class OrderBoardUI : MonoBehaviour, IModalPanel
     {
-        static readonly Color RowColor = new Color(0.12f, 0.15f, 0.18f, 0.95f);
-        static readonly Color RowLocked = new Color(0.1f, 0.1f, 0.11f, 0.9f);
-        static readonly Color RowActive = new Color(0.1f, 0.26f, 0.32f, 0.95f);
-        static readonly Color Ok = new Color(0.55f, 0.95f, 0.6f);
-        static readonly Color Warn = new Color(1f, 0.75f, 0.35f);
-        static readonly Color Muted = new Color(0.7f, 0.72f, 0.75f);
+        static readonly Color RowColor = UITheme.Row;
+        static readonly Color RowLocked = UITheme.RowLocked;
+        static readonly Color RowActive = UITheme.RowActive;
+        static readonly Color Ok = UITheme.Success;
+        static readonly Color Warn = UITheme.Warning;
+        static readonly Color Muted = UITheme.TextSecondary;
 
         [SerializeField] GameObject panel;
         [SerializeField] Text headerLabel;

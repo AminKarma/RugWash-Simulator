@@ -1,0 +1,106 @@
+{
+  "Floor": {
+    "asset": "concrete_floor_worn_001",
+    "dimensions_mm": [
+      3000,
+      3000.000238418579
+    ],
+    "res": "2k"
+  },
+  "WashPad": {
+    "asset": "brushed_concrete",
+    "dimensions_mm": [
+      2500,
+      2500
+    ],
+    "res": "2k"
+  },
+  "Plaster": {
+    "asset": "painted_plaster_wall",
+    "dimensions_mm": [
+      2000,
+      2000
+    ],
+    "res": "2k"
+  },
+  "CeilingSheet": {
+    "asset": "box_profile_metal_sheet",
+    "dimensions_mm": [
+      2000,
+      2000
+    ],
+    "res": "1k"
+  },
+  "Wood": {
+    "asset": "fine_grained_wood",
+    "dimensions_mm": [
+      600.0000238418579,
+      600.0000238418579
+    ],
+    "res": "1k"
+  },
+  "WoodPlanks": {
+    "asset": "oak_wood_planks",
+    "dimensions_mm": [
+      1200.0000476837158,
+      1200.0000476837158
+    ],
+    "res": "1k"
+  },
+  "Plywood": {
+    "asset": "plywood",
+    "dimensions_mm": [
+      499.999940395355,
+      499.999940395355
+    ],
+    "res": "1k"
+  },
+  "MetalPlate": {
+    "asset": "metal_plate",
+    "dimensions_mm": [
+      500,
+      500
+    ],
+    "res": "1k"
+  },
+  "PaintedMetal": {
+    "asset": "blue_metal_plate",
+    "dimensions_mm": [
+      2500,
+      2500
+    ],
+    "res": "1k"
+  },
+  "Leather": {
+    "asset": "brown_leather",
+    "dimensions_mm": [
+      400.0000059604645,
+      400.00003576278687
+    ],
+    "res": "1k"
+  },
+  "Twill": {
+    "asset": "poly_wool_herringbone",
+    "dimensions_mm": [
+      270.0788548673393,
+      275.70000290870667
+    ],
+    "res": "1k"
+  },
+  "Brick": {
+    "asset": "brick_wall_001",
+    "dimensions_mm": [
+      3000,
+      3000
+    ],
+    "res": "1k"
+  },
+  "Concrete": {
+    "asset": "concrete_wall_004",
+    "dimensions_mm": [
+      2000,
+      2000
+    ],
+    "res": "1k"
+  }
+}

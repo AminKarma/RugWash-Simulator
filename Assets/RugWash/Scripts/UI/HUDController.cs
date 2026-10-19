@@ -353,8 +353,9 @@ namespace RugWash.UI
         void RefreshEconomy()
         {
             if (wallet == null) return;
-            economyLabel.text = $"{WalletManager.Format(wallet.Balance)}\nRéputation {reputation.Points}" +
-                                (profileSource != null ? $" · niveau {profileSource.Profile.Level}" : string.Empty);
+            // V0.3.0 : solde en grand, réputation en dessous en plus petit et en gris (texte enrichi).
+            economyLabel.text = $"<size=28>{WalletManager.Format(wallet.Balance)}</size>\n<size=18><color=#C2C9CE>Réputation {reputation.Points}" +
+                                (profileSource != null ? $" · niveau {profileSource.Profile.Level}" : string.Empty) + "</color></size>";
             int bay = orders.CurrentBay;
             var order = orders.OrderOf(bay);
             string interact = input != null ? input.Label("Interact") : "E";

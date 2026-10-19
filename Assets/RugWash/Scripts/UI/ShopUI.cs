@@ -13,11 +13,11 @@ namespace RugWash.UI
     [DisallowMultipleComponent]
     public sealed class ShopUI : MonoBehaviour, IModalPanel
     {
-        static readonly Color RowColor = new Color(0.12f, 0.15f, 0.18f, 0.95f);
-        static readonly Color RowOwned = new Color(0.1f, 0.22f, 0.16f, 0.95f);
-        static readonly Color Ok = new Color(0.55f, 0.95f, 0.6f);
-        static readonly Color Warn = new Color(1f, 0.6f, 0.45f);
-        static readonly Color Neutral = new Color(0.95f, 0.85f, 0.5f);
+        static readonly Color RowColor = UITheme.Row;
+        static readonly Color RowOwned = UITheme.RowOwned;
+        static readonly Color Ok = UITheme.Success;
+        static readonly Color Warn = UITheme.Danger;
+        static readonly Color Neutral = UITheme.Money;
 
         [SerializeField] GameObject panel;
         [SerializeField] Text balanceLabel;

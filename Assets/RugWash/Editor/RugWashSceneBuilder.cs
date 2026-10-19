@@ -94,6 +94,7 @@ namespace RugWash.Editor
             var orderCounter = RugWashDecor.OrderDesk(environment, content, meshes);
             RugWashDecor.DryingArea(environment, content, meshes);
             RugWashDecor.Shelves(environment, content, meshes);
+            RugWashDecor.PolyHavenProps(environment, content, meshes);
             var soapStation = RugWashDecor.SoapStation(environment, content, meshes, audio);
             RugWashDecor.Ceiling(environment, content, meshes);
             RugWashDecor.WallDetails(environment, content, meshes);
@@ -366,6 +367,7 @@ namespace RugWash.Editor
             RugWashDecor.OrderDesk(environment, content, meshes);
             RugWashDecor.DryingArea(environment, content, meshes);
             RugWashDecor.Shelves(environment, content, meshes);
+            RugWashDecor.PolyHavenProps(environment, content, meshes);
             RugWashDecor.SoapStation(environment, content, meshes, audio);
             RugWashDecor.Ceiling(environment, content, meshes);
             RugWashDecor.WallDetails(environment, content, meshes);
@@ -392,19 +394,25 @@ namespace RugWash.Editor
             // Interface.
             var canvas = CreateCanvas("Menu Canvas", null);
             var menuNavigator = CreateEventSystem(null);
-            var shade = CreateRect("LeftShade", canvas.transform, Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(760f, 0f));
-            AddImage(shade, sprites.White, new Color(0.03f, 0.04f, 0.05f, 0.86f), sliced: false);
-            AddText(CreateRect("Title", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(90f, -110f), new Vector2(640f, 90f)),
-                "RugWash Simulator", 64, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
-            AddText(CreateRect("Subtitle", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(94f, -200f), new Vector2(640f, 40f)),
-                "Atelier de nettoyage de tapis", 28, TextAnchor.MiddleLeft, Accent);
+            // V0.3.0 : voile en dégradé (opaque à gauche, l'atelier reste visible), logo, titre en Inter ExtraBold.
+            var shade = CreateRect("LeftShade", canvas.transform, Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(620f, 0f));
+            AddImage(shade, sprites.White, new Color(0.03f, 0.04f, 0.05f, 0.9f), sliced: false);
+            var fade = CreateRect("LeftShadeFade", canvas.transform, Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(620f, 0f), new Vector2(560f, 0f));
+            AddImage(fade, sprites.GradientH, new Color(0.03f, 0.04f, 0.05f, 0.9f), sliced: false);
+            var logo = CreateRect("Logo", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(90f, -78f), new Vector2(92f, 92f));
+            Card(logo, UITheme.Saffron, outline: false);
+            Icon(logo, "Rug", new Vector2(0.5f, 0.5f), Vector2.zero, 64f, UITheme.TextOnAccent);
+            AddText(CreateRect("Title", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(204f, -70f), new Vector2(760f, 80f)),
+                "RugWash Simulator", 66, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
+            AddText(CreateRect("Subtitle", canvas.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(207f, -146f), new Vector2(760f, 34f)),
+                "ATELIER DE NETTOYAGE DE TAPIS", 21, TextAnchor.MiddleLeft, UITheme.Saffron, FontStyle.Bold, shadow: false);
 
             var column = CreateRect("Buttons", canvas.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(90f, -90f), new Vector2(460f, 700f));
             AddVerticalLayout(column.gameObject, 14, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
             var play = CreateButton("Play", column, "Jouer (solo)", sprites.Rounded, new Vector2(460f, 70f));
             var resume = CreateButton("Continue", column, "Continuer", sprites.Rounded, new Vector2(460f, 70f));
             var summary = AddText(CreateRect("ContinueSummary", column, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(460f, 30f)),
-                string.Empty, 20, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f));
+                string.Empty, 19, TextAnchor.MiddleLeft, UITheme.Money);
             summary.gameObject.AddComponent<LayoutElement>().preferredHeight = 30f;
             var multiplayerMenuButton = CreateButton("Multiplayer", column, "Multijoueur", sprites.Rounded, new Vector2(460f, 70f));
             var characterMenuButton = CreateButton("Character", column, "Personnage", sprites.Rounded, new Vector2(460f, 70f));
@@ -415,13 +423,13 @@ namespace RugWash.Editor
             column.gameObject.AddComponent<NavigationScope>().FirstSelected = play;
 
             var message = AddText(CreateRect("Message", canvas.transform, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(90f, 60f), new Vector2(640f, 80f)),
-                string.Empty, 20, TextAnchor.LowerLeft, new Color(1f, 0.75f, 0.45f));
+                string.Empty, 20, TextAnchor.LowerLeft, UITheme.Warning);
             AddText(CreateRect("Version", canvas.transform, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-30f, 24f), new Vector2(600f, 30f)),
-                "Démo en développement — sons temporaires", 18, TextAnchor.LowerRight, Muted);
+                "Version 0.3.0 · démo en développement — sons temporaires", 17, TextAnchor.LowerRight, UITheme.TextMuted);
             BuildNewsPanel(canvas, sprites);
 
             var loading = Stretch("Loading", canvas.transform);
-            AddImage(loading, sprites.White, new Color(0f, 0f, 0f, 0.8f), sliced: false, raycast: true);
+            AddImage(loading, sprites.White, new Color(0.03f, 0.04f, 0.05f, 0.92f), sliced: false, raycast: true);
             AddText(Stretch("Text", loading), "Chargement de l'atelier…", 40, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
 
             var rugDexUI = BuildRugDexUI(canvas, sprites);
@@ -463,7 +471,7 @@ namespace RugWash.Editor
         {
             var window = BuildWindow(canvas.transform, "Character", new Vector2(1300f, 860f), sprites, "Personnage", out var panel, out var close);
             var frame = CreateRect("PreviewFrame", window, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(40f, -10f), new Vector2(460f, 640f));
-            AddImage(frame, sprites.Rounded, new Color(0.05f, 0.06f, 0.08f, 0.95f));
+            Card(frame, new Color(0.05f, 0.06f, 0.075f, 0.98f));
             var image = Stretch("Preview", frame, 8f).gameObject.AddComponent<RawImage>();
             image.raycastTarget = false;
             var rotateLeft = CreateButton("RotateLeft", window, "‹ Tourner", sprites.Rounded, new Vector2(220f, 56f));
@@ -477,9 +485,9 @@ namespace RugWash.Editor
             var cap = StepperRow(options, "Casquette", sprites);
             var gloves = StepperRow(options, "Gants", sprites);
             AddText(CreateRect("Note", window, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -420f), new Vector2(700f, 200f)),
-                "Silhouette provisoire (modèle procédural) : seules les couleurs de la tenue et des gants, et la casquette (ou pas), " +
-                "sont personnalisables pour l'instant.\nVos choix sont sauvegardés et visibles par les autres joueurs en ligne.",
-                20, TextAnchor.UpperLeft, new Color(0.8f, 0.83f, 0.86f));
+                "Couleurs de la tenue et des gants, casquette ou cheveux à l'air : vos choix sont sauvegardés " +
+                "et visibles par les autres joueurs en ligne.",
+                20, TextAnchor.UpperLeft, UITheme.TextSecondary);
             panel.GetComponent<NavigationScope>().FirstSelected = outfit.NextButton;
 
             // Aperçu : silhouette et éclairage propres, loin sous la salle (la caméra du menu ne les voit pas).
@@ -530,13 +538,14 @@ namespace RugWash.Editor
         static void BuildNewsPanel(Canvas canvas, UISprites sprites)
         {
             var news = CreateRect("News", canvas.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -40f), new Vector2(640f, 600f));
-            AddImage(news, sprites.Rounded, new Color(0.03f, 0.04f, 0.05f, 0.84f));
-            AddText(CreateRect("Header", news, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(590f, 46f)),
-                "Actualités", 34, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
+            Card(news, new Color(0.05f, 0.065f, 0.08f, 0.88f));
+            AccentBar(news, new Vector2(0f, 1f), new Vector2(24f, -41f), new Vector2(6f, 30f), UITheme.Saffron);
+            AddText(CreateRect("Header", news, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(14f, -18f), new Vector2(570f, 46f)),
+                "Actualités", 32, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
             AddText(CreateRect("Source", news, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -64f), new Vector2(590f, 28f)),
                 "Annonces locales incluses dans cette version du jeu (hors ligne)", 17, TextAnchor.MiddleLeft, Muted);
             var body = AddText(CreateRect("Body", news, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -106f), new Vector2(590f, 474f)),
-                string.Empty, 21, TextAnchor.UpperLeft, new Color(0.88f, 0.9f, 0.92f));
+                string.Empty, 21, TextAnchor.UpperLeft, UITheme.TextSecondary);
             body.supportRichText = true;
             body.verticalOverflow = VerticalWrapMode.Truncate;
             body.resizeTextForBestFit = true;
@@ -560,9 +569,10 @@ namespace RugWash.Editor
         {
             RenderSettings.skybox = null;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.56f, 0.58f, 0.62f);
-            RenderSettings.ambientEquatorColor = new Color(0.4f, 0.39f, 0.37f);
-            RenderSettings.ambientGroundColor = new Color(0.2f, 0.19f, 0.18f);
+            // V0.3.0 : ambiance plus lumineuse et plus chaude au niveau des murs (rebond du plâtre crème), sol plus sombre.
+            RenderSettings.ambientSkyColor = new Color(0.6f, 0.63f, 0.68f);
+            RenderSettings.ambientEquatorColor = new Color(0.5f, 0.47f, 0.43f);
+            RenderSettings.ambientGroundColor = new Color(0.25f, 0.23f, 0.21f);
             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
             RenderSettings.fog = false;
         }
@@ -676,11 +686,11 @@ namespace RugWash.Editor
             spot.type = LightType.Spot;
             spot.spotAngle = 115f;
             spot.innerSpotAngle = 70f;
-            spot.range = 7f;
-            spot.intensity = 6f;
-            spot.color = new Color(1f, 0.96f, 0.9f);
+            spot.range = 7.5f;
+            spot.intensity = 7.5f;
+            spot.color = new Color(1f, 0.95f, 0.87f);
             spot.shadows = LightShadows.Soft;
-            spot.shadowStrength = 0.75f;
+            spot.shadowStrength = 0.8f;
             spotGo.AddComponent<UniversalAdditionalLightData>();
             var housing = new GameObject("Spot_Housing");
             housing.transform.SetParent(spotGo.transform, false);
@@ -708,9 +718,9 @@ namespace RugWash.Editor
                 lightGo.transform.localPosition = new Vector3(0f, -0.2f, 0f);
                 var light = lightGo.AddComponent<Light>();
                 light.type = LightType.Point;
-                light.range = 8f;
-                light.intensity = 2.2f;
-                light.color = new Color(1f, 0.95f, 0.88f);
+                light.range = 9f;
+                light.intensity = 3f;
+                light.color = new Color(1f, 0.96f, 0.9f);
                 light.shadows = LightShadows.None;
                 lightGo.AddComponent<UniversalAdditionalLightData>();
             }
@@ -723,13 +733,24 @@ namespace RugWash.Editor
                 day.transform.SetPositionAndRotation(new Vector3(x, RoomHeight - 0.4f, RoomHalfZ - 0.3f), Quaternion.Euler(58f, 180f, 0f));
                 var dayLight = day.AddComponent<Light>();
                 dayLight.type = LightType.Spot;
-                dayLight.spotAngle = 80f;
-                dayLight.innerSpotAngle = 30f;
-                dayLight.range = 8f;
-                dayLight.intensity = 2.4f;
+                dayLight.spotAngle = 95f;
+                dayLight.innerSpotAngle = 40f;
+                dayLight.range = 9f;
+                dayLight.intensity = 3.4f;
                 dayLight.color = new Color(0.72f, 0.82f, 1f);
                 dayLight.shadows = LightShadows.None;
                 day.AddComponent<UniversalAdditionalLightData>();
+
+                // V0.3.0 : rai de lumière très léger sous la fenêtre (volume additif, sans ombre ni collision).
+                var shaftGo = new GameObject("LightShaft");
+                shaftGo.transform.SetParent(parent, false);
+                shaftGo.transform.localPosition = new Vector3(x, 2.65f, RoomHalfZ - 0.06f);
+                shaftGo.AddComponent<MeshFilter>().sharedMesh = meshes.Add("LightShaft", () =>
+                    LightShaftMesh(new Vector2(1.7f, 0.78f), new Vector3(0f, -Mathf.Sin(58f * Mathf.Deg2Rad), -Mathf.Cos(58f * Mathf.Deg2Rad)), 3.1f, 1.25f));
+                var shaftRenderer = shaftGo.AddComponent<MeshRenderer>();
+                shaftRenderer.sharedMaterial = c["LightShaft"];
+                shaftRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                shaftRenderer.receiveShadows = false;
             }
 
             var probeGo = new GameObject("Reflection Probe");
@@ -751,6 +772,38 @@ namespace RugWash.Editor
             volume.sharedProfile = GetOrCreateWorkshopVolumeProfile();
         }
 
+        /// <summary>
+        /// Volume d'un rai de lumière : rectangle de la fenêtre (plan XY, centré) prolongé selon <paramref name="direction"/> sur
+        /// <paramref name="length"/> m en s'élargissant de <paramref name="spread"/>. Quatre faces ; UV u en travers, v le long.
+        /// </summary>
+        static Mesh LightShaftMesh(Vector2 window, Vector3 direction, float length, float spread)
+        {
+            var near = new[]
+            {
+                new Vector3(-window.x * 0.5f, -window.y * 0.5f, 0f), new Vector3(window.x * 0.5f, -window.y * 0.5f, 0f),
+                new Vector3(window.x * 0.5f, window.y * 0.5f, 0f), new Vector3(-window.x * 0.5f, window.y * 0.5f, 0f),
+            };
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var triangles = new List<int>();
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 a = near[i], b = near[(i + 1) % 4];
+                Vector3 fa = a * spread + direction * length, fb = b * spread + direction * length;
+                int start = vertices.Count;
+                vertices.AddRange(new[] { a, b, fb, fa });
+                uvs.AddRange(new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) });
+                triangles.AddRange(new[] { start, start + 1, start + 2, start, start + 2, start + 3 });
+            }
+            var mesh = new Mesh();
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
         static VolumeProfile GetOrCreateWorkshopVolumeProfile()
         {
             var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(RugWashPaths.WorkshopVolumeProfile);
@@ -763,16 +816,21 @@ namespace RugWash.Editor
             Ensure<Tonemapping>(profile).mode.Override(TonemappingMode.ACES);
             var bloom = Ensure<Bloom>(profile);
             bloom.threshold.Override(1f);
-            bloom.intensity.Override(0.4f);
-            bloom.scatter.Override(0.65f);
+            bloom.intensity.Override(0.35f);
+            bloom.scatter.Override(0.6f);
+            // V0.3.0 : étalonnage plus franc — exposition relevée, contraste, ombres légèrement froides et hautes lumières chaudes.
             var color = Ensure<ColorAdjustments>(profile);
-            color.postExposure.Override(0.3f);
-            color.contrast.Override(12f);
-            color.saturation.Override(8f);
-            Ensure<WhiteBalance>(profile).temperature.Override(6f);
+            color.postExposure.Override(0.45f);
+            color.contrast.Override(16f);
+            color.saturation.Override(6f);
+            Ensure<WhiteBalance>(profile).temperature.Override(4f);
+            var split = Ensure<SplitToning>(profile);
+            split.shadows.Override(new Color(0.42f, 0.5f, 0.56f));
+            split.highlights.Override(new Color(0.58f, 0.52f, 0.44f));
+            split.balance.Override(10f);
             var vignette = Ensure<Vignette>(profile);
-            vignette.intensity.Override(0.22f);
-            vignette.smoothness.Override(0.45f);
+            vignette.intensity.Override(0.24f);
+            vignette.smoothness.Override(0.5f);
             EditorUtility.SetDirty(profile);
             AssetDatabase.SaveAssets();
             return profile;
@@ -1340,7 +1398,17 @@ namespace RugWash.Editor
         sealed class UISprites
         {
             public readonly Sprite White = AssetDatabase.LoadAssetAtPath<Sprite>(RugWashTextureGenerator.UIWhite);
-            public readonly Sprite Rounded = AssetDatabase.LoadAssetAtPath<Sprite>(RugWashTextureGenerator.UIRounded);
+            /// <summary>V0.3.0 : panneau arrondi de la charte (rayon 14 px, anticrénelé).</summary>
+            public readonly Sprite Rounded = LoadPanel();
+            public readonly Sprite Pill = RugWashUIStyle.Sprite("UI_Pill");
+            public readonly Sprite GradientH = RugWashUIStyle.Sprite("UI_GradientH");
+            public readonly Sprite GradientV = RugWashUIStyle.Sprite("UI_GradientV");
+
+            static Sprite LoadPanel()
+            {
+                RugWashUIStyle.ConfigureImports();
+                return RugWashUIStyle.Sprite("UI_Panel") ?? AssetDatabase.LoadAssetAtPath<Sprite>(RugWashTextureGenerator.UIRounded);
+            }
         }
 
         sealed class BuiltUI
@@ -1372,9 +1440,10 @@ namespace RugWash.Editor
         /// <summary>Moniteur de périphérique de l'interface en cours de construction (libellés « Fermer (Échap / B) »).</summary>
         static InputDeviceMonitor uiMonitor;
 
-        static readonly Color PanelColor = new Color(0.06f, 0.08f, 0.1f, 0.78f);
-        static readonly Color Accent = new Color(0.33f, 0.78f, 0.92f, 1f);
-        static readonly Color Muted = new Color(1f, 1f, 1f, 0.8f);
+        // V0.3.0 : couleurs de la charte (RugWash.UI.UITheme).
+        static readonly Color PanelColor = UITheme.HudCard;
+        static readonly Color Accent = UITheme.PetrolBright;
+        static readonly Color Muted = UITheme.TextSecondary;
 
         static BuiltUI BuildUI(Transform parent, UISprites sprites, PerformanceMonitor performance)
         {
@@ -1401,34 +1470,43 @@ namespace RugWash.Editor
             var hudGroup = hudRoot.gameObject.AddComponent<CanvasGroup>();
             hudGroup.blocksRaycasts = false;
 
+            // V0.3.0 : point de visée rond cerclé de sombre (lisible sur un tapis clair comme sur le béton).
+            var crosshairRing = CreateRect("CrosshairRing", hudRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10f, 10f));
+            AddImage(crosshairRing, sprites.Pill, new Color(0f, 0f, 0f, 0.4f));
             var crosshair = CreateRect("Crosshair", hudRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
-            AddImage(crosshair, sprites.White, new Color(1f, 1f, 1f, 0.85f), sliced: false);
+            AddImage(crosshair, sprites.Pill, new Color(1f, 1f, 1f, 0.92f));
 
             var cleanPanel = CreateRect("CleanlinessPanel", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(560f, 78f));
-            AddImage(cleanPanel, sprites.Rounded, PanelColor);
-            var cleanLabel = AddText(CreateRect("Label", cleanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -8f), new Vector2(520f, 34f)),
-                "Propreté du tapis : 0 %", 26, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
-            var cleanFill = CreateFillBar("Bar", cleanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(520f, 18f),
-                sprites.Rounded, sprites.White, new Color(0f, 0f, 0f, 0.5f), Accent, out _);
+            Card(cleanPanel, PanelColor);
+            Icon(cleanPanel, "Sparkle", new Vector2(0f, 1f), new Vector2(34f, -27f), 26f, UITheme.Saffron);
+            var cleanLabel = AddText(CreateRect("Label", cleanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(14f, -9f), new Vector2(480f, 36f)),
+                "Propreté du tapis : 0 %", 24, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
+            var cleanFill = CreateFillBar("Bar", cleanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(516f, 14f),
+                sprites.Rounded, sprites.White, UITheme.Track, Accent, out _);
 
             var scanPanel = CreateRect("ScanPanel", hudRoot, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), new Vector2(300f, 64f));
-            AddImage(scanPanel, sprites.Rounded, PanelColor);
+            Card(scanPanel, PanelColor);
             var scanLabel = AddText(CreateRect("Label", scanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(276f, 30f)),
                 "Scanner la saleté", 21, TextAnchor.MiddleLeft, Color.white);
             scanLabel.resizeTextForBestFit = true;
             scanLabel.resizeTextMinSize = 14;
             scanLabel.resizeTextMaxSize = 21;
             var scanFill = CreateFillBar("Bar", scanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(276f, 10f),
-                sprites.Rounded, sprites.White, new Color(0f, 0f, 0f, 0.5f), new Color(1f, 0.62f, 0.2f), out _);
+                sprites.Rounded, sprites.White, UITheme.Track, UITheme.Saffron, out _);
 
             var toast = AddText(CreateRect("Toast", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(900f, 36f)),
-                string.Empty, 24, TextAnchor.MiddleCenter, new Color(0.75f, 1f, 0.8f));
+                string.Empty, 24, TextAnchor.MiddleCenter, UITheme.Success, FontStyle.Bold);
 
-            var economyPanel = CreateRect("EconomyPanel", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-24f, -22f), new Vector2(300f, 78f));
-            AddImage(economyPanel, sprites.Rounded, PanelColor);
-            var economy = AddText(Stretch("Label", economyPanel, 10f), "0 €", 24, TextAnchor.MiddleRight, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+            // V0.3.0 : solde (pièce) et réputation (étoile) sur deux lignes, icônes à gauche ; texte enrichi par le HUD.
+            var economyPanel = CreateRect("EconomyPanel", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-24f, -22f), new Vector2(330f, 86f));
+            Card(economyPanel, PanelColor);
+            Icon(economyPanel, "Coin", new Vector2(0f, 1f), new Vector2(32f, -28f), 28f, UITheme.Money);
+            Icon(economyPanel, "Star", new Vector2(0f, 1f), new Vector2(32f, -62f), 22f, UITheme.Saffron);
+            var economy = AddText(CreateRect("Label", economyPanel, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), new Vector2(22f, 0f), new Vector2(-64f, -14f)),
+                "0 €", 24, TextAnchor.MiddleLeft, UITheme.Money, FontStyle.Bold);
+            economy.supportRichText = true;
             var players = AddText(CreateRect("Players", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-24f, -106f), new Vector2(720f, 30f)),
-                string.Empty, 19, TextAnchor.UpperRight, new Color(0.75f, 0.92f, 1f));
+                string.Empty, 19, TextAnchor.UpperRight, UITheme.TextSecondary);
             var orderInfo = AddText(CreateRect("OrderInfo", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -106f), new Vector2(1000f, 90f)),
                 string.Empty, 21, TextAnchor.UpperCenter, Color.white);
 
@@ -1441,10 +1519,11 @@ namespace RugWash.Editor
             hint.resizeTextMinSize = 12;
             hint.resizeTextMaxSize = 18;
             var workSurfaceLabel = AddText(CreateRect("WorkSurfaceAlert", hudRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(24f, -74f), new Vector2(760f, 30f)), string.Empty, 20, TextAnchor.UpperLeft, new Color(1f, 0.72f, 0.35f));
+                new Vector2(24f, -74f), new Vector2(760f, 30f)), string.Empty, 20, TextAnchor.UpperLeft, UITheme.Warning, FontStyle.Bold);
 
             var toolPanel = CreateRect("ToolPanel", hudRoot, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(24f, 24f), new Vector2(380f, 116f));
-            AddImage(toolPanel, sprites.Rounded, PanelColor);
+            Card(toolPanel, PanelColor);
+            AccentBar(toolPanel, new Vector2(0f, 1f), new Vector2(0f, -30f), new Vector2(5f, 30f), UITheme.Saffron);
             var toolName = AddText(CreateRect("ToolName", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -10f), new Vector2(350f, 40f)),
                 "Outil", 30, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
             toolName.resizeTextForBestFit = true;
@@ -1456,7 +1535,7 @@ namespace RugWash.Editor
             var toolStatus = AddText(CreateRect("ToolStatus", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -50f), new Vector2(350f, 30f)),
                 string.Empty, 22, TextAnchor.MiddleLeft, Muted);
             var resourceFill = CreateFillBar("ResourceBar", toolPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(344f, 14f),
-                sprites.Rounded, sprites.White, new Color(0f, 0f, 0f, 0.5f), new Color(0.35f, 0.65f, 1f), out var resourceBar);
+                sprites.Rounded, sprites.White, UITheme.Track, new Color(0.35f, 0.68f, 1f), out var resourceBar);
 
             built.Hud = hudRoot.gameObject.AddComponent<HUDController>();
             Wire(built.Hud, ("root", hudGroup), ("toolNameLabel", toolName), ("toolStatusLabel", toolStatus), ("resourceFill", resourceFill),
@@ -1483,7 +1562,7 @@ namespace RugWash.Editor
                 var element = slot.gameObject.AddComponent<LayoutElement>();
                 element.preferredWidth = 240f;
                 element.preferredHeight = 60f;
-                slotImages.Add(AddImage(slot, sprites.Rounded, PanelColor));
+                slotImages.Add(Card(slot, UITheme.SlotNormal));
                 // Icône 3D de l'objet porté (grande mise à jour), à gauche du nom.
                 var slotIcon = CreateRect("Icon", slot, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(4f, 0f), new Vector2(54f, 54f))
                     .gameObject.AddComponent<RawImage>();
@@ -1505,9 +1584,10 @@ namespace RugWash.Editor
             // ---- Inspection (F)
             var inspectionRoot = Stretch("Inspection", canvas.transform);
             var inspectionPanel = Stretch("Panel", inspectionRoot);
-            AddImage(inspectionPanel, sprites.White, new Color(0f, 0f, 0f, 0.6f), sliced: false, raycast: true);
+            AddImage(inspectionPanel, sprites.White, UITheme.Backdrop, sliced: false, raycast: true);
             var window = CreateRect("Window", inspectionPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1500f, 820f));
-            AddImage(window, sprites.Rounded, new Color(0.08f, 0.1f, 0.12f, 0.96f));
+            Card(window, UITheme.Window);
+            DropShadow(window);
             var title = AddText(CreateRect("Title", window, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(1400f, 50f)),
                 "Inspection", 38, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
             var beforeImage = BuildSnapshotColumn(window, "Before", "Avant", new Vector2(-370f, 40f), sprites, out var beforeAspect);
@@ -1528,9 +1608,9 @@ namespace RugWash.Editor
             // ---- Pause (Échap)
             var pauseRoot = Stretch("PauseMenu", canvas.transform);
             var pausePanel = Stretch("Panel", pauseRoot);
-            AddImage(pausePanel, sprites.White, new Color(0.02f, 0.03f, 0.04f, 0.7f), sliced: false, raycast: true);
+            AddImage(pausePanel, sprites.White, UITheme.Backdrop, sliced: false, raycast: true);
             var box = CreateRect("Box", pausePanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560f, 560f));
-            AddImage(box, sprites.Rounded, new Color(0.08f, 0.1f, 0.12f, 0.97f));
+            Card(box, UITheme.Window);
             AddVerticalLayout(box.gameObject, 16, new RectOffset(48, 48, 40, 40), TextAnchor.UpperCenter);
             var fitter = box.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -1651,7 +1731,7 @@ namespace RugWash.Editor
             {
                 var row = CreateRect($"Player{i + 1}", listRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1100f, 88f));
                 row.gameObject.AddComponent<LayoutElement>().preferredHeight = 88f;
-                var background = AddImage(row, sprites.Rounded, new Color(0.12f, 0.15f, 0.18f, 0.95f));
+                var background = AddImage(row, sprites.Rounded, UITheme.Row);
                 var name = AddText(CreateRect("Name", row, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(20f, 12f), new Vector2(560f, 40f)),
                     string.Empty, 24, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
                 name.resizeTextForBestFit = true;
@@ -1671,7 +1751,7 @@ namespace RugWash.Editor
             var open = CreateButton("OpenClose", window, "Fermer la partie", sprites.Rounded, new Vector2(320f, 60f));
             PlaceBottomLeft((RectTransform)open.transform, new Vector2(40f, 90f));
             var message = AddText(CreateRect("Message", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(160f, 100f), new Vector2(720f, 50f)),
-                string.Empty, 20, TextAnchor.MiddleLeft, new Color(0.55f, 0.95f, 0.6f));
+                string.Empty, 20, TextAnchor.MiddleLeft, UITheme.Success);
             message.horizontalOverflow = HorizontalWrapMode.Wrap;
             AddText(CreateRect("Note", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 30f), new Vector2(1100f, 44f)),
                 "Chat vocal : touche V pour parler (Paramètres → Chat vocal). Couper une voix n'agit que chez vous. Entrée : chat écrit.",
@@ -1708,7 +1788,7 @@ namespace RugWash.Editor
                 string.Empty, 26, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
             var track = CreateRect("Progress", window, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -146f), new Vector2(1220f, 22f));
             AddImage(track, sprites.Rounded, new Color(1f, 1f, 1f, 0.1f));
-            var fill = AddImage(Stretch("Fill", track, 3f), sprites.White, new Color(0.33f, 0.78f, 0.92f, 1f), sliced: false);
+            var fill = AddImage(Stretch("Fill", track, 3f), sprites.White, UITheme.PetrolBright, sliced: false);
             fill.type = Image.Type.Filled;
             fill.fillMethod = Image.FillMethod.Horizontal;
             fill.fillAmount = 0f;
@@ -1730,7 +1810,7 @@ namespace RugWash.Editor
             var note = AddText(CreateRect("Note", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 84f), new Vector2(1220f, 66f)),
                 string.Empty, 19, TextAnchor.MiddleLeft, Muted);
             var message = AddText(CreateRect("Message", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 30f), new Vector2(1220f, 44f)),
-                string.Empty, 22, TextAnchor.MiddleCenter, new Color(0.55f, 0.95f, 0.6f));
+                string.Empty, 22, TextAnchor.MiddleCenter, UITheme.Success);
             var ui = window.parent.parent.gameObject.AddComponent<WashingMachineUI>();
             Wire(ui, ("panel", panel), ("statusLabel", status), ("progressFill", fill), ("collectButton", collect),
                 ("collectLabel", collect.GetComponentInChildren<Text>()), ("abandonButton", abandon), ("noteLabel", note), ("messageLabel", message),
@@ -1765,7 +1845,7 @@ namespace RugWash.Editor
                 string.Empty, 20, TextAnchor.MiddleCenter, Muted);
             note.horizontalOverflow = HorizontalWrapMode.Wrap;
             var message = AddText(CreateRect("Message", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 34f), new Vector2(1360f, 50f)),
-                string.Empty, 22, TextAnchor.MiddleCenter, new Color(0.55f, 0.95f, 0.6f));
+                string.Empty, 22, TextAnchor.MiddleCenter, UITheme.Success);
             message.horizontalOverflow = HorizontalWrapMode.Wrap;
             var ui = window.parent.parent.gameObject.AddComponent<LockerUI>();
             Wire(ui, ("panel", panel), ("storedRoot", list), ("storedTemplate", template), ("storedHeader", storedHeader), ("noteLabel", note),
@@ -1817,8 +1897,9 @@ namespace RugWash.Editor
         static RugDexUI BuildRugDexUI(Canvas canvas, UISprites sprites)
         {
             var window = BuildWindow(canvas.transform, "RugDex", new Vector2(1500f, 900f), sprites, "RugDex", out var panel, out var close);
-            var completion = AddText(CreateRect("Completion", window, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -28f), new Vector2(560f, 40f)),
-                string.Empty, 24, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+            // V0.3.0 : titre à gauche, informations de l'en-tête à droite (avant le bouton Fermer).
+            var completion = AddText(CreateRect("Completion", window, Vector2.one, Vector2.one, Vector2.one, new Vector2(-290f, -29f), new Vector2(560f, 40f)),
+                string.Empty, 22, TextAnchor.MiddleRight, UITheme.Money, FontStyle.Bold);
 
             var cards = CreateScrollList(window, "Cards", new Vector2(-370f, -100f), new Vector2(680f, 770f), sprites);
             var gridLayout = cards.gameObject.AddComponent<GridLayoutGroup>();
@@ -1833,13 +1914,13 @@ namespace RugWash.Editor
             var focus = CreateRect("Focus", card, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(12f, 12f));
             var focusImage = AddImage(focus, sprites.Rounded, Color.white);
             // Le fond de la carte est un enfant (et non la carte elle-même) pour être dessiné par-dessus le liseré.
-            var frame = AddImage(Stretch("Frame", card), sprites.Rounded, new Color(0.12f, 0.15f, 0.18f, 0.95f), raycast: true);
+            var frame = AddImage(Stretch("Frame", card), sprites.Rounded, UITheme.Row, raycast: true);
             var button = card.gameObject.AddComponent<Button>();
             button.targetGraphic = focusImage;
             var cardColors = button.colors;
             cardColors.normalColor = new Color(1f, 1f, 1f, 0f);
             cardColors.highlightedColor = new Color(0.33f, 0.78f, 0.92f, 0.7f);
-            cardColors.pressedColor = new Color(0.33f, 0.78f, 0.92f, 1f);
+            cardColors.pressedColor = UITheme.PetrolBright;
             cardColors.selectedColor = FocusColor;
             cardColors.disabledColor = new Color(1f, 1f, 1f, 0f);
             cardColors.fadeDuration = 0.05f;
@@ -1886,11 +1967,16 @@ namespace RugWash.Editor
         {
             var root = Stretch(name, canvas);
             var panelRect = Stretch("Panel", root);
-            AddImage(panelRect, sprites.White, new Color(0f, 0f, 0f, 0.62f), sliced: false, raycast: true);
+            AddImage(panelRect, sprites.White, UITheme.Backdrop, sliced: false, raycast: true);
             var window = CreateRect("Window", panelRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size);
-            AddImage(window, sprites.Rounded, new Color(0.08f, 0.1f, 0.12f, 0.97f));
-            AddText(CreateRect("Title", window, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(size.x - 80f, 54f)),
-                title, 38, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
+            // V0.3.0 : fenêtre de la charte — ombre portée, contour fin, titre à gauche souligné d'une barre safran, filet sous l'en-tête.
+            Card(window, UITheme.Window);
+            DropShadow(window);
+            AccentBar(window, new Vector2(0f, 1f), new Vector2(28f, -49f), new Vector2(6f, 34f), UITheme.Saffron);
+            AddText(CreateRect("Title", window, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(48f, -22f), new Vector2(size.x - 340f, 54f)),
+                title, 36, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
+            var separator = CreateRect("HeaderLine", window, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -80f), new Vector2(-48f, 2f));
+            AddImage(separator, sprites.White, UITheme.Outline, sliced: false);
             closeButton = CreateButton("Close", window, "Fermer (Échap)", sprites.Rounded, new Vector2(240f, 54f));
             var closeRect = (RectTransform)closeButton.transform;
             closeRect.anchorMin = closeRect.anchorMax = new Vector2(1f, 1f);
@@ -1906,7 +1992,7 @@ namespace RugWash.Editor
             bool withIcon = false, bool fitHeight = false)
         {
             var row = CreateRect("RowTemplate", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(width, height));
-            var background = AddImage(row, sprites.Rounded, new Color(0.12f, 0.15f, 0.18f, 0.95f));
+            var background = Card(row, UITheme.Row);
             var element = row.gameObject.AddComponent<LayoutElement>();
             element.preferredHeight = height;
             element.minHeight = height;
@@ -1920,7 +2006,7 @@ namespace RugWash.Editor
             // Hauteur bornée : un titre long rétrécit au lieu de passer à la ligne par-dessus les détails.
             title.verticalOverflow = VerticalWrapMode.Truncate;
             var details = AddText(CreateRect("Details", row, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -40f), new Vector2(width - 260f, height - 44f)),
-                "Détails", 18, TextAnchor.UpperLeft, new Color(0.82f, 0.85f, 0.88f));
+                "Détails", 18, TextAnchor.UpperLeft, UITheme.TextSecondary);
             var status = AddText(CreateRect("Status", row, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-200f, -8f), new Vector2(statusWidth, 32f)),
                 "Statut", 21, TextAnchor.MiddleRight, Color.white, FontStyle.Bold);
             status.resizeTextForBestFit = true;
@@ -1953,8 +2039,8 @@ namespace RugWash.Editor
         {
             // ---- Tableau des commandes
             var boardWindow = BuildWindow(canvas.transform, "OrderBoard", new Vector2(1320f, 960f), sprites, "Commandes", out var boardPanel, out var boardClose);
-            var header = AddText(CreateRect("Header", boardWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -14f), new Vector2(500f, 70f)),
-                string.Empty, 20, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+            var header = AddText(CreateRect("Header", boardWindow, Vector2.one, Vector2.one, Vector2.one, new Vector2(-290f, -14f), new Vector2(560f, 66f)),
+                string.Empty, 20, TextAnchor.MiddleRight, UITheme.Money, FontStyle.Bold);
             header.resizeTextForBestFit = true;
             header.resizeTextMinSize = 12;
             header.resizeTextMaxSize = 20;
@@ -1963,7 +2049,7 @@ namespace RugWash.Editor
             AddVerticalLayout(list.gameObject, 8, new RectOffset(0, 0, 0, 0), TextAnchor.UpperCenter);
             var boardRow = BuildRowTemplate(list, sprites, 1260f, 98f, 380f);
             var active = CreateRect("Active", boardWindow, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f), new Vector2(1260f, 150f));
-            AddImage(active, sprites.Rounded, new Color(0.1f, 0.26f, 0.32f, 0.95f));
+            AddImage(active, sprites.Rounded, UITheme.RowActive);
             var activeLabel = AddText(CreateRect("Label", active, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(20f, 0f), new Vector2(520f, 140f)),
                 string.Empty, 21, TextAnchor.MiddleLeft, Color.white);
             // Zones de lavage (grande mise à jour) : visible avec deux commandes en cours.
@@ -1974,7 +2060,7 @@ namespace RugWash.Editor
             var abandon = CreateButton("Abandon", active, "Abandonner", sprites.Rounded, new Vector2(220f, 60f));
             PlaceRight((RectTransform)abandon.transform, new Vector2(-20f, 0f));
             var message = AddText(CreateRect("Message", boardWindow, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(1200f, 40f)),
-                string.Empty, 22, TextAnchor.MiddleCenter, new Color(1f, 0.75f, 0.45f));
+                string.Empty, 22, TextAnchor.MiddleCenter, UITheme.Warning);
             built.Board = boardWindow.parent.parent.gameObject.AddComponent<OrderBoardUI>();
             Wire(built.Board, ("panel", boardPanel), ("headerLabel", header), ("listRoot", list), ("rowTemplate", boardRow), ("activeSection", active.gameObject),
                 ("activeLabel", activeLabel), ("deliverButton", deliver), ("abandonButton", abandon), ("messageLabel", message), ("closeButton", boardClose),
@@ -1995,14 +2081,14 @@ namespace RugWash.Editor
                 rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 1f);
                 rect.anchoredPosition = new Vector2(x, -86f);
             }
-            var balance = AddText(CreateRect("Balance", shopWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -28f), new Vector2(500f, 40f)),
-                string.Empty, 24, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+            var balance = AddText(CreateRect("Balance", shopWindow, Vector2.one, Vector2.one, Vector2.one, new Vector2(-290f, -29f), new Vector2(500f, 40f)),
+                string.Empty, 24, TextAnchor.MiddleRight, UITheme.Money, FontStyle.Bold);
             // Liste défilante : le catalogue (outils à acheter, améliorations, détergent) dépasse la hauteur de la fenêtre.
             // Grande mise à jour : une colonne pleine largeur, chaque ligne à la hauteur de son texte (plus de texte qui déborde),
             // icône 3D pour les outils et leurs améliorations.
             var grid = CreateScrollList(shopWindow, "Grid", new Vector2(0f, -150f), new Vector2(1440f, 700f), sprites);
             AddVerticalLayout(grid.gameObject, 8, new RectOffset(0, 0, 0, 0), TextAnchor.UpperCenter);
-            var shopRow = BuildRowTemplate(grid, sprites, 1440f, 96f, 220f, withIcon: true, fitHeight: true);
+            var shopRow = BuildRowTemplate(grid, sprites, 1440f, 96f, 300f, withIcon: true, fitHeight: true);
             var shopMessage = AddText(CreateRect("Message", shopWindow, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(1300f, 44f)),
                 string.Empty, 24, TextAnchor.MiddleCenter, Color.white);
             built.Shop = shopWindow.parent.parent.gameObject.AddComponent<ShopUI>();
@@ -2014,7 +2100,7 @@ namespace RugWash.Editor
             var resultsWindow = BuildWindow(canvas.transform, "Results", new Vector2(1600f, 940f), sprites, "Résultats de la commande", out var resultsPanel, out var resultsClose);
             resultsClose.gameObject.SetActive(false);
             var orderTitle = AddText(CreateRect("Order", resultsWindow, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(1400f, 40f)),
-                string.Empty, 26, TextAnchor.MiddleCenter, new Color(0.82f, 0.85f, 0.88f));
+                string.Empty, 26, TextAnchor.MiddleCenter, UITheme.TextSecondary);
             var grade = AddText(CreateRect("Grade", resultsWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(40f, -130f), new Vector2(560f, 150f)),
                 "A", 120, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
             var score = AddText(CreateRect("Score", resultsWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(40f, -285f), new Vector2(560f, 36f)),
@@ -2022,7 +2108,7 @@ namespace RugWash.Editor
             var lines = AddText(CreateRect("Lines", resultsWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(50f, -340f), new Vector2(560f, 230f)),
                 string.Empty, 22, TextAnchor.UpperLeft, Color.white);
             var reward = AddText(CreateRect("Reward", resultsWindow, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(50f, -590f), new Vector2(560f, 110f)),
-                string.Empty, 26, TextAnchor.UpperLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+                string.Empty, 26, TextAnchor.UpperLeft, UITheme.Money, FontStyle.Bold);
             var before = BuildSnapshotColumn(resultsWindow, "Before", "Avant", new Vector2(300f, 140f), sprites, out var beforeAspect);
             var after = BuildSnapshotColumn(resultsWindow, "After", "Après", new Vector2(300f, -230f), sprites, out var afterAspect);
             ShrinkColumn(before, after);
@@ -2049,7 +2135,7 @@ namespace RugWash.Editor
         {
             var window = BuildWindow(canvas.transform, "Computer", new Vector2(1180f, 760f), sprites, "Ordinateur de l'atelier", out var panel, out var close);
             AddText(CreateRect("Hint", window, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -80f), new Vector2(1000f, 34f)),
-                "Choisissez une application", 22, TextAnchor.MiddleCenter, new Color(0.75f, 0.8f, 0.85f));
+                "Choisissez une application", 22, TextAnchor.MiddleCenter, UITheme.TextMuted);
             var desktop = CreateRect("Desktop", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 34f), new Vector2(1100f, 600f));
             AddImage(desktop, sprites.Rounded, new Color(0.06f, 0.16f, 0.24f, 0.95f));
 
@@ -2098,7 +2184,7 @@ namespace RugWash.Editor
             titleRect.anchoredPosition = new Vector2(0f, 120f);
             titleRect.sizeDelta = new Vector2(-24f, 50f);
             status = AddText(CreateRect("Status", rect, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 18f), new Vector2(-32f, 96f)),
-                string.Empty, 22, TextAnchor.UpperCenter, new Color(0.88f, 0.9f, 0.92f));
+                string.Empty, 22, TextAnchor.UpperCenter, UITheme.TextSecondary);
             icon = CreateRect("Icon", rect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(220f, 220f));
             return button;
         }
@@ -2210,10 +2296,11 @@ namespace RugWash.Editor
             ((RectTransform)lobbyList.parent.parent).anchoredPosition = new Vector2(0f, -240f);
             AddVerticalLayout(lobbyList.gameObject, 6, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft);
             var lobbyRow = BuildRowTemplate(lobbyList, sprites, 740f, 78f, 110f);
-            var members = Label(steam, string.Empty, new Vector2(0f, -490f), new Vector2(760f, 170f), 20, Color.white);
-            var invite = PlaceButton("Invite", steam, "Inviter des amis", new Vector2(0f, -672f), new Vector2(245f, 58f), sprites);
-            var start = PlaceButton("Start", steam, "Lancer la partie", new Vector2(257f, -672f), new Vector2(245f, 58f), sprites);
-            var leave = PlaceButton("LeaveLobby", steam, "Quitter le salon", new Vector2(514f, -672f), new Vector2(246f, 58f), sprites);
+            var members = Label(steam, string.Empty, new Vector2(0f, -490f), new Vector2(760f, 118f), 20, Color.white);
+            // V0.3.0 : boutons du salon remontés, la ligne de sauvegarde du bas ne les recouvre plus.
+            var invite = PlaceButton("Invite", steam, "Inviter des amis", new Vector2(0f, -620f), new Vector2(245f, 58f), sprites);
+            var start = PlaceButton("Start", steam, "Lancer la partie", new Vector2(257f, -620f), new Vector2(245f, 58f), sprites);
+            var leave = PlaceButton("LeaveLobby", steam, "Quitter le salon", new Vector2(514f, -620f), new Vector2(246f, 58f), sprites);
 
             // ---- Réseau local
             var local = CreateRect("Local", window, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(860f, -96f), new Vector2(600f, 760f));
@@ -2238,7 +2325,7 @@ namespace RugWash.Editor
 
             // ---- État
             var message = AddText(CreateRect("Message", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-150f, 28f), new Vector2(1100f, 56f)),
-                string.Empty, 21, TextAnchor.MiddleCenter, new Color(0.55f, 0.95f, 0.6f));
+                string.Empty, 21, TextAnchor.MiddleCenter, UITheme.Success);
             message.horizontalOverflow = HorizontalWrapMode.Wrap;
             var reconnect = CreateButton("Reconnect", window, "Se reconnecter", sprites.Rounded, new Vector2(260f, 56f));
             var reconnectRect = (RectTransform)reconnect.transform;
@@ -2246,20 +2333,20 @@ namespace RugWash.Editor
             reconnectRect.anchoredPosition = new Vector2(-40f, 28f);
 
             // ---- Emplacement de sauvegarde multijoueur (jamais un emplacement solo)
-            var slotLabel = AddText(CreateRect("SlotLabel", window, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(40f, 104f), new Vector2(1060f, 56f)),
-                "Sauvegarde : …", 20, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f));
+            var slotLabel = AddText(CreateRect("SlotLabel", window, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(40f, 88f), new Vector2(1060f, 50f)),
+                "Sauvegarde : …", 20, TextAnchor.MiddleLeft, UITheme.Money);
             // V0.2.5 : la ligne explique aussi qu'en rejoignant, on joue sur la sauvegarde de l'hôte.
             slotLabel.resizeTextForBestFit = true;
             slotLabel.resizeTextMinSize = 13;
             slotLabel.resizeTextMaxSize = 20;
             slotLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
-            slotLabel.resizeTextForBestFit = true;
-            slotLabel.resizeTextMinSize = 14;
-            slotLabel.resizeTextMaxSize = 20;
+            // V0.3.0 : le texte rétrécit dans sa zone (Inter est plus large qu'Arial) au lieu de déborder sur les boutons du salon.
+            slotLabel.verticalOverflow = VerticalWrapMode.Truncate;
+            slotLabel.resizeTextMinSize = 12;
             var slotButton = CreateButton("Slot", window, "Changer d'emplacement", sprites.Rounded, new Vector2(320f, 56f));
             var slotRect = (RectTransform)slotButton.transform;
             slotRect.anchorMin = slotRect.anchorMax = slotRect.pivot = new Vector2(1f, 0f);
-            slotRect.anchoredPosition = new Vector2(-40f, 104f);
+            slotRect.anchoredPosition = new Vector2(-40f, 88f);
 
             var ui = window.parent.parent.gameObject.AddComponent<MultiplayerMenuUI>();
             Wire(ui, ("panel", panel), ("content", networkContent), ("steamStatusLabel", status), ("createFriendsButton", createFriends),
@@ -2284,7 +2371,7 @@ namespace RugWash.Editor
             var window = BuildWindow(canvas.transform, "SaveSlots", new Vector2(1380f, 820f), sprites, "Parties", out var panel, out var close);
             var title = window.Find("Title").GetComponent<Text>();
             var profile = AddText(CreateRect("Profile", window, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -84f), new Vector2(1300f, 34f)),
-                "Niveau 1", 22, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+                "Niveau 1", 22, TextAnchor.MiddleCenter, UITheme.Money, FontStyle.Bold);
             var list = CreateRect("Slots", window, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -132f), new Vector2(1300f, 480f));
             AddVerticalLayout(list.gameObject, 14, new RectOffset(0, 0, 0, 0), TextAnchor.UpperCenter);
             var rows = new List<ListRowView>();
@@ -2315,7 +2402,7 @@ namespace RugWash.Editor
                 erases.Add(erase);
             }
             var message = AddText(CreateRect("Message", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 28f), new Vector2(1280f, 110f)),
-                string.Empty, 20, TextAnchor.MiddleCenter, new Color(0.8f, 0.85f, 0.9f));
+                string.Empty, 20, TextAnchor.MiddleCenter, UITheme.TextSecondary);
             message.horizontalOverflow = HorizontalWrapMode.Wrap;
 
             var confirm = Stretch("Confirm", window);
@@ -2437,13 +2524,13 @@ namespace RugWash.Editor
 
             var template = CreateRect("RebindTemplate", list, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1240f, 54f));
             template.gameObject.AddComponent<LayoutElement>().preferredHeight = 54f;
-            AddImage(template, sprites.Rounded, new Color(0.12f, 0.15f, 0.18f, 0.95f));
+            AddImage(template, sprites.Rounded, UITheme.Row);
             var actionLabel = AddText(CreateRect("Action", template, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(16f, 0f), new Vector2(300f, 44f)),
                 "Action", 21, TextAnchor.MiddleLeft, Color.white);
             Text BindingText(string name, float x, float width)
             {
                 var text = AddText(CreateRect(name, template, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(x, 0f), new Vector2(width, 44f)),
-                    "—", 21, TextAnchor.MiddleLeft, new Color(1f, 0.9f, 0.55f), FontStyle.Bold);
+                    "—", 21, TextAnchor.MiddleLeft, UITheme.Money, FontStyle.Bold);
                 text.resizeTextForBestFit = true;
                 text.resizeTextMinSize = 12;
                 text.resizeTextMaxSize = 21;
@@ -2473,7 +2560,7 @@ namespace RugWash.Editor
             resetRect.anchoredPosition = new Vector2(0f, 76f);
 
             var message = AddText(CreateRect("Message", window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(1200f, 40f)),
-                string.Empty, 22, TextAnchor.MiddleCenter, new Color(0.55f, 0.95f, 0.6f));
+                string.Empty, 22, TextAnchor.MiddleCenter, UITheme.Success);
 
             var ui = window.parent.parent.gameObject.AddComponent<SettingsUI>();
             Wire(ui, ("musicSlider", musicSlider), ("musicValue", musicValue));

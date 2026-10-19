@@ -14,12 +14,12 @@ namespace RugWash.UI
     [DisallowMultipleComponent]
     public sealed class LockerUI : MonoBehaviour, IModalPanel
     {
-        static readonly Color RowCarried = new Color(0.1f, 0.22f, 0.26f, 0.95f);
-        static readonly Color RowEmpty = new Color(0.12f, 0.15f, 0.18f, 0.95f);
-        static readonly Color RowStored = new Color(0.14f, 0.16f, 0.2f, 0.95f);
-        static readonly Color Ok = new Color(0.55f, 0.95f, 0.6f);
-        static readonly Color Warn = new Color(1f, 0.6f, 0.45f);
-        static readonly Color Muted = new Color(0.7f, 0.74f, 0.78f);
+        static readonly Color RowCarried = UITheme.RowActive;
+        static readonly Color RowEmpty = UITheme.Row;
+        static readonly Color RowStored = UITheme.Row;
+        static readonly Color Ok = UITheme.Success;
+        static readonly Color Warn = UITheme.Danger;
+        static readonly Color Muted = UITheme.TextSecondary;
 
         [SerializeField] GameObject panel;
         [SerializeField] List<ListRowView> carriedRows = new List<ListRowView>();

@@ -16,11 +16,11 @@ namespace RugWash.UI
     [DisallowMultipleComponent]
     public sealed class WashingMachineUI : MonoBehaviour, IModalPanel
     {
-        static readonly Color RowReady = new Color(0.1f, 0.22f, 0.26f, 0.95f);
-        static readonly Color RowIdle = new Color(0.12f, 0.15f, 0.18f, 0.95f);
-        static readonly Color Ok = new Color(0.55f, 0.95f, 0.6f);
-        static readonly Color Warn = new Color(1f, 0.7f, 0.4f);
-        static readonly Color Muted = new Color(0.7f, 0.74f, 0.78f);
+        static readonly Color RowReady = UITheme.RowActive;
+        static readonly Color RowIdle = UITheme.Row;
+        static readonly Color Ok = UITheme.Success;
+        static readonly Color Warn = UITheme.Warning;
+        static readonly Color Muted = UITheme.TextSecondary;
 
         [SerializeField] GameObject panel;
         [SerializeField] Text statusLabel;

@@ -40,6 +40,28 @@ MonoBehaviour:
   maxNits:
     m_OverrideState: 1
     m_Value: 1000
+--- !u!114 &-1206841379637334930
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 70afe9e12c7a7ed47911bb608a23a8ff, type: 3}
+  m_Name: SplitToning
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.SplitToning
+  active: 1
+  shadows:
+    m_OverrideState: 1
+    m_Value: {r: 0.42, g: 0.5, b: 0.56, a: 1}
+  highlights:
+    m_OverrideState: 1
+    m_Value: {r: 0.58, g: 0.52, b: 0.44, a: 1}
+  balance:
+    m_OverrideState: 1
+    m_Value: 10
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -58,6 +80,7 @@ MonoBehaviour:
   - {fileID: 8435705228085984184}
   - {fileID: 5409323076331221791}
   - {fileID: 6199498993654603059}
+  - {fileID: -1206841379637334930}
 --- !u!114 &4099565509429893247
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -79,10 +102,10 @@ MonoBehaviour:
     m_Value: 1
   intensity:
     m_OverrideState: 1
-    m_Value: 0.4
+    m_Value: 0.35
   scatter:
     m_OverrideState: 1
-    m_Value: 0.65
+    m_Value: 0.6
   clamp:
     m_OverrideState: 1
     m_Value: 65472
@@ -129,10 +152,10 @@ MonoBehaviour:
     m_Value: {x: 0.5, y: 0.5}
   intensity:
     m_OverrideState: 1
-    m_Value: 0.22
+    m_Value: 0.24
   smoothness:
     m_OverrideState: 1
-    m_Value: 0.45
+    m_Value: 0.5
   rounded:
     m_OverrideState: 1
     m_Value: 0
@@ -151,7 +174,7 @@ MonoBehaviour:
   active: 1
   temperature:
     m_OverrideState: 1
-    m_Value: 6
+    m_Value: 4
   tint:
     m_OverrideState: 1
     m_Value: 0
@@ -170,10 +193,10 @@ MonoBehaviour:
   active: 1
   postExposure:
     m_OverrideState: 1
-    m_Value: 0.3
+    m_Value: 0.45
   contrast:
     m_OverrideState: 1
-    m_Value: 12
+    m_Value: 16
   colorFilter:
     m_OverrideState: 1
     m_Value: {r: 1, g: 1, b: 1, a: 1}
@@ -182,4 +205,4 @@ MonoBehaviour:
     m_Value: 0
   saturation:
     m_OverrideState: 1
-    m_Value: 8
+    m_Value: 6

@@ -147,40 +147,41 @@ namespace RugWash.Editor
             if (content.Pranks.UpgradeDefaults()) EditorUtility.SetDirty(content.Pranks);
 
             EnsureMaterials(content);
+            ConfigureRugTextures();
             content.Oriental = EnsureRug(OrientalRugPath, "oriental", "Tapis oriental à médaillon", RugPileType.Oriental,
-                new Vector2(3f, 2f), 0.014f, 64, RugWashTextureGenerator.OrientalAlbedo, RugWashTextureGenerator.FiberShortNormal,
-                fiberTiles: 7f, fiberStrength: 0.9f, fringe: true, seed: 11,
+                new Vector2(3f, 2f), 0.014f, 64, RugArt("Oriental"), RugKnotNormal,
+                fiberTiles: KnotTiles(0.006f), fiberStrength: 1f, fringe: true, seed: 11,
                 new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.9f, 0.6f, 0.3f),
                 new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.55f, 0.85f, 0.25f),
                 new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.3f, 0.85f, 0.35f),
                 new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.16f, 0.9f, 0.14f),
                 new DirtLayer(DirtType.Grease, DirtPattern.Spots, 0.08f, 0.8f, 0.1f));
             content.Classic = EnsureRug(ClassicRugPath, "classic", "Tapis classique à poils courts", RugPileType.ShortPile,
-                new Vector2(2.4f, 1.6f), 0.01f, 64, RugWashTextureGenerator.ClassicAlbedo, RugWashTextureGenerator.FiberShortNormal,
+                new Vector2(2.4f, 1.6f), 0.01f, 64, RugArt("Classic"), RugWashTextureGenerator.FiberShortNormal,
                 fiberTiles: 9f, fiberStrength: 0.7f, fringe: false, seed: 23,
                 new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.7f, 0.4f, 0.3f),
                 new DirtLayer(DirtType.HairDebris, DirtPattern.Blotches, 0.35f, 0.5f, 0.3f),
                 new DirtLayer(DirtType.Soil, DirtPattern.Edges, 0.5f, 0.6f, 0.2f),
                 new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.2f, 0.9f, 0.12f));
             content.Shag = EnsureRug(ShagRugPath, "shag", "Tapis à poils longs", RugPileType.LongPile,
-                new Vector2(2.1f, 1.4f), 0.035f, 64, RugWashTextureGenerator.ShagAlbedo, RugWashTextureGenerator.FiberLongNormal,
-                fiberTiles: 3.5f, fiberStrength: 1.4f, fringe: false, seed: 37,
+                new Vector2(2.1f, 1.4f), 0.035f, 64, RugArt("Shag"), RugArtFolder + "/Rug_Shag_Normal.png",
+                fiberTiles: 2.2f, fiberStrength: 1.3f, fringe: false, seed: 37,
                 new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.9f, 0.55f, 0.25f),
                 new DirtLayer(DirtType.HairDebris, DirtPattern.Uniform, 0.5f, 0.35f, 0.2f),
                 new DirtLayer(DirtType.Mud, DirtPattern.Blotches, 0.25f, 0.8f, 0.3f),
                 new DirtLayer(DirtType.Embedded, DirtPattern.Spots, 0.1f, 0.7f, 0.08f));
 
             content.Luxury = EnsureRug(LuxuryRugPath, "luxury", "Tapis de soie de Hereke", RugPileType.Silk,
-                new Vector2(3.2f, 2.2f), 0.009f, 64, RugWashTextureGenerator.LuxuryAlbedo, RugWashTextureGenerator.FiberShortNormal,
-                fiberTiles: 12f, fiberStrength: 0.45f, fringe: true, seed: 51,
+                new Vector2(3.2f, 2.2f), 0.009f, 64, RugArt("Luxury"), RugKnotNormal,
+                fiberTiles: KnotTiles(0.0035f), fiberStrength: 0.4f, fringe: true, seed: 51,
                 new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.7f, 0.3f, 0.3f),
                 new DirtLayer(DirtType.Drink, DirtPattern.Spots, 0.15f, 0.8f, 0.1f),
                 new DirtLayer(DirtType.Lint, DirtPattern.Blotches, 0.25f, 0.3f, 0.3f));
             EnsureRugMatter(content.Luxury, fragility: 0.85f, sheen: 0.4f, fringeColor: new Color(0.95f, 0.92f, 0.84f));
             // Le plus grand tapis (3,8 × 2,6 m) : il tient sur les deux aires de lavage (4,6 × 3,6 m).
             content.Hall = EnsureRug(HallRugPath, "hall", "Grand tapis de hall", RugPileType.ShortPile,
-                new Vector2(3.8f, 2.6f), 0.012f, 56, RugWashTextureGenerator.ClassicAlbedo, RugWashTextureGenerator.FiberShortNormal,
-                fiberTiles: 8f, fiberStrength: 0.75f, fringe: true, seed: 61,
+                new Vector2(3.8f, 2.6f), 0.012f, 56, RugArt("Hall"), RugKnotNormal,
+                fiberTiles: KnotTiles(0.007f), fiberStrength: 0.9f, fringe: true, seed: 61,
                 new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.8f, 0.45f, 0.3f),
                 new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.6f, 0.75f, 0.25f));
             EnsureRugDescriptions(content);
@@ -737,21 +738,29 @@ namespace RugWash.Editor
             return catalog;
         }
 
+        /// <summary>Taille réelle d'une tuile des textures de sol et d'aire de lavage (m).</summary>
+        const float FloorTileMeters = 3f, WashPadTileMeters = 2.5f;
+        static readonly Vector2 FloorSize = new Vector2(RugWashSceneBuilder.RoomHalfX * 2f, RugWashSceneBuilder.RoomHalfZ * 2f);
+        static readonly Vector2 WorkSurfaceSize = new Vector2(4.6f, 3.6f);
+
         static RugDefinition EnsureSurface(string path, string id, string displayName, SurfaceKind kind, Vector2 size, int cellsPerMeter,
             float drying, float fiberTiles, int seed, params DirtLayer[] dirt)
         {
             var surface = LoadOrCreate<RugDefinition>(path, out bool created);
-            if (!created && surface.patternTexture != null) return surface;
+            // V0.3.0 : aspect (béton réel) réappliqué à chaque génération ; le reste n'est écrit qu'à la création.
+            string alias = kind == SurfaceKind.Floor ? "Floor" : "WashPad";
+            surface.patternTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(RugWashSurfaceLibrary.Albedo(alias));
+            surface.fiberNormal = AssetDatabase.LoadAssetAtPath<Texture2D>(RugWashSurfaceLibrary.Normal(alias));
+            surface.fiberTilesPerMeter = 1f / (kind == SurfaceKind.Floor ? FloorTileMeters : WashPadTileMeters);
+            surface.fiberNormalStrength = 1f;
+            EditorUtility.SetDirty(surface);
+            if (!created) return surface;
             surface.id = id;
             surface.displayName = displayName;
             surface.surfaceKind = kind;
             surface.sizeMeters = size;
             surface.thickness = 0.004f;
             surface.cellsPerMeter = cellsPerMeter;
-            surface.patternTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(RugWashTextureGenerator.ConcreteAlbedo);
-            surface.fiberNormal = AssetDatabase.LoadAssetAtPath<Texture2D>(RugWashTextureGenerator.ConcreteNormal);
-            surface.fiberTilesPerMeter = fiberTiles;
-            surface.fiberNormalStrength = 0.6f;
             surface.hasFringe = false;
             surface.dryingPerSecond = drying;
             surface.dirtSeed = seed;
@@ -760,11 +769,66 @@ namespace RugWash.Editor
             return surface;
         }
 
+        // ------------------------------------------------------------------ Motifs des tapis (V0.3.0)
+
+        /// <summary>Motifs rendus nœud par nœud (Tools/Textures/gen_rugs.py) et normales de fibres associées.</summary>
+        const string RugArtFolder = RugWashPaths.Root + "/Textures/Rugs";
+        const string RugKnotNormal = RugArtFolder + "/Rug_Knot_Normal.png";
+        static string RugArt(string name)
+        {
+            string path = $"{RugArtFolder}/Rug_{name}_Albedo.png";
+            // Secours : ancien motif procédural si le fichier n'a pas été généré.
+            if (System.IO.File.Exists(path)) return path;
+            switch (name)
+            {
+                case "Oriental": return RugWashTextureGenerator.OrientalAlbedo;
+                case "Luxury": return RugWashTextureGenerator.LuxuryAlbedo;
+                case "Shag": return RugWashTextureGenerator.ShagAlbedo;
+                default: return RugWashTextureGenerator.ClassicAlbedo;
+            }
+        }
+
+        /// <summary>Une tuile de normale = 32 nœuds : répétitions par mètre pour une taille de nœud donnée (alignées sur le motif).</summary>
+        static float KnotTiles(float knotMeters) => 1f / (32f * knotMeters);
+
+        static void ConfigureRugTextures()
+        {
+            if (!AssetDatabase.IsValidFolder(RugArtFolder)) return;
+            foreach (string file in System.IO.Directory.GetFiles(RugArtFolder, "*.png"))
+            {
+                string path = file.Replace('\\', '/');
+                if (!(AssetImporter.GetAtPath(path) is TextureImporter importer)) continue;
+                bool normal = path.EndsWith("_Normal.png");
+                var type = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
+                if (importer.textureType == type && importer.maxTextureSize == 2048 && importer.anisoLevel == 8) continue;
+                importer.textureType = type;
+                importer.sRGBTexture = !normal;
+                importer.wrapMode = normal ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
+                importer.mipmapEnabled = true;
+                importer.anisoLevel = 8;
+                importer.maxTextureSize = 2048;
+                importer.npotScale = TextureImporterNPOTScale.None;
+                importer.textureCompression = TextureImporterCompression.CompressedHQ;
+                importer.SaveAndReimport();
+            }
+        }
+
         static RugDefinition EnsureRug(string path, string id, string displayName, RugPileType pile, Vector2 size, float thickness,
             int cellsPerMeter, string albedoPath, string normalPath, float fiberTiles, float fiberStrength, bool fringe, int seed,
             params DirtLayer[] dirt)
         {
             var rug = LoadOrCreate<RugDefinition>(path, out bool created);
+            // V0.3.0 : aspect (motif nœud par nœud, normales des fibres alignées sur les nœuds) réappliqué à chaque génération,
+            // le reste (saleté, taille, réglages de jeu) n'est écrit qu'à la création.
+            var pattern = AssetDatabase.LoadAssetAtPath<Texture2D>(albedoPath);
+            if (pattern != null)
+            {
+                rug.patternTexture = pattern;
+                rug.fiberNormal = AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath);
+                rug.fiberTilesPerMeter = fiberTiles;
+                rug.fiberNormalStrength = fiberStrength;
+                EditorUtility.SetDirty(rug);
+            }
             if (!created && rug.patternTexture != null) return rug;
             rug.id = id;
             rug.displayName = displayName;
@@ -772,7 +836,7 @@ namespace RugWash.Editor
             rug.sizeMeters = size;
             rug.thickness = thickness;
             rug.cellsPerMeter = cellsPerMeter;
-            rug.patternTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(albedoPath);
+            rug.patternTexture = pattern;
             rug.fiberNormal = AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath);
             rug.fiberTilesPerMeter = fiberTiles;
             rug.fiberNormalStrength = fiberStrength;
@@ -798,10 +862,13 @@ namespace RugWash.Editor
             }
             content.Materials["RugSurface"] = rugSurface;
             rugSurface.SetFloat("_ScanResponse", 1f);
-            content.Materials["WorkSurface"] = EnsureSurfaceMaterial("M_WorkSurface", new Color(0.78f, 0.8f, 0.82f), new Vector2(3.2f, 2.5f),
-                drySmoothness: 0.42f, wetSmoothness: 0.78f, wetDarkening: 0.28f, scanResponse: 1f, Tex);
-            content.Materials["FloorSurface"] = EnsureSurfaceMaterial("M_FloorSurface", Color.white, new Vector2(6f, 5f),
-                drySmoothness: 0.2f, wetSmoothness: 0.68f, wetDarkening: 0.3f, scanResponse: 0f, Tex);
+            rugSurface.SetFloat("_FabricSheen", 0.45f);
+            // V0.3.0 : sol et aire de lavage en béton réel (Poly Haven), une tuile = taille réelle de la texture.
+            RugWashSurfaceLibrary.ConfigureImports();
+            content.Materials["WorkSurface"] = EnsureSurfaceMaterial("M_WorkSurface", new Color(0.86f, 0.88f, 0.9f),
+                WorkSurfaceSize / WashPadTileMeters, "WashPad", drySmoothness: 0.42f, wetSmoothness: 0.8f, wetDarkening: 0.3f, scanResponse: 1f, Tex);
+            content.Materials["FloorSurface"] = EnsureSurfaceMaterial("M_FloorSurface", new Color(0.93f, 0.91f, 0.88f),
+                FloorSize / FloorTileMeters, "Floor", drySmoothness: 0.2f, wetSmoothness: 0.7f, wetDarkening: 0.3f, scanResponse: 0f, Tex);
 
             var fringe = EnsureLit("M_RugFringe", new Color(0.9f, 0.86f, 0.75f), 0.15f);
             fringe.SetFloat("_Cull", 0f);
@@ -863,12 +930,17 @@ namespace RugWash.Editor
             content.Materials["StepOrange"] = EnsureLit("M_StepOrange", new Color(0.9f, 0.55f, 0.15f), 0.3f);
             content.Materials["StepCyan"] = EnsureLit("M_StepCyan", new Color(0.2f, 0.7f, 0.8f), 0.3f);
             content.Materials["StepPurple"] = EnsureLit("M_StepPurple", new Color(0.55f, 0.35f, 0.75f), 0.3f);
+            ConfigureRugTextures();
             content.Materials["RugClassic"] = EnsureLit("M_RugClassic_Display", Color.white, 0.08f,
-                Tex(RugWashTextureGenerator.ClassicAlbedo), Tex(RugWashTextureGenerator.FiberShortNormal), tiling: 1f);
+                Tex(RugArt("Classic")), Tex(RugWashTextureGenerator.FiberShortNormal), tiling: 1f);
             content.Materials["RugShag"] = EnsureLit("M_RugShag_Display", Color.white, 0.05f,
-                Tex(RugWashTextureGenerator.ShagAlbedo), Tex(RugWashTextureGenerator.FiberLongNormal), tiling: 1f);
+                Tex(RugArt("Shag")), Tex(RugWashTextureGenerator.FiberLongNormal), tiling: 1f);
             content.Materials["RugOriental"] = EnsureLit("M_RugOriental_Display", Color.white, 0.08f,
-                Tex(RugWashTextureGenerator.OrientalAlbedo), Tex(RugWashTextureGenerator.FiberShortNormal), tiling: 1f);
+                Tex(RugArt("Oriental")), Tex(RugWashTextureGenerator.FiberShortNormal), tiling: 1f);
+            // Matériaux déjà créés : motif mis à jour (V0.3.0).
+            content.Materials["RugClassic"].SetTexture("_BaseMap", Tex(RugArt("Classic")));
+            content.Materials["RugShag"].SetTexture("_BaseMap", Tex(RugArt("Shag")));
+            content.Materials["RugOriental"].SetTexture("_BaseMap", Tex(RugArt("Oriental")));
             foreach (var key in new[] { "RugClassic", "RugShag", "RugOriental" })
             {
                 content.Materials[key].SetFloat("_Cull", 0f);
@@ -905,6 +977,17 @@ namespace RugWash.Editor
             content.Materials["LampPanel"] = EnsureEmissive("M_LampPanel", new Color(1f, 0.95f, 0.85f), 4f);
             content.Materials["Window"] = EnsureEmissive("M_Window", new Color(0.55f, 0.7f, 0.88f), 0.75f);
             content.Materials["ScreenGlow"] = EnsureEmissive("M_ScreenGlow", new Color(0.35f, 0.75f, 0.85f), 1.2f);
+            // V0.3.0 : poutres et structure du plafond peintes en gris acier (au lieu du noir).
+            content.Materials["BeamPaint"] = EnsureLit("M_BeamPaint", new Color(0.36f, 0.39f, 0.42f), 0.45f);
+            content.Materials["Hair"] = EnsureLit("M_Hair", new Color(0.17f, 0.12f, 0.085f), 0.32f);
+            var shaft = EnsureMaterial("M_LightShaft", "RugWash/Light Shaft", out _);
+            shaft.SetColor("_Color", new Color(0.78f, 0.86f, 1f));
+            shaft.SetFloat("_Intensity", 0.14f);
+            shaft.SetFloat("_Falloff", 1.5f);
+            EditorUtility.SetDirty(shaft);
+            content.Materials["LightShaft"] = shaft;
+            // V0.3.0 : palette, surfaces PBR et micro-détails (font foi à chaque génération).
+            RugWashArtDirection.Apply(content);
         }
 
         static Material EnsurePlastic(string name, Color tint, Color rim)
@@ -968,14 +1051,19 @@ namespace RugWash.Editor
         }
 
         /// <summary>Matériau de surface nettoyable (shader du tapis) : valeurs réappliquées à chaque génération.</summary>
-        static Material EnsureSurfaceMaterial(string name, Color color, Vector2 tiling, float drySmoothness, float wetSmoothness,
+        static Material EnsureSurfaceMaterial(string name, Color color, Vector2 tiling, string surface, float drySmoothness, float wetSmoothness,
             float wetDarkening, float scanResponse, System.Func<string, Texture2D> tex)
         {
             var material = EnsureMaterial(name, "RugWash/Rug Surface", out _);
             material.SetTexture("_DirtDetail", tex(RugWashTextureGenerator.DirtDetail));
-            material.SetTexture("_FiberNormal", tex(RugWashTextureGenerator.ConcreteNormal));
-            material.SetTexture("_BaseMap", tex(RugWashTextureGenerator.ConcreteAlbedo));
+            material.SetTexture("_FiberNormal", tex(RugWashSurfaceLibrary.Normal(surface)));
+            material.SetTexture("_BaseMap", tex(RugWashSurfaceLibrary.Albedo(surface)));
             material.SetTextureScale("_BaseMap", tiling);
+            // Masque de la surface (G occlusion, A lissé) : le béton n'a plus un lissé uniforme.
+            material.SetTexture("_SurfaceMask", tex(RugWashSurfaceLibrary.Mask(surface)));
+            material.SetFloat("_MaskSmoothness", 0.85f);
+            material.SetFloat("_MaskOcclusion", 0.7f);
+            material.SetFloat("_FiberNormalStrength", 1f);
             material.SetColor("_BaseColor", color);
             material.SetFloat("_DrySmoothness", drySmoothness);
             material.SetFloat("_WetSmoothness", wetSmoothness);

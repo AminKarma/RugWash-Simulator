@@ -225,18 +225,23 @@ namespace RugWash.Editor
             // Proportions d'un adulte de 1,75 m ; les yeux (point de vue des outils) sont à 1,62 m, comme la caméra du joueur.
             var visuals = new GameObject("Visuals").transform;
             visuals.SetParent(root, false);
+            // V0.3.0 : pièces modélisées dans Blender (Tools/Blender/models_character.py), mêmes pivots que les pièces procédurales.
+            Mesh Model(string key, bool mirror = false) => RugWashModelLibrary.Mesh(meshes, "Character", key, mirror);
+            bool modeled = RugWashModelLibrary.Has("Character", "Avatar_Face");
 
             Transform Leg(string name, float x)
             {
                 var hip = new GameObject(name).transform;
                 hip.SetParent(visuals, false);
                 hip.localPosition = new Vector3(x, 0.9f, 0f);
-                Part("Trouser", hip, meshes.Add("Avatar_Trouser", () => Lathe(new[]
+                Part("Trouser", hip, Model("Avatar_Trouser", x < 0f) ?? meshes.Add("Avatar_Trouser", () => Lathe(new[]
                 {
                     new Vector2(0.062f, -0.84f), new Vector2(0.066f, -0.45f), new Vector2(0.078f, -0.08f), new Vector2(0.07f, 0f),
                 }, 14)), c["Workwear"], Vector3.zero);
-                Part("Boot", hip, meshes.Add("Avatar_Boot", () => RoundedBox(new Vector3(0.12f, 0.11f, 0.26f), 0.035f)), c["Boot"],
+                Part("Boot", hip, Model("Avatar_Boot") ?? meshes.Add("Avatar_Boot", () => RoundedBox(new Vector3(0.12f, 0.11f, 0.26f), 0.035f)), c["Boot"],
                     new Vector3(0f, -0.845f, 0.045f));
+                var sole = Model("Avatar_BootSole");
+                if (sole != null) Part("Boot_Sole", hip, sole, c["Rubber"], new Vector3(0f, -0.845f, 0.045f));
                 return hip;
             }
             var legLeft = Leg("Leg_L", -0.1f);
@@ -244,8 +249,8 @@ namespace RugWash.Editor
 
             Part("Pelvis", visuals, meshes.Add("Avatar_Pelvis", () => RoundedBox(new Vector3(0.34f, 0.17f, 0.22f), 0.06f)), c["Workwear"], new Vector3(0f, 0.93f, 0f));
             Part("Belt", visuals, meshes.Add("Avatar_Belt", () => RoundedBox(new Vector3(0.355f, 0.05f, 0.232f), 0.02f)), c["Rubber"], new Vector3(0f, 1.0f, 0f));
-            Part("Torso", visuals, meshes.Add("Avatar_Torso", () => RoundedBox(new Vector3(0.4f, 0.46f, 0.24f), 0.085f)), c["Shirt"], new Vector3(0f, 1.24f, 0f));
-            Part("Bib_Front", visuals, meshes.Add("Avatar_Bib", () => RoundedBox(new Vector3(0.28f, 0.28f, 0.03f), 0.012f)), c["Workwear"], new Vector3(0f, 1.15f, 0.112f));
+            Part("Torso", visuals, Model("Avatar_Torso") ?? meshes.Add("Avatar_Torso", () => RoundedBox(new Vector3(0.4f, 0.46f, 0.24f), 0.085f)), c["Shirt"], new Vector3(0f, 1.24f, 0f));
+            Part("Bib_Front", visuals, Model("Avatar_BibFront") ?? meshes.Add("Avatar_Bib", () => RoundedBox(new Vector3(0.28f, 0.28f, 0.03f), 0.012f)), c["Workwear"], new Vector3(0f, 1.15f, 0.112f));
             Part("Bib_Back", visuals, meshes.Add("Avatar_Bib", () => RoundedBox(new Vector3(0.28f, 0.28f, 0.03f), 0.012f)), c["Workwear"], new Vector3(0f, 1.15f, -0.112f));
             var strap = meshes.Add("Avatar_Strap", () => RoundedBox(new Vector3(0.045f, 0.2f, 0.02f), 0.008f));
             Part("Strap_FL", visuals, strap, c["Workwear"], new Vector3(-0.1f, 1.36f, 0.115f));
@@ -258,19 +263,30 @@ namespace RugWash.Editor
             var head = new GameObject("Head").transform;
             head.SetParent(visuals, false);
             head.localPosition = new Vector3(0f, 1.55f, 0f);
-            Part("Face", head, meshes.Add("Avatar_Face", () => RoundedBox(new Vector3(0.19f, 0.23f, 0.21f), 0.085f)), c["Skin"], new Vector3(0f, 0.08f, 0f));
-            var ear = meshes.Add("Avatar_Ear", () => RoundedBox(new Vector3(0.028f, 0.055f, 0.04f), 0.012f));
-            Part("Ear_L", head, ear, c["Skin"], new Vector3(-0.1f, 0.08f, 0f));
-            Part("Ear_R", head, ear, c["Skin"], new Vector3(0.1f, 0.08f, 0f));
-            Part("Nose", head, meshes.Add("Avatar_Nose", () => RoundedBox(new Vector3(0.028f, 0.04f, 0.03f), 0.012f)), c["Skin"], new Vector3(0f, 0.07f, 0.108f));
-            var eye = meshes.Add("Avatar_Eye", () => RoundedBox(new Vector3(0.03f, 0.016f, 0.01f), 0.005f));
-            Part("Eye_L", head, eye, c["RobotDark"], new Vector3(-0.042f, 0.1f, 0.104f));
-            Part("Eye_R", head, eye, c["RobotDark"], new Vector3(0.042f, 0.1f, 0.104f));
-            Part("Cap", head, meshes.Add("Avatar_Cap", () => Lathe(new[]
+            Part("Face", head, Model("Avatar_Face") ?? meshes.Add("Avatar_Face", () => RoundedBox(new Vector3(0.19f, 0.23f, 0.21f), 0.085f)), c["Skin"], new Vector3(0f, 0.08f, 0f));
+            if (modeled)
+            {
+                // Le visage modélisé porte oreilles, nez et orbites ; cheveux courts sous la casquette.
+                Part("Hair", head, Model("Avatar_Hair"), c["Hair"], new Vector3(0f, 0.08f, 0f));
+            }
+            else
+            {
+                var ear = meshes.Add("Avatar_Ear", () => RoundedBox(new Vector3(0.028f, 0.055f, 0.04f), 0.012f));
+                Part("Ear_L", head, ear, c["Skin"], new Vector3(-0.1f, 0.08f, 0f));
+                Part("Ear_R", head, ear, c["Skin"], new Vector3(0.1f, 0.08f, 0f));
+                Part("Nose", head, meshes.Add("Avatar_Nose", () => RoundedBox(new Vector3(0.028f, 0.04f, 0.03f), 0.012f)), c["Skin"], new Vector3(0f, 0.07f, 0.108f));
+            }
+            var eye = Model("Avatar_Eye") ?? meshes.Add("Avatar_Eye", () => RoundedBox(new Vector3(0.03f, 0.016f, 0.01f), 0.005f));
+            float eyeX = modeled ? 0.038f : 0.042f, eyeZ = modeled ? 0.094f : 0.104f;
+            Part("Eye_L", head, eye, c["RobotDark"], new Vector3(-eyeX, modeled ? 0.098f : 0.1f, eyeZ));
+            Part("Eye_R", head, eye, c["RobotDark"], new Vector3(eyeX, modeled ? 0.098f : 0.1f, eyeZ));
+            Part("Cap", head, Model("Avatar_Cap") ?? meshes.Add("Avatar_Cap", () => Lathe(new[]
             {
                 new Vector2(0.112f, 0f), new Vector2(0.108f, 0.035f), new Vector2(0.09f, 0.07f), new Vector2(0.05f, 0.092f), new Vector2(0f, 0.098f),
             }, 18, capBottom: false)), c["CapFabric"], new Vector3(0f, 0.13f, 0f));
-            Part("Cap_Visor", head, meshes.Add("Avatar_Visor", () => RoundedBox(new Vector3(0.16f, 0.012f, 0.1f), 0.005f)), c["CapFabric"],
+            var visor = Model("Avatar_Visor");
+            if (visor != null) Part("Cap_Visor", head, visor, c["CapFabric"], new Vector3(0f, 0.13f, 0f));
+            else Part("Cap_Visor", head, meshes.Add("Avatar_Visor", () => RoundedBox(new Vector3(0.16f, 0.012f, 0.1f), 0.005f)), c["CapFabric"],
                 new Vector3(0f, 0.14f, 0.13f), new Vector3(-6f, 0f, 0f));
             var view = new GameObject("View").transform;
             view.SetParent(head, false);
@@ -279,7 +295,10 @@ namespace RugWash.Editor
             // Bras : épaule fixe, segments orientés chaque image (deux segments, coude calculé) ; gant propre à la silhouette.
             var upperMesh = meshes.Add("Avatar_UpperArm", () => Lathe(new[] { new Vector2(0.055f, 0f), new Vector2(0.047f, 0.3f) }, 12));
             var foreMesh = meshes.Add("Avatar_ForeArm", () => Lathe(new[] { new Vector2(0.046f, 0f), new Vector2(0.038f, 0.3f) }, 12));
-            var handMesh = meshes.Add("Avatar_Hand", () => RoundedBox(new Vector3(0.074f, 0.086f, 0.08f), 0.026f));
+            // V0.3.0 : poing ganté modélisé (Blender), comme les gants des outils tenus.
+            var handMesh = RugWashModelLibrary.Mesh(meshes, "Glove", "Fist")
+                           ?? meshes.Add("Avatar_Hand", () => RoundedBox(new Vector3(0.074f, 0.086f, 0.08f), 0.026f));
+            var handMeshLeft = RugWashModelLibrary.Mesh(meshes, "Glove", "Fist", mirrorX: true) ?? handMesh;
             Transform Empty(string name, Transform parent, Vector3 position)
             {
                 var t = new GameObject(name).transform;
@@ -305,7 +324,7 @@ namespace RugWash.Editor
             foreLeft.localPosition = shoulderLeft.localPosition + Vector3.down * 0.3f;
             foreRight.localPosition = shoulderRight.localPosition + Vector3.down * 0.3f;
             foreLeft.localRotation = foreRight.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            Part("Hand", foreLeft, handMesh, c["Glove"], new Vector3(0f, 0f, 0.34f));
+            Part("Hand", foreLeft, handMeshLeft, c["Glove"], new Vector3(0f, 0f, 0.34f));
             var handRight = Part("Hand", foreRight, handMesh, c["Glove"], new Vector3(0f, 0f, 0.34f));
             return new AvatarVisuals
             {

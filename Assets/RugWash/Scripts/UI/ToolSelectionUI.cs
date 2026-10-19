@@ -19,9 +19,9 @@ namespace RugWash.UI
         [SerializeField] List<Text> slotLabels = new List<Text>();
         [Tooltip("Icône 3D de l'objet de chaque emplacement (grande mise à jour).")]
         [SerializeField] List<RawImage> slotIcons = new List<RawImage>();
-        [SerializeField] Color normalColor = new Color(0.08f, 0.1f, 0.12f, 0.72f);
-        [SerializeField] Color activeColor = new Color(0.16f, 0.55f, 0.72f, 0.92f);
-        [SerializeField] Color emptyColor = new Color(0.08f, 0.1f, 0.12f, 0.38f);
+        [SerializeField] Color normalColor = UITheme.SlotNormal;
+        [SerializeField] Color activeColor = UITheme.SlotActive;
+        [SerializeField] Color emptyColor = UITheme.SlotEmpty;
 
         PlayerToolController tools;
         PlayerInventory inventory;
@@ -132,7 +132,7 @@ namespace RugWash.UI
         }
 
         /// <summary>Outil doré (niveau maximal) : nom en or dans la barre.</summary>
-        static readonly Color GoldText = new Color(1f, 0.84f, 0.35f);
+        static readonly Color GoldText = UITheme.Gold;
 
         void RebuildOwnedTools()
         {

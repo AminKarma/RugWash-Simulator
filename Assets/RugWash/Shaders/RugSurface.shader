@@ -33,6 +33,10 @@ Shader "RugWash/Rug Surface"
         _CleanBoost("Éclat des zones propres", Range(0, 0.3)) = 0.08
         _EdgeNoise("Irrégularité des bords", Range(0, 1)) = 0.65
         _ScanResponse("Réponse au scan de saleté", Range(0, 1)) = 1
+        [NoScaleOffset] _SurfaceMask("Masque de surface (G occlusion, A lissé)", 2D) = "white" {}
+        _MaskSmoothness("Lissé lu dans le masque", Range(0, 1)) = 0
+        _MaskOcclusion("Occlusion lue dans le masque", Range(0, 1)) = 0
+        _FabricSheen("Velours (reflet rasant des fibres)", Range(0, 1)) = 0
     }
 
     SubShader
@@ -58,6 +62,9 @@ Shader "RugWash/Rug Surface"
             half _CleanBoost;
             half _EdgeNoise;
             half _ScanResponse;
+            half _MaskSmoothness;
+            half _MaskOcclusion;
+            half _FabricSheen;
         CBUFFER_END
         ENDHLSL
 
@@ -91,6 +98,7 @@ Shader "RugWash/Rug Surface"
             TEXTURE2D(_ControlB);     SAMPLER(sampler_ControlB);
             TEXTURE2D(_ControlC);     SAMPLER(sampler_ControlC);
             TEXTURE2D(_ControlD);     // échantillonné avec sampler_ControlA (mêmes réglages, pas de sampler en plus)
+            TEXTURE2D(_SurfaceMask);  // échantillonné avec sampler_BaseMap (même répétition que le motif)
 
             // Globales du scan (hors CBUFFER matériau : partagées, compatibles SRP Batcher).
             float4 _RugScanParams;      // x intensité 0..1, y rayon de l'onde (m), z largeur du front (m), w temps
@@ -144,7 +152,12 @@ Shader "RugWash/Rug Surface"
                 float2 uv = input.uv;
                 float2 meters = uv * _RugSize.xy;
 
-                half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, TRANSFORM_TEX(uv, _BaseMap)).rgb * _BaseColor.rgb;
+                float2 baseUV = TRANSFORM_TEX(uv, _BaseMap);
+                half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, baseUV).rgb * _BaseColor.rgb;
+                // V0.3.0 : masque de la surface (béton réel : lissé et occlusion variables), neutre pour les tapis.
+                half4 surfaceMask = SAMPLE_TEXTURE2D(_SurfaceMask, sampler_BaseMap, baseUV);
+                half drySmoothness = lerp(_DrySmoothness, surfaceMask.a, _MaskSmoothness);
+                half surfaceOcclusion = lerp(1.0, surfaceMask.g, _MaskOcclusion);
                 half4 a = SAMPLE_TEXTURE2D(_ControlA, sampler_ControlA, uv);
                 half4 b = SAMPLE_TEXTURE2D(_ControlB, sampler_ControlB, uv);
                 half4 cc = SAMPLE_TEXTURE2D(_ControlC, sampler_ControlC, uv);
@@ -213,7 +226,7 @@ Shader "RugWash/Rug Surface"
 
                 // Humidité : assombrit et rend brillant.
                 color *= lerp(1.0, 1.0 - _WetDarkening, moisture);
-                half smoothness = lerp(_DrySmoothness, _WetSmoothness, moisture);
+                half smoothness = lerp(drySmoothness, _WetSmoothness, moisture);
                 smoothness = lerp(smoothness, 0.0, dustMask * 0.8);
                 smoothness = lerp(smoothness, 0.5, looseMask * 0.6);
 
@@ -263,10 +276,16 @@ Shader "RugWash/Rug Surface"
                 surface.specular = half3(0, 0, 0);
                 surface.smoothness = smoothness;
                 surface.normalTS = normalTS;
-                surface.occlusion = lerp(1.0, 0.85 + 0.15 * detail.a, 1.0 - foamMask);
+                surface.occlusion = lerp(1.0, 0.85 + 0.15 * detail.a, 1.0 - foamMask) * surfaceOcclusion;
                 surface.alpha = 1;
 
                 half4 lit = UniversalFragmentPBR(inputData, surface);
+
+                // V0.3.0 : velours des fibres — reflet doux aux angles rasants (laine, soie), éteint par l'eau et la mousse.
+                half facing = saturate(dot(normalWS, inputData.viewDirectionWS));
+                half rim = pow(1.0 - facing, 3.0);
+                half3 sheenLight = max(SampleSH(normalWS), 0.0) + GetMainLight().color * 0.25;
+                lit.rgb += color * sheenLight * rim * _FabricSheen * (1.0 - moisture * 0.7) * (1.0 - foamMask);
 
                 // Scan de saleté : teinte multipliée (le motif reste lisible), plus marquée là où il reste beaucoup de saleté,
                 // hachures animées, contour des zones signalées et front d'onde plus lumineux. Rien sur les cellules propres.

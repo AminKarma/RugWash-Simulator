@@ -25,10 +25,10 @@ MonoBehaviour:
   sizeMeters: {x: 3.8, y: 2.6}
   thickness: 0.012
   cellsPerMeter: 56
-  patternTexture: {fileID: 2800000, guid: 8ad7ae8224fb1274cafaea0bfeb40930, type: 3}
-  fiberNormal: {fileID: 2800000, guid: 55f0ae6f6170958488880e52067ed4b5, type: 3}
-  fiberTilesPerMeter: 8
-  fiberNormalStrength: 0.75
+  patternTexture: {fileID: 2800000, guid: d2fb1978c3601d6449471a77a42d94ac, type: 3}
+  fiberNormal: {fileID: 2800000, guid: 79a21eb3da8eef74ca0ccca2f4dc08bc, type: 3}
+  fiberTilesPerMeter: 4.4642854
+  fiberNormalStrength: 0.9
   hasFringe: 1
   fringeColor: {r: 0.9, g: 0.86, b: 0.75, a: 1}
   dirtSeed: 61

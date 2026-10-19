@@ -310,6 +310,8 @@ namespace RugWash.Editor
 
         public static void Shelves(Transform parent, RugWashContentBuilder.Content c, MeshStore m)
         {
+            // V0.3.0 : deux étagères en acier et bois (Poly Haven, CC0) garnies de vrais produits d'entretien, si les modèles sont là.
+            if (ModelShelves(parent, m)) return;
             var root = Group("Shelves", parent, new Vector3(-HalfX + 0.35f, 0f, -2.6f));
             foreach (var x in new[] { -0.22f, 0.22f })
             foreach (var z in new[] { -0.9f, 0.9f })
@@ -353,13 +355,83 @@ namespace RugWash.Editor
             }
         }
 
+        static readonly string[] ShelfProducts = { "CleanerSpray", "BleachBottle", "Cleaner5L", "CleanerBottle", "GallonBottle", "DrainCleaner" };
+
+        /// <summary>Étagères modélisées (mur gauche, face à la salle) : produits sur les trois tablettes du haut, cartons et caisse en bas.</summary>
+        static bool ModelShelves(Transform parent, MeshStore m)
+        {
+            if (!RugWashModelLibrary.Has("Props/SteelShelves")) return false;
+            var root = Group("Shelves", parent, new Vector3(-HalfX + 0.3f, 0f, -2.6f));
+            var collider = root.gameObject.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 1.07f, 0f);
+            collider.size = new Vector3(0.52f, 2.14f, 2.22f);
+            var random = new System.Random(23);
+            float[] boards = { 0.13f, 0.64f, 1.15f, 1.65f };
+            foreach (float unitZ in new[] { -0.555f, 0.555f })
+            {
+                RugWashModelLibrary.Prop(root, m, "SteelShelves", new Vector3(0f, 0f, unitZ), -90f, 0.1f);
+                for (int level = 0; level < boards.Length; level++)
+                {
+                    float y = boards[level];
+                    if (level == 0)
+                    {
+                        // Bas : carton et caisse.
+                        RugWashModelLibrary.Prop(root, m, unitZ < 0f ? "CardboardBox" : "CrateRed", new Vector3(0f, y, unitZ - 0.2f),
+                            -90f + (float)random.NextDouble() * 8f - 4f);
+                        RugWashModelLibrary.Prop(root, m, "Cleaner5L", new Vector3(0.05f, y, unitZ + 0.3f), -90f + (float)random.NextDouble() * 20f - 10f);
+                        continue;
+                    }
+                    float z = unitZ - 0.46f;
+                    while (z < unitZ + 0.42f)
+                    {
+                        string product = ShelfProducts[random.Next(ShelfProducts.Length)];
+                        float width = product == "Cleaner5L" ? 0.24f : product == "GallonBottle" ? 0.19f : 0.13f;
+                        if (z + width > unitZ + 0.5f) break;
+                        RugWashModelLibrary.Prop(root, m, product, new Vector3(0.04f - (float)random.NextDouble() * 0.06f, y, z + width * 0.5f),
+                            -90f + (float)random.NextDouble() * 30f - 15f);
+                        z += width + 0.02f + (float)random.NextDouble() * 0.05f;
+                    }
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// V0.3.0 : accessoires réels (Poly Haven, CC0) répartis dans l'atelier, hors des allées, des machines, des postes et des
+        /// éléments des paliers d'aménagement. Face avant des modèles vers -Z local : mur gauche -90°, mur droit 90°, mur du
+        /// fond 0°, mur de l'entrée 180°.
+        /// </summary>
+        public static void PolyHavenProps(Transform parent, RugWashContentBuilder.Content c, MeshStore m)
+        {
+            var root = Group("Props", parent, Vector3.zero);
+            void Place(string alias, Vector3 position, float yaw, bool collider = false, float scale = 1f) =>
+                RugWashModelLibrary.Prop(root, m, alias, position, yaw, scale, collider);
+            Place("WetFloorSign", new Vector3(2.75f, 0f, -1.45f), -25f, collider: true);
+            Place("Plant", new Vector3(5.55f, 0f, -4.55f), 20f, collider: true);
+            Place("HoseReel", new Vector3(-HalfX + 0.13f, 0.95f, 3.45f), -90f);
+            Place("Tote", new Vector3(-HalfX + 0.33f, 0f, 0.4f), -90f, collider: true);
+            Place("Broom", new Vector3(-HalfX + 0.18f, 0f, 1.05f), -80f);
+            Place("Dustpan", new Vector3(-HalfX + 0.4f, 0f, 1.2f), -60f);
+            Place("Boots", new Vector3(-0.3f, 0f, HalfZ - 0.2f), 0f);
+            Place("PowerBox", new Vector3(-1.75f, 1.35f, -HalfZ + 0.2f), 180f);
+            Place("SecurityCamera", new Vector3(HalfX - 0.22f, 2.85f, HalfZ - 0.22f), 45f);
+            Place("HandTruck", new Vector3(-HalfX + 0.42f, 0f, -4.5f), -60f, collider: true);
+            Place("CrateYellow", new Vector3(HalfX - 0.32f, 0f, -1.3f), 90f, collider: true);
+            Place("CrateYellow", new Vector3(HalfX - 0.32f, 0.254f, -1.3f), 84f);
+            Place("ToolChest", new Vector3(HalfX - 0.26f, 0f, 3.35f), 90f, collider: true);
+            // Bureau (comptoir de l'ordinateur) : lampe articulée, porte-documents, fournitures.
+            Place("DeskLamp", new Vector3(4.3f - 1.0f, 1.045f, -3.7f + 0.2f), 200f, scale: 0.85f);
+            Place("Clipboard", new Vector3(4.3f + 1.0f, 1.045f, -3.7f - 0.08f), 12f);
+            Place("Stationery", new Vector3(4.3f + 0.05f, 1.045f, -3.7f - 0.12f), 180f);
+        }
+
         // ------------------------------------------------------------------ Structure et détails
 
         public static void Ceiling(Transform parent, RugWashContentBuilder.Content c, MeshStore m)
         {
             var root = Group("CeilingStructure", parent, Vector3.zero);
             foreach (var z in new[] { -3.8f, -0.9f, 1.9f, 4.4f })
-                Prop("Beam", root, Rounded(m, new Vector3(HalfX * 2f, 0.24f, 0.16f), 0.02f), c["DarkMetal"], new Vector3(0f, Height - 0.12f, z));
+                Prop("Beam", root, Rounded(m, new Vector3(HalfX * 2f, 0.24f, 0.16f), 0.02f), c["BeamPaint"], new Vector3(0f, Height - 0.12f, z));
             Prop("Conduit_Back", root, Cyl(m, 0.028f, HalfX * 2f), c["Steel"], new Vector3(0f, Height - 0.35f, HalfZ - 0.08f), new Vector3(0f, 0f, 90f));
             Prop("Conduit_Right", root, Cyl(m, 0.028f, HalfZ * 2f), c["Steel"], new Vector3(HalfX - 0.08f, Height - 0.35f, 0f), new Vector3(90f, 0f, 0f));
             for (int i = -2; i <= 2; i++)

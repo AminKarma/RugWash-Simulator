@@ -47,8 +47,8 @@ namespace RugWash.UI
         [SerializeField] Text slotLabel;
         [SerializeField] Button slotButton;
 
-        static readonly Color Ok = new Color(0.55f, 0.95f, 0.6f);
-        static readonly Color Warn = new Color(1f, 0.6f, 0.45f);
+        static readonly Color Ok = UITheme.Success;
+        static readonly Color Warn = UITheme.Danger;
 
         readonly List<ListRowView> lobbyRows = new List<ListRowView>();
         List<LobbySummary> lobbies = new List<LobbySummary>();
@@ -295,7 +295,7 @@ namespace RugWash.UI
                 lobbyRows[i].Set($"Partie de {(string.IsNullOrEmpty(lobby.HostName) ? "?" : lobby.HostName)}",
                     $"{lobby.Members} / {lobby.MaxMembers} joueurs · {(lobby.InGame ? "en cours" : "dans le salon")}",
                     full ? "Complet" : "Ouvert", full ? Warn : Ok, "Rejoindre", !full && session != null && !session.InSession,
-                    new Color(0.12f, 0.15f, 0.18f, 0.95f));
+                    UITheme.Row);
             }
         }
 

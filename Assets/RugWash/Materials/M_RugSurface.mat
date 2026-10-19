@@ -24,7 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 4a488a16bdd310044a544ad478c7d67c, type: 3}
+        m_Texture: {fileID: 2800000, guid: 991cd4e922b0ec342a0091b86a6ea9b5, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _ControlA:
@@ -32,6 +32,14 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _ControlB:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ControlC:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ControlD:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -43,20 +51,29 @@ Material:
         m_Texture: {fileID: 2800000, guid: 55f0ae6f6170958488880e52067ed4b5, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _SurfaceMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _CleanBoost: 0.08
     - _DirtDetailTiling: 1.4
     - _DrySmoothness: 0.08
     - _EdgeNoise: 0.65
+    - _FabricSheen: 0.45
     - _FiberNormalStrength: 1
     - _FiberTiling: 6
+    - _MaskOcclusion: 0
+    - _MaskSmoothness: 0
+    - _ScanResponse: 1
     - _WetDarkening: 0.32
     - _WetSmoothness: 0.42
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _DustColor: {r: 0.6, g: 0.56, b: 0.47999996, a: 1}
     - _FoamColor: {r: 0.96, g: 0.96999997, b: 0.97999996, a: 1}
+    - _ResidueColor: {r: 0.86, g: 0.88, b: 0.8399999, a: 1}
     - _RugSize: {r: 3, g: 2, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

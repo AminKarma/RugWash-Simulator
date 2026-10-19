@@ -162,7 +162,12 @@ namespace RugWash.Editor
             Prop("Counter", coffee, Box(m, new Vector3(0.8f, 0.9f, 0.45f), 0.015f), c["DoorPaint"], new Vector3(0f, 0.45f, 0f));
             Prop("Machine", coffee, Box(m, new Vector3(0.3f, 0.36f, 0.3f), 0.03f), c["DarkMetal"], new Vector3(-0.15f, 1.08f, 0f));
             Prop("Cup", coffee, Cyl(m, 0.035f, 0.08f), c["WhitePlastic"], new Vector3(0.18f, 0.94f, 0.05f));
-            foreach (var at in new[] { new Vector3(1.25f, 0f, -HalfZ + 0.35f), new Vector3(HalfX - 0.4f, 0f, -HalfZ + 0.4f) })
+            // V0.3.0 : plantes réelles (Poly Haven) ; le coin du bureau a déjà sa plante permanente (accessoires de l'atelier).
+            if (RugWashModelLibrary.Prop(coffee, m, "Succulent", new Vector3(0.24f, 0.9f, -0.06f), 30f) != null &&
+                RugWashModelLibrary.Prop(pro, m, "PlantTall", new Vector3(1.25f, 0f, -HalfZ + 0.38f), 15f, collider: true) != null)
+            {
+            }
+            else foreach (var at in new[] { new Vector3(1.25f, 0f, -HalfZ + 0.35f), new Vector3(HalfX - 0.4f, 0f, -HalfZ + 0.4f) })
             {
                 var plant = Group("Plant", pro);
                 plant.localPosition = at;
@@ -180,10 +185,14 @@ namespace RugWash.Editor
             var lounge = Group("Lounge", loft);
             lounge.localPosition = new Vector3(-4.3f, 0f, 3.45f);
             Prop("Rug", lounge, Box(m, new Vector3(2.2f, 0.01f, 1.5f), 0.005f), c["RugOriental"], new Vector3(0f, 0.005f, -0.35f));
-            Prop("SofaBase", lounge, Box(m, new Vector3(1.9f, 0.4f, 0.8f), 0.06f), c["Leather"], new Vector3(0f, 0.22f, 0.15f));
-            Prop("SofaBack", lounge, Box(m, new Vector3(1.9f, 0.5f, 0.2f), 0.06f), c["Leather"], new Vector3(0f, 0.6f, 0.48f));
-            foreach (float x in new[] { -0.95f, 0.95f })
-                Prop("SofaArm", lounge, Box(m, new Vector3(0.18f, 0.55f, 0.8f), 0.06f), c["Leather"], new Vector3(x, 0.3f, 0.15f));
+            // V0.3.0 : canapé capitonné réel (Poly Haven, vérifié via le MCP Blender), sinon l'ancien canapé en blocs.
+            if (RugWashModelLibrary.Prop(lounge, m, "Sofa", new Vector3(0f, 0f, 0.14f), 0f, 1.05f, collider: true) == null)
+            {
+                Prop("SofaBase", lounge, Box(m, new Vector3(1.9f, 0.4f, 0.8f), 0.06f), c["Leather"], new Vector3(0f, 0.22f, 0.15f));
+                Prop("SofaBack", lounge, Box(m, new Vector3(1.9f, 0.5f, 0.2f), 0.06f), c["Leather"], new Vector3(0f, 0.6f, 0.48f));
+                foreach (float x in new[] { -0.95f, 0.95f })
+                    Prop("SofaArm", lounge, Box(m, new Vector3(0.18f, 0.55f, 0.8f), 0.06f), c["Leather"], new Vector3(x, 0.3f, 0.15f));
+            }
             Prop("Table", lounge, Box(m, new Vector3(0.9f, 0.05f, 0.5f), 0.02f), c["Wood"], new Vector3(0f, 0.42f, -0.65f));
             foreach (float x in new[] { -0.38f, 0.38f })
                 Prop("TableLeg", lounge, Box(m, new Vector3(0.04f, 0.4f, 0.4f), 0.006f), c["DarkMetal"], new Vector3(x, 0.2f, -0.65f));
@@ -227,12 +236,15 @@ namespace RugWash.Editor
             Prop("GoldTrimLeft", penthouse, Box(m, new Vector3(0.02f, 0.03f, HalfZ * 2f), 0.004f), c["Gold"], new Vector3(-HalfX + 0.03f, 1.12f, 0f));
             var palm = Group("IndoorPalm", penthouse);
             palm.localPosition = new Vector3(0.9f, 0f, HalfZ - 0.5f);
+            if (RugWashModelLibrary.Prop(palm, m, "PlantTall", Vector3.zero, 200f, 1.45f, collider: true) == null)
+            {
             Prop("Pot", palm, m.Add("Tier_BigPot", () => Lathe(new[] { new Vector2(0f, 0f), new Vector2(0.22f, 0f), new Vector2(0.26f, 0.5f), new Vector2(0.24f, 0.5f), new Vector2(0f, 0.47f) }, 24)),
                 c["DarkMetal"], Vector3.zero);
             Prop("Trunk", palm, Cyl(m, 0.05f, 1.4f), c["Wood"], new Vector3(0f, 1.15f, 0f));
             for (int i = 0; i < 7; i++)
                 Prop("Frond", palm, Box(m, new Vector3(0.16f, 0.9f, 0.02f), 0.05f), c["Plant"], Quaternion.Euler(0f, i * 51f, 0f) * new Vector3(0f, 1.95f, 0.25f),
                     new Vector3(60f, i * 51f, 0f));
+            }
             var plaque = Group("TowerSign", penthouse);
             plaque.localPosition = new Vector3(0.2f, 3.15f, -HalfZ + 0.06f);
             Prop("Panel", plaque, Box(m, new Vector3(2.6f, 0.4f, 0.03f), 0.02f), c["DarkMetal"], Vector3.zero);

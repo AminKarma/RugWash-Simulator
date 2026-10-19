@@ -19,12 +19,13 @@ MonoBehaviour:
   pileType: 0
   surfaceKind: 0
   dryingPerSecond: 0
+  accumulatesDirt: 1
   fragility: 0
   sheen: 0
   sizeMeters: {x: 2.4, y: 1.6}
   thickness: 0.01
   cellsPerMeter: 64
-  patternTexture: {fileID: 2800000, guid: 8ad7ae8224fb1274cafaea0bfeb40930, type: 3}
+  patternTexture: {fileID: 2800000, guid: 07dcc7f31997e15489b2682f3a19f0e1, type: 3}
   fiberNormal: {fileID: 2800000, guid: 55f0ae6f6170958488880e52067ed4b5, type: 3}
   fiberTilesPerMeter: 9
   fiberNormalStrength: 0.7

@@ -723,3 +723,28 @@ saleté retirée par rapport au niveau 2 (avant +5 %), lance dorée +21 %.
 
 Non vérifiable ici : deux instances (sauvegarde de session, objets perdus et ramassés, transition depuis un résumé, atelier
 refusé en ligne), Steam, coût réel dans le jeu compilé.
+
+## 23. V0.3.0 (refonte graphique)
+
+Exécutions réelles du 19 octobre 2026, même machine, Unity 6000.5.7f1 en mode batch (`Tools/RugWash-CI.ps1`).
+**Aucun build, aucun benchmark, aucun test à deux processus** n'a été lancé (consigne). Détail : `V0_3_0.md`.
+
+| Vérification | Résultat |
+|---|---|
+| Compilation (runtime, éditeur, tests) | ✅ 0 erreur |
+| Contenu et scènes régénérés (matériaux, accessoires, modèles Blender, tapis, interface), câblage vérifié à la génération | ✅ |
+| Tests EditMode | ✅ **265 / 265** |
+| Tests PlayMode | ✅ **168 / 168** (+ 2 diagnostics manuels ignorés) — dont 4 nouveaux tests de captures `V030CapturePlayModeTests` |
+| Captures relues à l'œil | ✅ atelier (6 vues), tapis sale / à moitié nettoyé / mousse, HUD, 11 outils (en action et au repos), ordinateur, commandes, boutique, casier, pause, résultats, menu principal, personnage, paramètres, multijoueur, avatars distants (brosse, lance), machines, paliers d'atelier |
+| Build Windows, benchmark, coopératif à deux processus | **Non lancés** (consigne) |
+
+Corrigé pendant la vérification : chevauchement du solde et du titre (commandes, boutique, RugDex) après le passage des
+titres à gauche ; bandeau vide en tête de la fenêtre Pause (contour pris dans la disposition) ; « revente … € » coupé dans la
+boutique (colonne d'état élargie) ; ligne de sauvegarde du menu Multijoueur qui recouvrait les boutons du salon.
+
+Seconde passe (MCP Blender : machines, robot, seau, raclette, monobrosse, gant revu, canapé et plantes des paliers) :
+contenu et scènes régénérés, **EditMode 265 / 265, PlayMode 168 / 168** (+ 2 diagnostics ignorés), captures relues
+(machines, robot en charge et en nettoyage, paliers 3 et 4, seau, raclette, monobrosse).
+
+Non vérifiable ici : coût réel en images par seconde dans le jeu compilé, rendu sur d'autres cartes graphiques, avatars
+distants en vraie partie à deux processus.

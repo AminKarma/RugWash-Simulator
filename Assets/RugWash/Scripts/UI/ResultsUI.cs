@@ -120,11 +120,11 @@ namespace RugWash.UI
         {
             switch (grade)
             {
-                case OrderGrade.S: return new Color(1f, 0.85f, 0.3f);
-                case OrderGrade.A: return new Color(0.55f, 0.95f, 0.6f);
+                case OrderGrade.S: return UITheme.Gold;
+                case OrderGrade.A: return UITheme.Success;
                 case OrderGrade.B: return new Color(0.5f, 0.8f, 1f);
                 case OrderGrade.C: return new Color(0.9f, 0.9f, 0.9f);
-                case OrderGrade.D: return new Color(1f, 0.7f, 0.4f);
+                case OrderGrade.D: return UITheme.Warning;
                 default: return new Color(1f, 0.45f, 0.4f);
             }
         }

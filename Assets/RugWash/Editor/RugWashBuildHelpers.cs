@@ -269,7 +269,8 @@ namespace RugWash.Editor
 
         // ------------------------------------------------------------------ Interface
 
-        public static Font UIFont => Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        /// <summary>Police courante de l'interface et des panneaux du décor (V0.3.0 : Inter, voir <see cref="RugWashUIStyle"/>).</summary>
+        public static Font UIFont => RugWashUIStyle.Regular;
 
         /// <summary>
         /// Texte 3D du décor : matériau de la police dans l'éditeur, remplacé en jeu par le matériau testé en profondeur de
@@ -314,20 +315,23 @@ namespace RugWash.Editor
             FontStyle style = FontStyle.Normal, bool shadow = true)
         {
             var text = rect.gameObject.AddComponent<Text>();
-            text.font = UIFont;
+            // V0.3.0 : graisse réelle de la police (Inter SemiBold / ExtraBold) plutôt que le gras synthétique ; le blanc pur
+            // devient le crème de la charte.
+            bool bold = style == FontStyle.Bold || style == FontStyle.BoldAndItalic;
+            text.font = bold ? (size >= 34 ? RugWashUIStyle.Display : RugWashUIStyle.SemiBold) : UIFont;
             text.text = content;
             text.fontSize = size;
-            text.fontStyle = style;
+            text.fontStyle = style == FontStyle.BoldAndItalic ? FontStyle.Italic : bold ? FontStyle.Normal : style;
             text.alignment = alignment;
-            text.color = color;
+            text.color = color == Color.white ? RugWash.UI.UITheme.Text : color;
             text.raycastTarget = false;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             if (shadow)
             {
                 var s = rect.gameObject.AddComponent<Shadow>();
-                s.effectColor = new Color(0f, 0f, 0f, 0.6f);
-                s.effectDistance = new Vector2(1.5f, -1.5f);
+                s.effectColor = new Color(0f, 0f, 0f, 0.42f);
+                s.effectDistance = new Vector2(0f, -1.5f);
             }
             return text;
         }
@@ -356,15 +360,17 @@ namespace RugWash.Editor
             var button = rect.gameObject.AddComponent<Button>();
             button.targetGraphic = image;
             var colors = button.colors;
-            colors.normalColor = new Color(0.16f, 0.2f, 0.24f, 0.95f);
-            colors.highlightedColor = new Color(0.2f, 0.5f, 0.64f, 1f);
-            // Sélection (manette, clavier) : ambre, distincte du survol à la souris et visible sans curseur.
+            colors.normalColor = RugWash.UI.UITheme.Button;
+            colors.highlightedColor = RugWash.UI.UITheme.ButtonHover;
+            // Sélection (manette, clavier) : safran, distincte du survol à la souris et visible sans curseur.
             colors.selectedColor = FocusColor;
             colors.fadeDuration = 0.05f;
-            colors.pressedColor = new Color(0.12f, 0.36f, 0.48f, 1f);
-            colors.disabledColor = new Color(0.3f, 0.3f, 0.3f, 0.5f);
+            colors.pressedColor = RugWash.UI.UITheme.ButtonPressed;
+            colors.disabledColor = RugWash.UI.UITheme.ButtonDisabled;
             button.colors = colors;
-            AddText(Stretch("Label", rect), label, 30, TextAnchor.MiddleCenter, Color.white);
+            // V0.3.0 : contour fin (relief du bouton) sous le libellé, en Inter SemiBold.
+            OutlineOf(rect);
+            AddText(Stretch("Label", rect), label, 26, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold, shadow: false);
             return button;
         }
 
@@ -399,14 +405,60 @@ namespace RugWash.Editor
         }
 
         /// <summary>Couleur de l'élément sélectionné à la manette ou au clavier.</summary>
-        public static readonly Color FocusColor = new Color(0.86f, 0.58f, 0.16f, 1f);
+        public static readonly Color FocusColor = RugWash.UI.UITheme.Focus;
 
         /// <summary>Onglet : la page affichée (bouton inactif) prend une teinte « page courante » au lieu du gris désactivé.</summary>
         public static void StyleTab(Button tab)
         {
             var colors = tab.colors;
-            colors.disabledColor = new Color(0.12f, 0.42f, 0.55f, 1f);
+            colors.disabledColor = RugWash.UI.UITheme.TabCurrent;
             tab.colors = colors;
+        }
+
+        // ------------------------------------------------------------------ Charte UI (V0.3.0)
+
+        /// <summary>Carte : fond arrondi teinté et contour clair fin (dessiné sous le contenu ajouté ensuite).</summary>
+        public static Image Card(RectTransform rect, Color color, bool outline = true, bool raycast = false)
+        {
+            var image = AddImage(rect, RugWashUIStyle.Sprite("UI_Panel"), color, raycast: raycast);
+            if (outline) OutlineOf(rect);
+            return image;
+        }
+
+        /// <summary>Contour fin d'un panneau ou d'un bouton, hors des groupes de disposition (il ne prend aucune place).</summary>
+        static void OutlineOf(RectTransform rect)
+        {
+            var outline = Stretch("Outline", rect);
+            outline.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            AddImage(outline, RugWashUIStyle.Sprite("UI_PanelOutline"), RugWash.UI.UITheme.Outline);
+        }
+
+        /// <summary>
+        /// Ombre portée douce derrière <paramref name="target"/> (frère placé juste avant, mêmes ancres) : réservée aux éléments
+        /// dont le parent porte l'activation (fenêtres), l'ombre ne suivant pas un SetActive de la cible elle-même.
+        /// </summary>
+        public static Image DropShadow(RectTransform target, float spread = 30f, float alpha = 0.6f, float drop = 10f)
+        {
+            var shadow = CreateRect(target.name + "_Shadow", target.parent, target.anchorMin, target.anchorMax, target.pivot,
+                target.anchoredPosition + new Vector2(0f, -drop), target.sizeDelta + new Vector2(spread * 2f, spread * 2f));
+            shadow.SetSiblingIndex(target.GetSiblingIndex());
+            return AddImage(shadow, RugWashUIStyle.Sprite("UI_Shadow"), new Color(0f, 0f, 0f, alpha));
+        }
+
+        /// <summary>Icône blanche teintée (sprite de <c>Textures/UI</c>).</summary>
+        public static Image Icon(Transform parent, string sprite, Vector2 anchor, Vector2 position, float size, Color color)
+        {
+            var rect = CreateRect("Icon_" + sprite, parent, anchor, anchor, new Vector2(0.5f, 0.5f), position, new Vector2(size, size));
+            var image = AddImage(rect, RugWashUIStyle.Sprite("Icon_" + sprite), color, sliced: false);
+            image.preserveAspect = true;
+            return image;
+        }
+
+        /// <summary>Barre d'accent verticale (titres de fenêtre, en-têtes de section).</summary>
+        public static Image AccentBar(Transform parent, Vector2 anchor, Vector2 position, Vector2 size, Color color)
+        {
+            var rect = CreateRect("Accent", parent, anchor, anchor, new Vector2(0f, 0.5f), position, size);
+            return AddImage(rect, RugWashUIStyle.Sprite("UI_Bar"), color);
         }
 
         public static VerticalLayoutGroup AddVerticalLayout(GameObject go, int spacing, RectOffset padding, TextAnchor alignment)
