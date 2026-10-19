@@ -748,3 +748,31 @@ contenu et scènes régénérés, **EditMode 265 / 265, PlayMode 168 / 168** (+ 
 
 Non vérifiable ici : coût réel en images par seconde dans le jeu compilé, rendu sur d'autres cartes graphiques, avatars
 distants en vraie partie à deux processus.
+
+### 23.1 Performance V0.3.0 contre V0.2.5 (jeu compilé)
+
+Mesures du 19 octobre 2026 à la demande du joueur : build Windows de chaque version (V0.2.5 = commit `0d14e79`, compilé
+dans une copie de travail séparée), benchmark complet en 1920 × 1080, Ultra, **en alternance** V0.2.5 → V0.3.0 → V0.2.5 →
+V0.3.0 (même machine, RTX 5060, i7-8700K). Les 15 contrôles fonctionnels passent dans les quatre exécutions.
+
+**Les FPS sont plafonnés à 180 sur cette machine** (le benchmark désactive pourtant la synchronisation verticale ; les mesures
+de la grande mise à jour montaient à 192–205 FPS : plafond extérieur au jeu, pilote ou écran). Le temps GPU par image, non
+plafonné, sert donc de comparaison (moyenne des deux exécutions de chaque version) :
+
+| Scénario | GPU V0.2.5 | GPU V0.3.0 | Écart |
+|---|---|---|---|
+| Atelier au repos (vue d'ensemble) | 4,55 ms | 3,46 ms | −1,08 ms |
+| Tour complet de l'atelier | 4,17 ms | 3,84 ms | −0,32 ms |
+| Vue d'ensemble, sans / peu / beaucoup de mousse | 4,09–4,32 ms | 3,33–3,56 ms | −0,73 à −0,76 ms |
+| Rinçage, savon et brosse, canon (tapis visé) | 4,16–4,40 ms | 4,51–4,69 ms | +0,23 à +0,35 ms |
+| Tapis en plein écran (mousse ou non), mousse au repos | 4,23–4,43 ms | 4,63–4,87 ms | +0,40 à +0,46 ms |
+| Session prolongée (3 commandes) | 4,42 ms | 4,50 ms | +0,08 ms |
+
+Fil principal du processeur : identique ou légèrement plus bas en V0.3.0 (1,98 à 2,90 ms contre 2,13 à 2,86 ms).
+Session de 3 commandes : objets, particules, textures et maillages constants, mémoire gérée +0,6 Mo.
+
+**Lecture** : la refonte coûte **0,2 à 0,5 ms de GPU quand le tapis remplit l'écran** (shader des tapis : masque de surface et
+velours, motifs plus détaillés) et en **économise 0,7 à 1,1 ms en vue d'ensemble**. Avec le plafond de 180 images par seconde
+(5,56 ms par image), une image qui dépasse le budget tombe à 90 FPS : le 1 % le plus lent descend à 90 FPS dans 9 scénarios
+sur 17 en V0.3.0 contre 3 en V0.2.5, toujours de près du tapis. Sans ce plafond, ou à 60 et 144 Hz, la marge reste très
+large (≈ 4,9 ms au pire pour 16,7 ms et 6,9 ms disponibles). Mesures d'une seule machine, bruitées de quelques pour cent.
