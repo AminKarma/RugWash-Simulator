@@ -38,3 +38,6 @@ steam_appid.txt
 
 # Caches Python des scripts de Tools/ (Blender, textures)
 __pycache__/
+
+# Sauvegardes automatiques de Blender
+*.blend1

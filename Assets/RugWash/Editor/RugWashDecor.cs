@@ -222,6 +222,9 @@ namespace RugWash.Editor
                 (RoundedBox(new Vector3(0.35f, 0.04f, 0.03f), 0.01f), Matrix4x4.identity))), c["SafetyYellow"], new Vector3(0.75f, 1.25f, 0.2f));
             foreach (var x in new[] { -0.9f, -0.3f, 0.3f, 0.9f })
                 Prop("Hook", root, Cyl(m, 0.008f, 0.06f), c["Chrome"], new Vector3(x, 1.95f, 0.2f), new Vector3(90f, 0f, 0f));
+            // V0.3.0 : caisse à outils modélisée dans Blender (MCP), sur le plateau, face avant vers l'atelier.
+            var toolbox = RugWashFbxModels.Place("Props/CaisseOutils", root, c, new Vector3(0.02f, 0.94f, -0.04f), Quaternion.Euler(0f, 186f, 0f), "Toolbox");
+            if (toolbox != null) foreach (var renderer in toolbox.GetComponentsInChildren<Renderer>()) MakeStatic(renderer.gameObject);
             Prop("Bucket_A", root, Bucket(m), c["RedPlastic"], new Vector3(-0.7f, 0.94f, -0.05f));
             Prop("Bucket_B", root, Bucket(m), c["BluePlastic"], new Vector3(0.75f, 0.94f, -0.05f), new Vector3(0f, 40f, 0f));
             RugWashSceneBuilder.CreateSign(parent, "Sign_Tools", "MATÉRIEL", new Vector3(3.6f, 2.45f, HalfZ - 0.04f), Quaternion.identity, m, c);
@@ -236,6 +239,15 @@ namespace RugWash.Editor
         {
             // Entre l'horloge et l'armoire à outils : rien d'autre au sol ici (les cartons du cagibi sont dans le coin droit).
             var root = Group("Locker", parent, new Vector3(1.85f, 0f, HalfZ - 0.33f), 180f);
+            var fbxDoor = LockerFbx(root, c);
+            if (fbxDoor != null)
+            {
+                RugWashSceneBuilder.CreateSign(root, "Locker_Sign", "CASIER", new Vector3(0f, 1.95f, 0.27f), Quaternion.Euler(0f, 180f, 0f), m, c);
+                var box = root.gameObject.AddComponent<BoxCollider>();
+                box.center = new Vector3(0f, 0.9f, 0.015f);
+                box.size = new Vector3(0.9f, 1.8f, 0.53f);
+                return (root.gameObject, fbxDoor);
+            }
             Prop("Locker_Body", root, Rounded(m, new Vector3(0.82f, 1.9f, 0.5f), 0.02f), c["DarkMetal"], new Vector3(0f, 0.95f, 0f));
             Prop("Locker_Plinth", root, Rounded(m, new Vector3(0.84f, 0.08f, 0.52f), 0.01f), c["Steel"], new Vector3(0f, 0.04f, 0f));
             // Porte : pivot sur la charnière gauche (vue de face), le panneau est décalé vers la droite.
@@ -250,6 +262,42 @@ namespace RugWash.Editor
             collider.center = new Vector3(0f, 0.95f, 0.02f);
             collider.size = new Vector3(0.84f, 1.9f, 0.54f);
             return (root.gameObject, hinge);
+        }
+
+        /// <summary>
+        /// V0.3.0 : deux casiers modélisés dans Blender (MCP), côte à côte (0,9 m). Le casier du FBX a sa charnière à droite ; il
+        /// est posé en miroir pour garder la charnière à gauche de l'ancien casier (le script l'ouvre à −100°, vers l'avant). La
+        /// porte du casier de gauche, avec sa serrure et son étiquette, pivote dans « Locker_DoorHinge » (non statique).
+        /// </summary>
+        static Transform LockerFbx(Transform root, RugWashContentBuilder.Content c)
+        {
+            const string path = "Props/Casier";
+            if (!RugWashFbxModels.Has(path)) return null;
+            var pivot = new Vector3(0.205f, 0.92f, 0.255f);
+            string[] doorParts = { "Casier_Door", "Casier_Keyhole", "Casier_LockPlate", "Casier_NameTag" };
+            Transform hinge = null;
+            foreach (float x in new[] { -0.225f, 0.225f })
+            {
+                var unit = Group(x < 0f ? "Locker_Unit_A" : "Locker_Unit_B", root, new Vector3(x, 0f, 0f));
+                unit.localScale = new Vector3(-1f, 1f, 1f);
+                var model = RugWashFbxModels.Place(path, unit, c, Vector3.zero, Quaternion.identity);
+                if (x < 0f)
+                {
+                    hinge = Group("Locker_DoorHinge", root, new Vector3(x - pivot.x, pivot.y, pivot.z));
+                    var mirror = Group("Locker_DoorMirror", hinge, Vector3.zero);
+                    mirror.localScale = new Vector3(-1f, 1f, 1f);
+                    foreach (string name in doorParts)
+                    {
+                        var part = RugWashFbxModels.FindDeep(model.transform, name);
+                        if (part == null) continue;
+                        var local = part.localPosition - pivot;
+                        part.SetParent(mirror, false);
+                        part.localPosition = local;
+                    }
+                }
+                foreach (var renderer in model.GetComponentsInChildren<Renderer>()) MakeStatic(renderer.gameObject);
+            }
+            return hinge;
         }
 
         public static GameObject OrderDesk(Transform parent, RugWashContentBuilder.Content c, MeshStore m)

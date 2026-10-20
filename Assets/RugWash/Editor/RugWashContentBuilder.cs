@@ -185,6 +185,8 @@ namespace RugWash.Editor
                 new DirtLayer(DirtType.Dust, DirtPattern.Uniform, 0.8f, 0.45f, 0.3f),
                 new DirtLayer(DirtType.Soil, DirtPattern.TrafficLane, 0.6f, 0.75f, 0.25f));
             EnsureRugDescriptions(content);
+            // V0.3.0 : états fixes des tapis (masques cuits dans Blender), pour les présentations.
+            RugWashRugStates.Ensure(content["RugSurface"], content.Oriental.patternTexture, content.Oriental.sizeMeters);
             content.ProductLibrary = EnsureProducts();
             content.Catalog = EnsureCatalog(content);
 

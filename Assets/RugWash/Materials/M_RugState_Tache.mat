@@ -1,0 +1,79 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: M_RugState_Tache
+  m_Shader: {fileID: 4800000, guid: 8d13b7b093bce1449be9b496f4a24dc3, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BaseMap:
+        m_Texture: {fileID: 2800000, guid: 991cd4e922b0ec342a0091b86a6ea9b5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ControlA:
+        m_Texture: {fileID: 2800000, guid: 7429b1144c0cc0b47994c112cc159175, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ControlB:
+        m_Texture: {fileID: 2800000, guid: 739420a06c843924596d11880d526ba2, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ControlC:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ControlD:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DirtDetail:
+        m_Texture: {fileID: 2800000, guid: 33979c8b8f2f24c4b89349ec8b7e6bb5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _FiberNormal:
+        m_Texture: {fileID: 2800000, guid: 55f0ae6f6170958488880e52067ed4b5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SurfaceMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _CleanBoost: 0.06
+    - _DirtDetailTiling: 1.4
+    - _DrySmoothness: 0.08
+    - _EdgeNoise: 0.65
+    - _FabricSheen: 0.45
+    - _FiberNormalStrength: 1
+    - _FiberTiling: 6
+    - _MaskOcclusion: 0
+    - _MaskSmoothness: 0
+    - _ScanResponse: 0
+    - _WetDarkening: 0.32
+    - _WetSmoothness: 0.42
+    m_Colors:
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _DustColor: {r: 0.6, g: 0.56, b: 0.47999996, a: 1}
+    - _FoamColor: {r: 0.96, g: 0.96999997, b: 0.97999996, a: 1}
+    - _ResidueColor: {r: 0.86, g: 0.88, b: 0.8399999, a: 1}
+    - _RugSize: {r: 3, g: 2, b: 0, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

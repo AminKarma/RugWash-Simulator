@@ -8,3 +8,5 @@
 *.meta text eol=lf
 *.png binary
 *.wav binary
+*.blend binary
+*.fbx binary

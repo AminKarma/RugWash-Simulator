@@ -89,9 +89,58 @@ namespace RugWash.Editor
             shaft.localRotation = Quaternion.LookRotation(end - start, Vector3.up);
             float tubeLength = (end - start).magnitude;
             length = tubeLength;
-            Part("Shaft_Tube", shaft, store.Add(key, () => Lathe(new[] { new Vector2(radius, 0f), new Vector2(radius, tubeLength) }, 14)), material,
-                Vector3.zero, AlongZ);
+            if (key != null)
+                Part("Shaft_Tube", shaft, store.Add(key, () => Lathe(new[] { new Vector2(radius, 0f), new Vector2(radius, tubeLength) }, 14)), material,
+                    Vector3.zero, AlongZ);
             return shaft;
+        }
+
+        // ------------------------------------------------------------------ Modèles Blender (MCP, FBX)
+
+        /// <summary>
+        /// V0.3.0 : FBX modélisé dans Blender via le MCP (Models/FBX/<paramref name="path"/>), posé dans le repère de l'outil : le
+        /// point <paramref name="anchor"/> du FBX va en <paramref name="at"/>, après rotation et échelle uniforme. Null si absent.
+        /// </summary>
+        static GameObject Fbx(string path, Transform parent, RugWashContentBuilder.Content c, Vector3 anchor, Vector3 at, Quaternion rotation,
+            float scale, ICollection<string> only = null, ICollection<string> except = null)
+        {
+            var go = RugWashFbxModels.Place(path, parent, c, Vector3.zero, rotation, "Model", only, except);
+            if (go == null) return null;
+            go.transform.localScale = Vector3.one * scale;
+            go.transform.localPosition = at - rotation * (anchor * scale);
+            return go;
+        }
+
+        /// <summary>Point <paramref name="fbxPoint"/> (repère du FBX) dans le repère de <paramref name="frame"/>.</summary>
+        static Vector3 Map(GameObject fbx, Vector3 fbxPoint, Transform frame) => frame.InverseTransformPoint(fbx.transform.TransformPoint(fbxPoint));
+
+        /// <summary>Déplace les pièces nommées du FBX sous <paramref name="group"/> (position dans le monde conservée).</summary>
+        static void Move(GameObject fbx, Transform group, params string[] parts)
+        {
+            foreach (string part in parts)
+            {
+                var t = RugWashFbxModels.FindDeep(fbx.transform, part);
+                if (t != null) t.SetParent(group, true);
+            }
+        }
+
+        /// <summary>
+        /// Pièces de manche du FBX (cylindres alignés sur l'axe) rangées dans le groupe « Shaft » et allongées d'un facteur
+        /// <paramref name="stretch"/> depuis l'extrémité côté tête : le manche s'étire ensuite avec la portée, sans cisaillement.
+        /// </summary>
+        static void MoveShaft(GameObject fbx, Transform shaft, float length, float stretch, params string[] parts)
+        {
+            foreach (string part in parts)
+            {
+                var t = RugWashFbxModels.FindDeep(fbx.transform, part);
+                if (t == null) continue;
+                t.SetParent(shaft, true);
+                var p = t.localPosition;
+                t.localPosition = new Vector3(p.x, p.y, length - (length - p.z) * stretch);
+                // Axe long de la pièce (Y local du cylindre) aligné sur l'axe du manche (Z du groupe).
+                var s = t.localScale;
+                t.localScale = new Vector3(s.x, s.y * stretch, s.z);
+            }
         }
 
         /// <summary>Tube droit le long de Z (de z0 à z1), via une révolution.</summary>
@@ -148,6 +197,24 @@ namespace RugWash.Editor
             var handleRotation = Quaternion.Euler(96f, 0f, 0f);
             Vector3 axis = handleRotation * Vector3.up;
             var handleStart = new Vector3(0f, 0.03f, -0.02f);
+            // V0.3.0 : brosse modélisée dans Blender (MCP) : poignée jaune dans la main, manche bleu et noir vers l'avant, bloc
+            // (socle, batterie, poils) devant ; légèrement relevée (10°) pour garder la tête dans le champ.
+            var turn = Quaternion.Euler(-10f, 0f, 0f) * Quaternion.Euler(0f, -90f, 0f);
+            var brosse = Fbx("Tools/BrosseManuelle", root, c, new Vector3(-0.44f, 0.231f, 0f), handleStart + axis * 0.05f, turn, 1f);
+            if (brosse != null)
+            {
+                var toHandle = Quaternion.Euler(0f, 0f, 65f) * Vector3.up;
+                var joint = new Vector3(-0.075f, 0.115f, 0f);
+                var fbxHead = HeadGroup(root);
+                var fbxShaft = Shaft(root, store, null, null, Map(brosse, joint + toHandle * 0.36f, root), Map(brosse, joint, root), 0f, out float fbxLength);
+                var fbxTip = Tip(fbxHead, Map(brosse, new Vector3(0f, -0.0025f, 0f), root));
+                Move(brosse, fbxHead, "BrosseMan_Base", "BrosseMan_BatteryBox", "BrosseMan_Bristles", "BrosseMan_Display", "BrosseMan_Joint");
+                MoveShaft(brosse, fbxShaft, fbxLength, 1f, "BrosseMan_ShaftBlue", "BrosseMan_ShaftBlack");
+                Vector3 along = (fbxShaft.localRotation * Vector3.forward).normalized;
+                var gloveR = Glove(root, store, c, "Glove_R", handleStart + axis * 0.05f, along, new Vector3(0.25f, -0.7f, -0.66f), left: false);
+                return new Model { Root = root, Tip = fbxTip, Head = fbxHead, Shaft = fbxShaft, ShaftLength = fbxLength, RightHand = gloveR,
+                    LeftHand = Support(root, fbxShaft.localPosition + along * fbxLength * 0.5f) };
+            }
             Part("Grip", root, store.Add("Tool_BrushGrip", () => Lathe(new[]
             {
                 new Vector2(0.0f, 0f), new Vector2(0.017f, 0.003f), new Vector2(0.02f, 0.03f), new Vector2(0.017f, 0.07f), new Vector2(0.015f, 0.1f),
@@ -175,6 +242,21 @@ namespace RugWash.Editor
         public static Model Rinse(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
         {
             var root = Root(camera, "Rinse", new Vector3(0.25f, -0.25f, 0.4f), new Vector3(4f, -7f, 0f));
+            var hose = store.Add("Tool_GunHose", () => Tube(Smooth(new[]
+            {
+                new Vector3(0f, -0.13f, -0.06f), new Vector3(0.01f, -0.25f, -0.12f), new Vector3(0.05f, -0.45f, -0.1f), new Vector3(0.1f, -0.8f, 0.05f),
+            }, 10), 0.013f, 10));
+            // V0.3.0 : lance haute pression modélisée dans Blender (MCP), à 80 % (poignée à la taille du gant) : poignée du FBX
+            // sur celle de l'ancien pistolet, raccord laiton au-dessus du flexible, buse à l'avant.
+            var lance = Fbx("Tools/LanceHP", root, c, new Vector3(0f, -0.01f, -0.045f), new Vector3(0f, -0.075f, -0.03f), Quaternion.identity, 0.8f);
+            if (lance != null)
+            {
+                Part("Hose", root, hose, c["Rubber"], Vector3.zero, Quaternion.identity);
+                var fbxGrip = Quaternion.Euler(16f, 0f, 0f) * Vector3.up;
+                var gloveR = Glove(root, store, c, "Glove_R", new Vector3(0f, -0.072f, -0.034f), fbxGrip, new Vector3(0.1f, -0.35f, -0.93f), left: false);
+                var wand = Map(lance, new Vector3(0f, 0.065f, 0.715f), root);
+                return new Model { Root = root, Tip = Tip(root, wand), RightHand = gloveR, LeftHand = Support(root, new Vector3(0f, wand.y, 0.26f)) };
+            }
             Part("Grip", root, Modeled(store, "Tool_GunGrip", () => RoundedBox(new Vector3(0.036f, 0.12f, 0.052f), 0.014f)), c["Rubber"],
                 new Vector3(0f, -0.075f, -0.03f), Quaternion.Euler(-18f, 0f, 0f));
             Part("Body", root, Modeled(store, "Tool_GunBody", () => RoundedBox(new Vector3(0.056f, 0.068f, 0.17f), 0.02f)), c["SafetyYellow"],
@@ -379,6 +461,23 @@ namespace RugWash.Editor
         {
             // Pivot = la main, sur l'anse : le seau pend dessous et bascule vers l'avant pour verser.
             var root = Root(camera, "Bucket", new Vector3(0.24f, -0.27f, 0.46f), new Vector3(4f, -10f, 0f));
+            // V0.3.0 : seau modélisé dans Blender (MCP), à 85 %, bord à la hauteur de l'ancien, oreilles sur l'axe de l'anse (X) ;
+            // l'anse en acier reste tendue jusqu'à la main (pivot), le seau pendant dessous.
+            var seau = Fbx("Props/Seau", root, c, new Vector3(0f, 0.27f, 0f), new Vector3(0f, -0.12f, 0f), Quaternion.Euler(0f, 90f, 0f), 0.85f,
+                except: new[] { "Seau_Bail" });
+            if (seau != null)
+            {
+                var ear = Map(seau, new Vector3(0f, 0.24f, 0.152f), root);
+                float ex = Mathf.Abs(ear.x) + 0.004f;
+                Part("Handle", root, store.Add("Tool_BucketHandleFbx", () => Tube(Smooth(new[]
+                    {
+                        new Vector3(-ex, ear.y, 0f), new Vector3(-ex * 0.75f, ear.y * 0.3f, 0f), new Vector3(0f, 0f, 0f), new Vector3(ex * 0.75f, ear.y * 0.3f, 0f),
+                        new Vector3(ex, ear.y, 0f),
+                    }, 8), 0.005f, 8)), c["Steel"], Vector3.zero, Quaternion.identity);
+                Part("Water", root, store.Add("Tool_BucketWater", () => Cylinder(0.126f, 0.004f, 28)), c["Glass"], new Vector3(0f, -0.17f, 0f), Quaternion.identity);
+                var gloveR = Glove(root, store, c, "Glove_R", new Vector3(0f, 0.005f, 0f), Vector3.right, new Vector3(0.25f, 0.55f, -0.8f), left: false);
+                return new Model { Root = root, Tip = Tip(root, new Vector3(0f, -0.12f, 0.14f)), RightHand = gloveR };
+            }
             Part("Body", root, Modeled(store, "Tool_BucketBody", () => Lathe(new[]
             {
                 new Vector2(0f, -0.36f), new Vector2(0.1f, -0.36f), new Vector2(0.105f, -0.35f), new Vector2(0.13f, -0.13f), new Vector2(0.134f, -0.12f),
@@ -409,6 +508,28 @@ namespace RugWash.Editor
             var start = new Vector3(0f, 0.12f, -0.25f);
             var end = new Vector3(0f, -0.17f, 0.56f);
             Vector3 axis = (end - start).normalized;
+            // V0.3.0 : raclette modélisée dans Blender (MCP) : la douille du manche sur le bout du manche (end), manche du FBX
+            // dans l'axe ; tête (support, lame, embouts) dans « Head », manche bleu et poignée noire dans « Shaft », allongés
+            // jusqu'à la main.
+            var fbxAxis = Quaternion.Euler(305f, 0f, 0f) * Vector3.up;
+            var turn = Quaternion.FromToRotation(fbxAxis, -axis);
+            var raclette = Fbx("Tools/Raclette", root, c, new Vector3(0f, 0.08f, -0.03f), end, turn, 1f);
+            if (raclette != null)
+            {
+                var fbxHead = HeadGroup(root);
+                var fbxShaft = Shaft(root, store, null, null, start, end, 0f, out float fbxLength);
+                var fbxTip = Tip(fbxHead, Map(raclette, new Vector3(0f, -0.008f, 0f), root));
+                var gloveAt = new Vector3(0f, 0.08f, -0.14f);
+                // Bout de la poignée noire (le long de l'axe, depuis la douille) : centre + demi-longueur.
+                float reach = Vector3.Dot(Map(raclette, new Vector3(0f, 0.387f, -0.468f), root) - end, -axis) + 0.125f;
+                float stretch = (Vector3.Dot(gloveAt - end, -axis) + 0.05f) / reach;
+                Move(raclette, fbxHead, "Raclette_Blade", "Raclette_Holder", "Raclette_EndCap_L", "Raclette_EndCap_R", "Raclette_Stripe", "Raclette_Socket");
+                MoveShaft(raclette, fbxShaft, fbxLength, stretch, "Raclette_ShaftBlue", "Raclette_ShaftBlack");
+                Object.DestroyImmediate(raclette);
+                var gloveR = Glove(root, store, c, "Glove_R", gloveAt, axis, new Vector3(0.3f, -0.6f, -0.74f), left: false);
+                return new Model { Root = root, Tip = fbxTip, Head = fbxHead, Shaft = fbxShaft, ShaftLength = fbxLength, RightHand = gloveR,
+                    LeftHand = Support(root, start + axis * 0.5f) };
+            }
             var shaft = Shaft(root, store, "Tool_SqueegeeHandle", c["Steel"], start, end, 0.012f, out float length);
             Part("Grip", root, store.Add("Tool_SqueegeeGrip", () => Tube(new[] { new Vector3(0f, 0.1f, -0.2f), new Vector3(0f, 0.06f, -0.08f) }, 0.016f, 12)),
                 c["BluePlastic"], Vector3.zero, Quaternion.identity);
@@ -430,6 +551,7 @@ namespace RugWash.Editor
         public static Model Rotary(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
         {
             var root = Root(camera, "Rotary", new Vector3(0.1f, -0.34f, 0.4f), new Vector3(8f, -4f, 0f));
+            if (RugWashFbxModels.Has("Tools/Monobrosse")) return RotaryFbx(root, store, c);
             var start = new Vector3(0f, 0.06f, -0.2f);
             var end = new Vector3(0f, -0.2f, 0.5f);
             var shaft = Shaft(root, store, "Tool_RotaryShaft", c["Steel"], start, end, 0.018f, out float length);
@@ -461,12 +583,55 @@ namespace RugWash.Editor
             return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right, LeftHand = left };
         }
 
+        static readonly string[] MonobrosseHandle = { "Mono_Handlebar", "Mono_Grip_L", "Mono_Grip_R", "Mono_ControlBox" };
+
+        /// <summary>
+        /// V0.3.0 : monobrosse modélisée dans Blender (MCP), à 90 % : bloc moteur, jupe, roues et plateau à plat sous l'ancienne
+        /// tête (le patin sur le point de contact), guidon du FBX à la place de l'ancien ; le manche relie le guidon à la
+        /// fourche. Le patin tourne dans « Head/Disc » (repères chromés pour voir la rotation).
+        /// </summary>
+        static Model RotaryFbx(Transform root, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            const float scale = 0.9f;
+            var contact = new Vector3(0f, -0.515f, 0.56f);
+            var handlebar = new Vector3(0f, 0.06f, -0.2f);
+            var head = HeadGroup(root);
+            var machine = Fbx("Tools/Monobrosse", head, c, new Vector3(0f, 0.0055f, 0f), contact, Quaternion.identity, scale,
+                except: new List<string>(MonobrosseHandle) { "Mono_Shaft" });
+            var disc = new GameObject("Disc").transform;
+            disc.SetParent(head, false);
+            disc.localPosition = Map(machine, new Vector3(0f, 0.018f, 0f), root);
+            Move(machine, disc, "Mono_Pad");
+            for (int i = 0; i < 6; i++)
+            {
+                float a = i * Mathf.PI / 3f;
+                Part($"Marker_{i}", disc, store.Add("Tool_RotaryMarker", () => RoundedBox(new Vector3(0.03f, 0.024f, 0.03f), 0.006f)), c["Chrome"],
+                    new Vector3(Mathf.Cos(a) * 0.212f, -0.002f, Mathf.Sin(a) * 0.212f), Quaternion.Euler(0f, -a * Mathf.Rad2Deg, 0f));
+            }
+            Fbx("Tools/Monobrosse", root, c, new Vector3(0f, 1.069f, -0.814f), handlebar, Quaternion.identity, scale, only: MonobrosseHandle).name = "Handlebar";
+            var yoke = Map(machine, new Vector3(0f, 0.17f, -0.2f), root);
+            var shaft = Shaft(root, store, "Tool_RotaryShaftFbx", c["BluePlastic"], handlebar, yoke, 0.018f, out float length);
+            var tip = Tip(head, contact);
+            float grip = 0.18f * scale;
+            var right = Glove(root, store, c, "Glove_R", new Vector3(grip, handlebar.y, handlebar.z), Vector3.right, new Vector3(0.15f, -0.45f, -0.88f), left: false);
+            var left = Glove(root, store, c, "Glove_L", new Vector3(-grip, handlebar.y, handlebar.z), Vector3.right, new Vector3(-0.15f, -0.45f, -0.88f), left: true);
+            return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right, LeftHand = left };
+        }
+
         // ------------------------------------------------------------------ Gadgets de farce (v0.1.2 jalon 6)
 
         /// <summary>Batte de baseball en bois, poignée scotchée : tenue droite, prête à frapper (rotation autour de la poignée).</summary>
         public static Model Bat(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
         {
             var root = Root(camera, "Bat", new Vector3(0.3f, -0.3f, 0.36f), new Vector3(-58f, -14f, -8f));
+            // V0.3.0 : batte modélisée dans Blender (MCP) : même longueur, poignée scotchée au même endroit, axe Y du FBX → Z.
+            if (Fbx("Props/Batte", root, c, Vector3.zero, Vector3.zero, AlongZ, 1f) != null)
+                return new Model
+                {
+                    Root = root, Tip = Tip(root, new Vector3(0f, 0f, 0.78f)),
+                    RightHand = Glove(root, store, c, "Glove_R", new Vector3(0f, 0f, 0.09f), Vector3.forward, new Vector3(0.2f, -0.6f, -0.75f), left: false),
+                    LeftHand = Support(root, new Vector3(0f, 0f, 0.17f)),
+                };
             Part("Bat", root, store.Add("Prank_Bat", () => Lathe(new[]
             {
                 new Vector2(0f, 0f), new Vector2(0.028f, 0f), new Vector2(0.03f, 0.012f), new Vector2(0.017f, 0.03f), new Vector2(0.015f, 0.06f),

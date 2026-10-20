@@ -157,6 +157,7 @@ namespace RugWash.Editor
             root.localRotation = Quaternion.Euler(0f, yaw, 0f);
             var body = new GameObject("Body").transform;
             body.SetParent(root, false);
+            if (WasherFbx(root, body, c, m, loop, out var parts)) return parts;
 
             const float width = 0.9f, height = 1.15f, depth = 0.85f;
             Part("Cabinet", body, m.Add("Washer_Cabinet", () => RoundedBox(new Vector3(width, height, depth), 0.04f)), c["WhitePlastic"],
@@ -171,18 +172,7 @@ namespace RugWash.Editor
             var lamp = Part("StatusLamp", body, m.Add("Washer_Lamp", () => Cylinder(0.02f, 0.02f, 12)), c["RobotLed"],
                 new Vector3(0.18f, height - 0.12f, -depth / 2f - 0.045f), Quaternion.Euler(90f, 0f, 0f)).GetComponent<Renderer>();
 
-            var displayGo = new GameObject("Display");
-            displayGo.transform.SetParent(body, false);
-            displayGo.transform.localPosition = new Vector3(-0.15f, height - 0.12f, -depth / 2f - 0.045f);
-            var display = displayGo.AddComponent<TextMesh>();
-            display.text = "LIBRE";
-            display.font = UIFont;
-            display.fontSize = 64;
-            display.characterSize = 0.012f;
-            display.anchor = TextAnchor.MiddleCenter;
-            display.alignment = TextAlignment.Center;
-            display.color = new Color(0.55f, 0.95f, 1f);
-            DepthTestedText(display);
+            var display = Display(body, new Vector3(-0.15f, height - 0.12f, -depth / 2f - 0.045f));
 
             // Tambour (derrière le hublot) : tourne pendant le lavage, axe = Z local.
             var drum = new GameObject("Drum").transform;
@@ -211,6 +201,29 @@ namespace RugWash.Editor
             collider.center = new Vector3(0f, height / 2f, 0f);
             collider.size = new Vector3(width, height, depth);
 
+            var source = LoopSource(root, loop);
+            return new WasherParts { Root = root, Body = body.gameObject, Drum = drum, Door = hinge, Display = display, Lamp = lamp, Loop = source };
+        }
+
+        static TextMesh Display(Transform body, Vector3 position)
+        {
+            var displayGo = new GameObject("Display");
+            displayGo.transform.SetParent(body, false);
+            displayGo.transform.localPosition = position;
+            var display = displayGo.AddComponent<TextMesh>();
+            display.text = "LIBRE";
+            display.font = UIFont;
+            display.fontSize = 64;
+            display.characterSize = 0.012f;
+            display.anchor = TextAnchor.MiddleCenter;
+            display.alignment = TextAlignment.Center;
+            display.color = new Color(0.55f, 0.95f, 1f);
+            DepthTestedText(display);
+            return display;
+        }
+
+        static AudioSource LoopSource(Transform root, AudioClip loop)
+        {
             var source = root.gameObject.AddComponent<AudioSource>();
             source.clip = loop;
             source.loop = true;
@@ -221,8 +234,44 @@ namespace RugWash.Editor
             source.maxDistance = 10f;
             source.volume = 0.25f;
             source.pitch = 0.7f;
+            return source;
+        }
 
-            return new WasherParts { Root = root, Body = body.gameObject, Drum = drum, Door = hinge, Display = display, Lamp = lamp, Loop = source };
+        /// <summary>
+        /// V0.3.0 : machine à laver modélisée dans Blender (MCP) (face avant du FBX vers +Z, tournée de 180° : façade vers -Z
+        /// comme l'ancienne). Le hublot du FBX pivote dans « Door_Hinge » (charnière à gauche, même ouverture de 25°) ; tambour
+        /// (disque et pales) juste derrière la vitre pour qu'on le voie tourner ; écran et voyant sur le bandeau du FBX.
+        /// </summary>
+        static bool WasherFbx(Transform root, Transform body, RugWashContentBuilder.Content c, MeshStore m, AudioClip loop, out WasherParts parts)
+        {
+            parts = default;
+            var model = RugWashFbxModels.Place("Environment/Env_Washer", body, c, Vector3.zero, Quaternion.Euler(0f, 180f, 0f));
+            if (model == null) return false;
+            var face = Quaternion.Euler(0f, 180f, 0f);
+            var hinge = new GameObject("Door_Hinge").transform;
+            hinge.SetParent(body, false);
+            hinge.localPosition = face * new Vector3(0.31f, 0.68f, 0.47f);
+            var door = RugWashFbxModels.FindDeep(model.transform, "Env_Washer_Door");
+            if (door != null) door.SetParent(hinge, true);
+
+            var drum = new GameObject("Drum").transform;
+            drum.SetParent(body, false);
+            drum.localPosition = new Vector3(0f, 0.68f, -0.456f);
+            Part("Shell", drum, m.Add("Washer_DrumFace", () => Cylinder(0.22f, 0.01f, 28)), c["Steel"], Vector3.zero, Quaternion.Euler(90f, 0f, 0f));
+            for (int i = 0; i < 3; i++)
+                Part("Paddle", drum, m.Add("Washer_PaddleFlat", () => RoundedBox(new Vector3(0.04f, 0.12f, 0.012f), 0.004f)), c["DarkMetal"],
+                    Quaternion.Euler(0f, 0f, i * 120f) * new Vector3(0f, 0.13f, -0.008f), Quaternion.Euler(0f, 0f, i * 120f));
+
+            var display = Display(body, new Vector3(-0.18f, 1.23f, -0.476f));
+            display.characterSize = 0.009f;
+            var lamp = Part("StatusLamp", body, m.Add("Washer_Lamp", () => Cylinder(0.02f, 0.02f, 12)), c["RobotLed"],
+                new Vector3(0.37f, 1.23f, -0.47f), Quaternion.Euler(90f, 0f, 0f)).GetComponent<Renderer>();
+
+            var collider = body.gameObject.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 0.65f, 0f);
+            collider.size = new Vector3(0.92f, 1.3f, 0.92f);
+            parts = new WasherParts { Root = root, Body = body.gameObject, Drum = drum, Door = hinge, Display = display, Lamp = lamp, Loop = LoopSource(root, loop) };
+            return true;
         }
     }
 }

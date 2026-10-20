@@ -776,3 +776,20 @@ velours, motifs plus détaillés) et en **économise 0,7 à 1,1 ms en vue d'ense
 (5,56 ms par image), une image qui dépasse le budget tombe à 90 FPS : le 1 % le plus lent descend à 90 FPS dans 9 scénarios
 sur 17 en V0.3.0 contre 3 en V0.2.5, toujours de près du tapis. Sans ce plafond, ou à 60 et 144 Hz, la marge reste très
 large (≈ 4,9 ms au pire pour 16,7 ms et 6,9 ms disponibles). Mesures d'une seule machine, bruitées de quelques pour cent.
+
+### 23.2 Modèles Blender (MCP) exportés en FBX et intégrés au jeu
+Exécutions du 19 octobre 2026 (Unity 6000.5.7f1, mode batch, éditeur fermé) :
+
+- `V030FbxPrototypeTests` : les 36 FBX de `Models/FBX` (9 outils, 12 accessoires, 4 tapis, 4 techniciens, 11 éléments
+  d'atelier) s'importent, à l'échelle réelle (lance 0,80 m, casier 1,80 m, bidon 0,55 m, techniciens 1,80 m), sans
+  matériau manquant ; techniciens avec maillage à squelette (23 os) ; collisions des éléments d'atelier ; six matériaux
+  d'état des tapis (`M_RugState_*`). Galerie `Logs/ci/screens/v30_fbx_*`. **Réussi.**
+- Intégration en jeu (`RugWashToolModels`, `RugWashDecor`, `RugWashExtensionBuilder`, `RugWashFbxModels`) : lance de rinçage,
+  seau, raclette, monobrosse, brosse, batte, casier (porte animée), machine à laver (hublot, tambour, écran, voyant), caisse
+  à outils. `Capture_V030_Tools` et `Capture_V030_BlenderModels` : **réussis**, captures relues.
+- Suites complètes : EditMode **265/265** ; PlayMode **170 réussis, 0 échec, 2 ignorés** (diagnostics `Explicit`). Une
+  première exécution PlayMode a échoué sur 2 tests (sommets des têtes d'outil illisibles) ; corrigé (maillages lisibles pour
+  `Tools/` et `Props/`), puis toute la suite PlayMode a été relancée. La suite EditMode n'a pas été relancée après ce
+  réglage d'import.
+- Non lancés : build, benchmark, test multijoueur à deux processus.
+

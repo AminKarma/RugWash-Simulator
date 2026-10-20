@@ -201,5 +201,32 @@ namespace RugWash.Tests
             }
             Player.PlayerInventory.AutomationCarriesOnSelect = false;
         }
+
+        /// <summary>Modèles Blender (MCP) intégrés à l'atelier : casier (fermé, ouvert), caisse à outils, machine à laver de l'annexe.</summary>
+        [UnityTest, Category("Capture")]
+        public IEnumerator Capture_V030_BlenderModels()
+        {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) Assert.Ignore("Pas de GPU (mode -nographics) : captures ignorées.");
+            string folder = Folder();
+            var camera = game.ToolController.GetComponentInChildren<Camera>();
+            var locker = Object.FindAnyObjectByType<Workshop.Locker>();
+            var hinge = locker.transform.Find("Locker_DoorHinge");
+            Assert.IsNotNull(hinge, "Casier FBX : porte à charnière.");
+            game.PlayerController.Teleport(new Vector3(1.85f, 0.06f, 2.0f), 0f, 10f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_locker.png"));
+            locker.enabled = false;
+            hinge.localRotation = Quaternion.Euler(0f, -100f, 0f);
+            yield return null;
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_locker_open.png"));
+            locker.enabled = true;
+            game.PlayerController.Teleport(new Vector3(3.6f, 0.06f, 3.0f), 0f, 22f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_toolstorage.png"));
+            Object.FindAnyObjectByType<Workshop.WorkshopExtension>().Apply(true, true, false);
+            game.PlayerController.Teleport(new Vector3(10.9f, 0.06f, -0.3f), 0f, 18f);
+            yield return new WaitForSeconds(0.6f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_washer.png"));
+        }
     }
 }
