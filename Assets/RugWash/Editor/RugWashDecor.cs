@@ -496,11 +496,49 @@ namespace RugWash.Editor
                 Prop("Cable", fixture, Cyl(m, 0.004f, 0.3f), c["DarkMetal"], new Vector3(x, 0.18f, 0f));
         }
 
+        const string CanvaPosterTexture = RugWashPaths.Root + "/Textures/Decor/Poster_Steps_Canva.png";
+
+        /// <summary>Affiche des cinq étapes (Canva) : papier mat 0,95 × 1,27 m, texture sRGB compressée, plaquée contre le mur.</summary>
+        static bool CanvaPoster(Transform poster, RugWashContentBuilder.Content c, MeshStore m)
+        {
+            var texture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(CanvaPosterTexture);
+            if (texture == null) return false;
+            string path = $"{RugWashPaths.Materials}/M_PosterSteps.mat";
+            var material = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "M_PosterSteps" };
+                UnityEditor.AssetDatabase.CreateAsset(material, path);
+            }
+            material.SetTexture("_BaseMap", texture);
+            material.SetColor("_BaseColor", Color.white);
+            material.SetFloat("_Smoothness", 0.12f);
+            material.SetFloat("_Metallic", 0f);
+            UnityEditor.EditorUtility.SetDirty(material);
+            float w = 0.95f, h = w * texture.height / texture.width;
+            var quad = m.Add($"PosterQuad_{w:0.###}x{h:0.###}", () =>
+            {
+                var mesh = new Mesh { name = "PosterQuad" };
+                mesh.vertices = new[] { new Vector3(-w / 2f, -h / 2f, 0f), new Vector3(w / 2f, -h / 2f, 0f), new Vector3(w / 2f, h / 2f, 0f), new Vector3(-w / 2f, h / 2f, 0f) };
+                mesh.uv = new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) };
+                mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+                mesh.tangents = new[] { new Vector4(1f, 0f, 0f, -1f), new Vector4(1f, 0f, 0f, -1f), new Vector4(1f, 0f, 0f, -1f), new Vector4(1f, 0f, 0f, -1f) };
+                mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+                mesh.RecalculateBounds();
+                return mesh;
+            });
+            Prop("Backing", poster, Rounded(m, new Vector3(w + 0.03f, h + 0.03f, 0.008f), 0.004f), c["DarkMetal"], new Vector3(0f, 0f, -0.006f));
+            Prop("Paper", poster, quad, material, new Vector3(0f, 0f, -0.0105f));
+            return true;
+        }
+
         public static void WallDetails(Transform parent, RugWashContentBuilder.Content c, MeshStore m)
         {
             // Affiche pédagogique : la séquence de nettoyage, lisible depuis l'aire de lavage. v0.1.2 : faisable avec le kit de
             // départ (détergent, brosse, seau) ; aspirateur et extracteur s'achètent ensuite pour aller plus vite et sécher.
             var poster = Group("Poster_Steps", parent, new Vector3(-1.75f, 1.9f, HalfZ - 0.02f));
+            // V0.3.0 : affiche conçue dans Canva (mêmes cinq étapes, charte du jeu), exportée en PNG ; sinon l'affiche procédurale.
+            if (CanvaPoster(poster, c, m)) goto Clock;
             Prop("Paper", poster, Rounded(m, new Vector3(0.95f, 1.25f, 0.008f), 0.004f), c["Paper"], new Vector3(0f, 0f, -0.006f));
             Text3D(poster, "LES 5 ÉTAPES", new Vector3(0f, 0.5f, -0.012f), 0.016f, new Color(0.12f, 0.14f, 0.18f));
             string[] steps = { "1  SAVONNER", "2  BROSSER", "3  RINCER", "4  SÉCHER", "5  LIVRER (PC)" };
@@ -512,6 +550,7 @@ namespace RugWash.Editor
                 Text3D(poster, steps[i], new Vector3(0f, y, -0.016f), 0.013f, Color.white);
             }
 
+            Clock:
             // Horloge murale animée (heure réelle).
             var clock = Group("WallClock", parent, new Vector3(1.75f, 2.55f, HalfZ - 0.03f));
             Prop("Body", clock, Cyl(m, 0.21f, 0.05f), c["ClockFace"], Vector3.zero, new Vector3(90f, 0f, 0f));

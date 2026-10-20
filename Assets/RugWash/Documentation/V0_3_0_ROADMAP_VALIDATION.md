@@ -1,0 +1,216 @@
+# V0.3.0 — Fiche de validation de la roadmap (refonte graphique)
+
+À remplir par toi. Pour chaque point, j'ai noté **ce qui a réellement été fait** (« État ») et **où le vérifier**
+(« Preuve »). Coche la case quand tu valides après avoir regardé toi-même ; sinon note ce qu'il faut reprendre.
+
+Légende de l'état : **Fait** · **Partiel** (une partie seulement, détaillée) · **Non fait**.
+
+- Captures de contrôle : `Logs/ci/screens/` (préfixes `v30_*`, `v30_fbx_*`, `v30_avatar_*`).
+- Exécutions réelles des tests : `VALIDATION.md` § 23, 23.1, 23.2, 23.3, 23.4. Détail des changements : `V0_3_0.md`.
+- Build testé : `Builds/Windows/RugWashSimulator.exe` (build du 20/10/2026, 07:50, commit `ae2770d`).
+
+Testeur : ____________________ Date : ____/____/______ Version / commit testé : ____________________
+
+PC de test : processeur ____________ carte graphique ____________ résolution ____________ qualité ____________
+
+---
+
+## 1 — Audit et direction artistique
+
+- [ ] **Inspecter scènes, prefabs, modèles, matériaux, textures, éclairages, shaders, interfaces**
+  État : Fait. Preuve : `V0_3_0.md` § 1 (tableau d'audit par zone).
+  Remarques : ______________________________________________
+- [ ] **Repérer les assets provisoires, incohérents ou dépassés**
+  État : Fait. Preuve : `V0_3_0.md` § 1 (matériaux unis, silhouette en boîtes, police Arial, éclairage terne…).
+  Remarques : ______________________________________________
+- [ ] **Direction artistique (palette, matériaux, formes, stylisation, éclairage, règles)**
+  État : Fait. Preuve : `V0_3_0.md` § 2 « atelier artisanal moderne », `RugWashArtDirection`, `UITheme`.
+  Remarques : ______________________________________________
+- [ ] **Cible qualité / performance réaliste**
+  État : Partiel. Budgets de textures et de triangles fixés (`V0_3_0.md` § 5) ; mesure A/B contre la V0.2.5 faite à ta
+  demande (`VALIDATION.md` § 23.1) ; pas de cible chiffrée de FPS par configuration de PC.
+  Remarques : ______________________________________________
+- [ ] **Ensemble de référence / scène pilote avant généralisation**
+  État : Partiel. Galeries de contrôle (studio FBX `v30_fbx_*`, vues de l'atelier `v30_01` à `v30_10`) ; pas de scène
+  pilote séparée validée avant d'appliquer la direction partout.
+  Remarques : ______________________________________________
+
+Terminé lorsque la direction est claire et validée sur une zone représentative : ☐ Oui ☐ Non
+
+## 2 — Objets, outils et équipements
+
+- [ ] **Outils, buses, batte, brosses, pulvérisateurs, seaux, bidons, machines, équipements**
+  État : Partiel.
+  - Modèles Blender intégrés en jeu : lance de rinçage, seau, raclette, monobrosse, brosse, batte, casier, machine à laver,
+    caisse à outils ; pièces Blender sur pistolet, canon à mousse, pulvérisateur, aspirateur, souffleur, robot, gant.
+  - Modélisés mais **pas branchés** : pistolet, lance-brosse, brosse rotative, pulvérisateur mousse, aspirateur à eau,
+    bidon 40 L, pompe, petits accessoires (`Models/FBX/`).
+  - Formes encore procédurales : postes eau et détergent, rampe de pré-mouillage, extracteur, fusil à farces.
+  Preuve : `v30_tool_*`, `v30_toolrest_*`, `v30_fbx_tools_*`, `v30_fbx_ingame_*`.
+  Remarques : ______________________________________________
+- [ ] **Silhouettes, proportions, détails, matériaux, usure, reflets**
+  État : Partiel (sur les objets ci-dessus). Remarques : ______________________________________________
+- [ ] **Items achetables / ramassables immédiatement reconnaissables**
+  État : Partiel. Icônes 3D des outils dans la barre d'objets, la boutique et le casier (`v30_22_shop`, `v30_23_locker`).
+  Remarques : ______________________________________________
+- [ ] **Points d'attache, animations, collisions, hitboxes, comportements préservés**
+  État : Fait pour les outils remplacés (buse, tête et manche télescopiques, gants, finition dorée, porte du casier,
+  hublot et tambour de la machine) ; vérifié par les tests PlayMode (`VALIDATION.md` § 23.2).
+  À tester en jeu : ☐ jet de la lance ☐ seau ☐ raclette ☐ monobrosse (disque qui tourne) ☐ brosse ☐ batte
+  ☐ casier (porte) ☐ machine à laver (achat, cycle, porte) — Remarques : ____________________
+- [ ] **Pas de surmodélisation, détails visibles en jeu**
+  État : Fait. Outils 2 000 à 13 000 triangles, accessoires 600 à 9 000. Remarques : ____________________
+
+## 3 — Tapis, saleté et matériaux
+
+- [ ] **Modèles et textures des tapis classiques, orientaux, poils longs**
+  État : Fait (textures) : motifs rendus nœud par nœud, résolution doublée, nouveau tapis de hall (`V0_3_0.md` § 3.4).
+  Les maillages de jeu (grille de nettoyage) sont inchangés.
+  Remarques : ______________________________________________
+- [ ] **Fibres, motifs, bordures, reliefs crédibles et lisibles**
+  État : Fait : normale de nœuds alignée sur le motif, velours des fibres dans le shader. Remarques : ____________________
+- [ ] **États sale / propre et transition de nettoyage**
+  État : Partiel. Le rendu de la saleté en jeu reste celui du système existant (non cassé). Six matériaux d'état
+  (`M_RugState_*`) créés, mais utilisés seulement dans la galerie (`v30_fbx_states_*`), pas en jeu.
+  Remarques : ______________________________________________
+- [ ] **Mousse, eau, humidité, résidus**
+  État : Partiel : le velours s'éteint sous l'eau et la mousse ; pas de refonte des particules ni de la mousse.
+  Preuve : `v30_08_rug_half_clean`, `v30_10_foam_close`. Remarques : ____________________
+- [ ] **Lisibilité sous différents éclairages et angles**
+  État : Partiel : contrôlé sur les captures de l'atelier seulement. Remarques : ____________________
+
+## 4 — Personnages et animations
+
+- [ ] **Personnages visibles (modèles, vêtements, matériaux, proportions)**
+  État : Fait : deux ouvriers de la référence (salopette, combinaison) modélisés dans Blender, intégrés à l'avatar réseau
+  et à l'aperçu du menu « Personnage » (`V0_3_0.md` § 3.5).
+  Preuve : `v30_avatar_*_front`, `_face`, `_back`, `v30_31_character`.
+  Ressemblance à la référence : ☐ Bonne ☐ À reprendre — Remarques : ____________________
+- [ ] **Mains / éléments de la vue première personne**
+  État : Fait : gant modélisé dans Blender sur tous les outils. Remarques : ____________________
+- [ ] **Animations, poses, transitions, ombres, autres joueurs en multijoueur**
+  État : Partiel. Squelette de 42 os ; l'animation reste celle du jeu (jambes, genoux, bras sur l'outil, tête, ragdoll,
+  KO). **Pas de clips** de marche, course ou gestes ; doigts non animés en jeu ; bras immobiles en marchant.
+  Vérifié par captures et tests hors réseau, puis en session à deux processus (67 contrôles réussis) ; pas sur deux PC.
+  À tester en ligne : ☐ l'autre joueur apparaît ☐ marche ☐ tient l'outil ☐ couleurs / tenue choisies
+  ☐ chute (batte) ☐ KO (fusil) — Remarques : ____________________
+- [ ] **Rigs, points d'attache, contrôleurs, synchronisation réseau préservés**
+  État : Fait : mêmes pièces pilotes, mêmes données réseau (aucun changement de protocole). Remarques : ____________________
+- [ ] **Amélioration intégrable plutôt que remplacement cassant**
+  État : Fait (l'ancien système d'animation est conservé). Remarques : ____________________
+
+## 5 — Atelier et environnement
+
+- [ ] **Sols, murs, plafonds, portes, étagères, éclairages, machines, ordinateur, mobilier, décor**
+  État : Partiel : 13 surfaces PBR, 28 accessoires réels, casier, machine à laver, caisse à outils. Les éléments modulaires
+  Blender (sol, murs, cloisons, étagère, établi, suspensions, panneaux) sont modélisés mais **pas branchés**.
+  Preuve : `v30_01` à `v30_06`. Remarques : ______________________________________________
+- [ ] **Profondeur visuelle (matériaux, lumière, ombres, composition)**
+  État : Fait. Remarques : ____________________
+- [ ] **Lisibilité des zones interactives et objets importants**
+  État : Partiel : panneaux de zone conservés, interaction contextuelle près du viseur. Remarques : ____________________
+- [ ] **Décor harmonisé sans gêner les déplacements**
+  État : Fait (accessoires hors des allées). À vérifier en jeu : ☐ pas de blocage ☐ pas d'objet qui flotte
+  Remarques : ____________________
+- [ ] **Collisions, navigation, interactions, visibilité en vue première personne**
+  État : Partiel : vérifié par les tests PlayMode et les captures ; pas de tour complet à la main. Remarques : ____________________
+
+## 6 — Refonte du HUD et des menus
+
+- [ ] **HUD, menus, inventaire, casier, boutiques, missions, résultats, sauvegardes**
+  État : Fait : charte appliquée à toutes les fenêtres ; HUD minimaliste ; boutique et casier allégés (`V0_3_0.md` § 3.6).
+  Preuve : `v30_09_hud`, `v30_20` à `v30_25`, `v30_30` à `v30_32`.
+  Remarques : ______________________________________________
+- [ ] **Canva ou outil de design si utile**
+  État : Fait (20/10) : affiche murale « Les 5 étapes » conçue dans Canva (design `DAHYhkCBAAU`, mêmes étapes que le jeu,
+  charte du jeu), exportée en PNG et posée à la place de l'affiche procédurale (`Textures/Decor/Poster_Steps_Canva.png`).
+  Les éléments d'interface restent dessinés par script (nets et teintables). Preuve : `v30_canva_poster`.
+  Remarques : ____________________
+- [ ] **Typographie, palette, hiérarchie, icônes, composants cohérents**
+  État : Fait : police Inter, `UITheme`, icônes `Textures/UI/Icon_*`. Remarques : ____________________
+- [ ] **Lisibilité, alignements, marges, états survol / actif / désactivé, transitions**
+  État : Fait (survol, appui, sélection safran, désactivé grisé ; pulsation de la propreté ; fondu du rappel des touches).
+  Remarques : ____________________
+- [ ] **Fonctions, textes utiles, contrôles, résolutions préservés**
+  État : Fait (20/10) : `Capture_V030_Resolutions` en 1280 × 720, 1920 × 1080, 2560 × 1440, 1680 × 1050 (16:10),
+  1280 × 1024 (5:4) et 3440 × 1440 (21:9) : cartes du HUD entièrement à l'écran et sans chevauchement, boutique, casier et
+  pause capturés (`v30_res_*`). Défaut trouvé et corrigé : le statut de l'outil débordait du panneau. En 5:4, le statut du
+  détergent (réserve, stock, produit) reste petit.
+  À tester : ☐ 1280 × 720 ☐ 2560 × 1440 ☐ ultra-large ☐ manette — Remarques : ____________________
+- [ ] **Pas d'images statiques à la place des boutons et textes**
+  État : Fait. Remarques : ____________________
+
+Le HUD est-il assez minimaliste ? ☐ Oui ☐ Trop chargé ☐ Il manque une info : ____________________
+
+## 7 — Matériaux, éclairage et post-traitement
+
+- [ ] **Matériaux PBR harmonisés (albédo, métal, lissé)**
+  État : Fait (`RugWashSurfaceLibrary`, micro-détails). Remarques : ____________________
+- [ ] **Éclairage, sources, ombres, séparation des plans**
+  État : Fait (projecteur de l'aire, plafonniers, lumière du jour, rais de lumière). Remarques : ____________________
+- [ ] **Post-traitement seulement s'il est utile**
+  État : Fait : étalonnage léger (exposition, contraste, virage partiel, vignette douce). Remarques : ____________________
+- [ ] **Image claire, sans effets exagérés, noirs bouchés ni reflets distrayants**
+  Ton avis : ☐ OK ☐ Trop sombre ☐ Trop clair ☐ Reflets gênants — Remarques : ____________________
+- [ ] **Cohérence entre scènes, menus et atelier**
+  État : Fait (même charte et même étalonnage). Remarques : ____________________
+
+## 8 — Intégration, performance et compatibilité
+
+- [ ] **Textures (tailles, formats, compression, mipmaps), meshes, matériaux partagés, shaders**
+  État : Fait (`V0_3_0.md` § 5). Remarques : ____________________
+- [ ] **Réutilisation des matériaux et ressources communes**
+  État : Fait : les FBX intégrés reprennent les matériaux de l'atelier (`RugWashFbxModels`). Remarques : ____________________
+- [ ] **Pas de textures énormes, matériaux dupliqués, shaders coûteux**
+  État : Partiel : 2048 px au plus ; deux ouvriers d'environ 60 000 triangles chacun (lourds à plusieurs joueurs, à surveiller).
+  Remarques : ____________________
+- [ ] **Draw calls, overdraw UI, transparences, éclairages coûteux**
+  État : Partiel : coût GPU mesuré (V0.3.0 contre V0.2.5, `VALIDATION.md` § 23.1, avant l'ouvrier et le nouveau HUD) ; draw
+  calls non relevés un par un. FPS ressentis : ____________ Remarques : ____________________
+- [ ] **Nettoyage, outils, sauvegardes, multijoueur non affectés**
+  État : Partiel : EditMode 265/265, PlayMode 171 réussis, 0 échec, 2 ignorés (`VALIDATION.md` § 23.3) ; multijoueur
+  réel non testé. À tester : ☐ nettoyage complet d'une commande ☐ sauvegarde puis rechargement ☐ partie en ligne
+  Remarques : ____________________
+- [ ] **Erreurs d'importation / références manquantes corrigées**
+  État : Fait (galerie FBX : aucun matériau manquant ; tests sans erreur). Remarques : ____________________
+
+## 9 — Contrôle qualité final
+
+- [ ] **Scènes principales et interfaces à différentes résolutions** — État : Fait (six résolutions, voir phase 6).
+  Remarques : ____________________
+- [ ] **Interactions et outils après remplacement des modèles** — État : Fait par les tests ; à confirmer en jeu.
+  Remarques : ____________________
+- [ ] **Vue première personne, animations, collisions, points d'attache** — État : Fait par les tests et les captures.
+  Remarques : ____________________
+- [ ] **Joueurs et objets en session multijoueur** — État : Fait (20/10) sur le build `ae2770d` : test à deux processus
+  (hôte, invité, invité relancé après crash), **67 contrôles réussis, 0 échec**, aucune exception dans les journaux (tapis,
+  argent et missions identiques, apparence de l'invité vue par l'hôte, silhouette de l'hôte visible, reconnexion sans
+  fantôme, sauvegardes intactes). Limite : contrôles par données, pas d'image de l'autre joueur ; pas de test sur deux PC.
+  Remarques : ____________________
+- [ ] **Anciennes fonctionnalités accessibles** — État : Fait par les tests (boutique, casier, missions, pause, RugDex,
+  paramètres, personnage, machine à laver, agrandissement, farces). Remarques : ____________________
+- [ ] **Récapitulatif (changements, assets remplacés, outils, limites, reste à faire, contrôles réels)**
+  État : Fait : `V0_3_0.md` et `VALIDATION.md` § 23. Attention : l'en-tête de `V0_3_0.md` dit encore « aucun build ni
+  benchmark » ; les deux ont depuis été lancés à ta demande (§ 23.1, builds des commits `ceb7d96` et `ae2770d`).
+
+---
+
+## Définition de terminé
+
+| Critère | Ton verdict |
+|---|---|
+| Direction artistique cohérente dans tout le jeu | ☐ Oui ☐ Non |
+| Objets et personnages visiblement améliorés | ☐ Oui ☐ Non |
+| Tapis et matériaux plus convaincants | ☐ Oui ☐ Non |
+| HUD et menus refaits proprement | ☐ Oui ☐ Non |
+| Performances et systèmes existants stables | ☐ Oui ☐ Non |
+
+Hors périmètre respecté (aucune mécanique ajoutée, sauvegarde / progression / réseau non réécrits) : ☐ Oui ☐ Non
+
+**Verdict V0.3.0 :** ☐ Validée ☐ Validée avec réserves ☐ À reprendre
+
+À reprendre en priorité :
+
+1. ______________________________________________
+2. ______________________________________________
+3. ______________________________________________

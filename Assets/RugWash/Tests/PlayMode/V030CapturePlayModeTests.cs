@@ -147,6 +147,68 @@ namespace RugWash.Tests
             yield return null;
         }
 
+        /// <summary>
+        /// Résolutions et formats d'écran (16:9 HD à QHD, 16:10, 5:4, ultra-large 21:9) : HUD avec un tapis, boutique, casier et
+        /// pause. Les cartes du HUD restent entièrement à l'écran et ne se chevauchent pas ; captures v30_res_* à relire.
+        /// </summary>
+        [UnityTest, Category("Capture")]
+        public IEnumerator Capture_V030_Resolutions()
+        {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) Assert.Ignore("Pas de GPU (mode -nographics) : captures ignorées.");
+            string folder = Folder();
+            var camera = game.ToolController.GetComponentInChildren<Camera>();
+            var canvas = game.Hud.GetComponentInParent<Canvas>();
+            var hud = game.Hud.transform;
+            game.Rug.LoadRug(game.AvailableRugs[0]);
+            game.Wallet.Wallet.Add(650);
+            string[] cards = { "CleanlinessPanel", "EconomyPanel", "ToolPanel", "ToolBar", "ScanPanel" };
+            var sizes = new (int w, int h, string name)[]
+            {
+                (1280, 720, "720p"), (1920, 1080, "1080p"), (2560, 1440, "1440p"), (1680, 1050, "16x10"), (1280, 1024, "5x4"), (3440, 1440, "21x9"),
+            };
+            Aim(new Vector2(0.5f, 0.45f), 1.25f);
+            yield return new WaitForSeconds(0.5f);
+            foreach (var size in sizes)
+            {
+                void CheckHud(RenderTexture rt)
+                {
+                    var rects = new List<Rect>();
+                    foreach (string name in cards)
+                    {
+                        var card = (RectTransform)hud.Find(name);
+                        Assert.IsNotNull(card, name);
+                        if (!card.gameObject.activeInHierarchy) { rects.Add(Rect.zero); continue; }
+                        var corners = new Vector3[4];
+                        card.GetWorldCorners(corners);
+                        Vector2 a = RectTransformUtility.WorldToScreenPoint(camera, corners[0]);
+                        Vector2 b = RectTransformUtility.WorldToScreenPoint(camera, corners[2]);
+                        var r = Rect.MinMaxRect(a.x, a.y, b.x, b.y);
+                        Assert.That(r.xMin >= -1f && r.yMin >= -1f && r.xMax <= rt.width + 1f && r.yMax <= rt.height + 1f,
+                            $"{size.name} : {name} sort de l'écran ({r}).");
+                        rects.Add(r);
+                    }
+                    for (int i = 0; i < rects.Count; i++)
+                    for (int j = i + 1; j < rects.Count; j++)
+                        if (rects[i].width > 0f && rects[j].width > 0f)
+                            Assert.IsFalse(rects[i].Overlaps(rects[j]), $"{size.name} : {cards[i]} chevauche {cards[j]}.");
+                }
+                yield return WorkshopPlayModeTests.SaveWithUI(camera, canvas, Path.Combine(folder, $"v30_res_{size.name}_hud.png"), size.w, size.h, CheckHud);
+                Assert.IsTrue(game.ShopUI.Open());
+                yield return new WaitForSecondsRealtime(0.15f);
+                yield return WorkshopPlayModeTests.SaveWithUI(camera, canvas, Path.Combine(folder, $"v30_res_{size.name}_shop.png"), size.w, size.h);
+                game.ShopUI.Close();
+                Assert.IsTrue(game.Locker.Open());
+                yield return new WaitForSecondsRealtime(0.15f);
+                yield return WorkshopPlayModeTests.SaveWithUI(camera, canvas, Path.Combine(folder, $"v30_res_{size.name}_locker.png"), size.w, size.h);
+                game.Locker.Close();
+                game.GameState.Pause();
+                yield return new WaitForSecondsRealtime(0.15f);
+                yield return WorkshopPlayModeTests.SaveWithUI(camera, canvas, Path.Combine(folder, $"v30_res_{size.name}_pause.png"), size.w, size.h);
+                game.GameState.Resume();
+                yield return null;
+            }
+        }
+
         /// <summary>Menu principal (charte UI, décor) et fenêtre Personnage (silhouette).</summary>
         [UnityTest, Category("Capture")]
         public IEnumerator Capture_V030_Menu()
@@ -302,6 +364,11 @@ namespace RugWash.Tests
             game.PlayerController.Teleport(new Vector3(3.6f, 0.06f, 3.0f), 0f, 22f);
             yield return new WaitForSeconds(0.4f);
             WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_toolstorage.png"));
+            // Affiche des cinq étapes conçue dans Canva (mur du fond).
+            Assert.IsNotNull(GameObject.Find("Poster_Steps/Paper"), "Affiche des étapes.");
+            game.PlayerController.Teleport(new Vector3(-1.75f, 0.06f, 2.9f), 0f, -6f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_canva_poster.png"));
             Object.FindAnyObjectByType<Workshop.WorkshopExtension>().Apply(true, true, false);
             game.PlayerController.Teleport(new Vector3(10.9f, 0.06f, -0.3f), 0f, 18f);
             yield return new WaitForSeconds(0.6f);

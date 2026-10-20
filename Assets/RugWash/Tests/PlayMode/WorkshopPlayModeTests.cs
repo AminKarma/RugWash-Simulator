@@ -318,9 +318,12 @@ namespace RugWash.Tests
             Assert.IsNotNull(game.Orders.LastResult, "La commande de capture doit avoir été livrée.");
         }
 
-        internal static IEnumerator SaveWithUI(Camera camera, Canvas canvas, string path)
+        internal static IEnumerator SaveWithUI(Camera camera, Canvas canvas, string path) => SaveWithUI(camera, canvas, path, 1600, 900);
+
+        /// <summary>Capture avec l'interface à une résolution donnée (la mise à l'échelle du canevas suit la cible de rendu).</summary>
+        internal static IEnumerator SaveWithUI(Camera camera, Canvas canvas, string path, int width, int height, System.Action<RenderTexture> check = null)
         {
-            var rt = new RenderTexture(1600, 900, 24, RenderTextureFormat.ARGB32);
+            var rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
             var previousMode = canvas.renderMode;
             camera.targetTexture = rt;
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
@@ -330,6 +333,7 @@ namespace RugWash.Tests
             Canvas.ForceUpdateCanvases();
             RenderPipeline.SubmitRenderRequest(camera, new RenderPipeline.StandardRequest { destination = rt });
             SaveTexture(rt, path);
+            check?.Invoke(rt);
             canvas.renderMode = previousMode;
             camera.targetTexture = null;
             rt.Release();

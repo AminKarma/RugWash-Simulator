@@ -812,3 +812,13 @@ Exécutions du 20 octobre 2026 (Unity 6000.5.7f1, mode batch, éditeur fermé) :
   désormais quatre couleurs de gants) ; test corrigé, puis les deux suites relancées en entier.
 - Non lancés : build, benchmark, test multijoueur à deux processus.
 
+### 23.4 Points « non faits » de la roadmap (20 octobre 2026)
+- Multijoueur à deux processus sur le build `ae2770d` (`Tools/RugWash-CI.ps1 -Step multiplayer`) : **67 contrôles réussis,
+  0 échec**, aucune exception dans les journaux de l'hôte et de l'invité.
+- `Capture_V030_Resolutions` (720p, 1080p, 1440p, 16:10, 5:4, 21:9) : cartes du HUD à l'écran et sans chevauchement ;
+  boutique, casier et pause capturés. **Réussi** après correction du statut de l'outil qui débordait de son panneau.
+- Canva : affiche « Les 5 étapes » générée et exportée en PNG, posée dans l'atelier (`Capture_V030_BlenderModels`,
+  `v30_canva_poster`). **Réussi.**
+- Suites complètes après ces changements : EditMode **265/265** ; PlayMode **172 réussis, 0 échec, 2 ignorés**.
+- Le build n'a pas été relancé après ces changements (le test multijoueur a porté sur le build `ae2770d`).
+

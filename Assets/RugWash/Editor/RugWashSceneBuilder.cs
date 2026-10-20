@@ -1520,21 +1520,24 @@ namespace RugWash.Editor
                 string.Empty, 16, TextAnchor.MiddleCenter, Muted);
 
             // Objet en main : nom et réserve sur une ligne, barre fine, juste au-dessus de la barre d'objets.
-            var toolPanel = CreateRect("ToolPanel", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 94f), new Vector2(460f, 46f));
+            var toolPanel = CreateRect("ToolPanel", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 94f), new Vector2(560f, 46f));
             Card(toolPanel, hudSoft);
-            var toolName = AddText(CreateRect("ToolName", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -4f), new Vector2(240f, 28f)),
+            var toolName = AddText(CreateRect("ToolName", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -4f), new Vector2(210f, 28f)),
                 "Outil", 19, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
             toolName.resizeTextForBestFit = true;
             toolName.resizeTextMinSize = 12;
             toolName.resizeTextMaxSize = 19;
             toolName.horizontalOverflow = HorizontalWrapMode.Wrap;
             toolName.verticalOverflow = VerticalWrapMode.Truncate;
-            var toolStatus = AddText(CreateRect("ToolStatus", toolPanel, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-16f, -4f), new Vector2(200f, 28f)),
+            var toolStatus = AddText(CreateRect("ToolStatus", toolPanel, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-16f, -4f), new Vector2(320f, 28f)),
                 string.Empty, 16, TextAnchor.MiddleRight, Muted);
+            // Une seule ligne : un statut long (réserve, stock, produit) rétrécit au lieu de déborder du panneau.
+            toolStatus.horizontalOverflow = HorizontalWrapMode.Wrap;
+            toolStatus.verticalOverflow = VerticalWrapMode.Truncate;
             toolStatus.resizeTextForBestFit = true;
-            toolStatus.resizeTextMinSize = 11;
+            toolStatus.resizeTextMinSize = 9;
             toolStatus.resizeTextMaxSize = 16;
-            var resourceFill = CreateFillBar("ResourceBar", toolPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(428f, 6f),
+            var resourceFill = CreateFillBar("ResourceBar", toolPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(528f, 6f),
                 sprites.Rounded, sprites.White, UITheme.Track, new Color(0.35f, 0.68f, 1f), out var resourceBar);
 
             // Scan de saleté : pastille compacte en bas à droite (raccourci et recharge).
