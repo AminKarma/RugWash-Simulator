@@ -112,11 +112,10 @@ namespace RugWash.UI
                 SetIcon(carriedRows[i], item.IsValid ? item.Id : null);
                 if (!item.IsValid)
                 {
-                    carriedRows[i].Set($"Emplacement {key} — libre", "Prenez un objet au casier pour l'utiliser.", "Vide", Muted, null, false, RowEmpty);
+                    carriedRows[i].Set($"{key}  —", string.Empty, "Libre", Muted, null, false, RowEmpty);
                     continue;
                 }
-                string kind = item.IsTool ? "Outil de nettoyage" : "Gadget de farce";
-                carriedRows[i].Set($"{key}  {item.DisplayName}", $"{kind} — sur vous (touche {key}).", "Porté", Ok, "Ranger", true, RowCarried);
+                carriedRows[i].Set($"{key}  {item.DisplayName}", item.IsTool ? string.Empty : "Farce", "Porté", Ok, "Ranger", true, RowCarried);
             }
 
             storedIds.Clear();
@@ -136,12 +135,14 @@ namespace RugWash.UI
                 if (!used) continue;
                 var item = inventory.Describe(storedIds[i]);
                 SetIcon(storedRows[i], item.Id);
-                storedRows[i].Set(item.DisplayName, item.IsTool ? "Outil de nettoyage" : "Gadget de farce", full ? "Inventaire plein" : "Au casier",
-                    full ? Warn : Muted, "Prendre", !full, RowStored);
+                // Inventaire plein : rappelé une seule fois sous la liste, le bouton « Prendre » est simplement indisponible.
+                storedRows[i].Set(item.DisplayName, item.IsTool ? string.Empty : "Farce", string.Empty, Muted, "Prendre", !full, RowStored);
             }
             storedHeader.text = storedIds.Count == 0 ? "Casier vide" : $"Dans le casier ({storedIds.Count})";
-            noteLabel.text = $"Vous portez {inventory.Carried.Count} / {PlayerInventory.Capacity} objets (outils et gadgets). " +
-                             "Le pipi n'occupe pas d'emplacement : s'il est acheté, il reste toujours disponible (G).";
+            noteLabel.text = full
+                ? $"Inventaire plein ({inventory.Carried.Count} / {PlayerInventory.Capacity}) : rangez un objet pour en prendre un autre."
+                : $"{inventory.Carried.Count} / {PlayerInventory.Capacity} emplacements utilisés.";
+            noteLabel.color = full ? Warn : Muted;
         }
 
         void StoreAt(int index)

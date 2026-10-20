@@ -15,7 +15,7 @@ namespace RugWash.Editor
         const string Folder = "Assets/RugWash/Models/FBX/";
 
         // Changer la version réimporte les FBX concernés.
-        public override uint GetVersion() => 4;
+        public override uint GetVersion() => 5;
 
         /// <summary>Matériau Blender → matériau du projet (même rôle, textures PBR du jeu).</summary>
         static readonly (string source, string target)[] Remaps =
@@ -51,6 +51,14 @@ namespace RugWash.Editor
             importer.addCollider = assetPath.StartsWith(Folder + "Environment/");
             // Outils et accessoires tenus en main : maillages lisibles (les tests de portée mesurent le point le plus bas des têtes).
             importer.isReadable = assetPath.StartsWith(Folder + "Tools/") || assetPath.StartsWith(Folder + "Props/");
+            // Personnages : squelette générique (os en GameObjects, sans Avatar Mecanim) piloté par la silhouette du jeu.
+            if (assetPath.StartsWith(Folder + "Characters/"))
+            {
+                importer.animationType = ModelImporterAnimationType.Generic;
+                importer.avatarSetup = ModelImporterAvatarSetup.NoAvatar;
+                importer.optimizeGameObjects = false;
+                importer.skinWeights = ModelImporterSkinWeights.Standard;
+            }
             foreach (var (source, target) in Remaps)
             {
                 var material = AssetDatabase.LoadAssetAtPath<Material>($"{RugWashPaths.Materials}/{target}.mat");

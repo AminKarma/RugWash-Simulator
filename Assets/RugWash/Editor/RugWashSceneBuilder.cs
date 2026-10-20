@@ -1476,79 +1476,90 @@ namespace RugWash.Editor
             var crosshair = CreateRect("Crosshair", hudRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
             AddImage(crosshair, sprites.Pill, new Color(1f, 1f, 1f, 0.92f));
 
-            var cleanPanel = CreateRect("CleanlinessPanel", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(560f, 78f));
-            Card(cleanPanel, PanelColor);
-            Icon(cleanPanel, "Sparkle", new Vector2(0f, 1f), new Vector2(34f, -27f), 26f, UITheme.Saffron);
-            var cleanLabel = AddText(CreateRect("Label", cleanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(14f, -9f), new Vector2(480f, 36f)),
-                "Propreté du tapis : 0 %", 24, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
-            var cleanFill = CreateFillBar("Bar", cleanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(516f, 14f),
+            // V0.3.0 — HUD minimaliste : seules les informations utiles pendant le nettoyage, petites, groupées et sans texte
+            // permanent. Haut : propreté du tapis (pastille et barre fine, seulement avec un tapis) et commande sur une ligne.
+            // Coin haut droit : l'argent. Bas : objet en main (nom, réserve), barre d'objets en icônes, scan. Près du viseur :
+            // l'interaction disponible. Les commandes ne s'affichent que quelques secondes au changement d'outil.
+            var hudSoft = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.62f);
+            var cleanPanel = CreateRect("CleanlinessPanel", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(330f, 50f));
+            Card(cleanPanel, hudSoft);
+            Icon(cleanPanel, "Sparkle", new Vector2(0f, 1f), new Vector2(26f, -21f), 20f, UITheme.Saffron);
+            var cleanLabel = AddText(CreateRect("Label", cleanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(10f, -5f), new Vector2(270f, 30f)),
+                "Propreté 0 %", 21, TextAnchor.MiddleCenter, Color.white, FontStyle.Bold);
+            cleanLabel.resizeTextForBestFit = true;
+            cleanLabel.resizeTextMinSize = 14;
+            cleanLabel.resizeTextMaxSize = 21;
+            var cleanFill = CreateFillBar("Bar", cleanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(10f, 9f), new Vector2(270f, 7f),
                 sprites.Rounded, sprites.White, UITheme.Track, Accent, out _);
-
-            var scanPanel = CreateRect("ScanPanel", hudRoot, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), new Vector2(300f, 64f));
-            Card(scanPanel, PanelColor);
-            var scanLabel = AddText(CreateRect("Label", scanPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(276f, 30f)),
-                "Scanner la saleté", 21, TextAnchor.MiddleLeft, Color.white);
-            scanLabel.resizeTextForBestFit = true;
-            scanLabel.resizeTextMinSize = 14;
-            scanLabel.resizeTextMaxSize = 21;
-            var scanFill = CreateFillBar("Bar", scanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(276f, 10f),
-                sprites.Rounded, sprites.White, UITheme.Track, UITheme.Saffron, out _);
-
-            var toast = AddText(CreateRect("Toast", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(900f, 36f)),
-                string.Empty, 24, TextAnchor.MiddleCenter, UITheme.Success, FontStyle.Bold);
-
-            // V0.3.0 : solde (pièce) et réputation (étoile) sur deux lignes, icônes à gauche ; texte enrichi par le HUD.
-            var economyPanel = CreateRect("EconomyPanel", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-24f, -22f), new Vector2(330f, 86f));
-            Card(economyPanel, PanelColor);
-            Icon(economyPanel, "Coin", new Vector2(0f, 1f), new Vector2(32f, -28f), 28f, UITheme.Money);
-            Icon(economyPanel, "Star", new Vector2(0f, 1f), new Vector2(32f, -62f), 22f, UITheme.Saffron);
-            var economy = AddText(CreateRect("Label", economyPanel, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), new Vector2(22f, 0f), new Vector2(-64f, -14f)),
-                "0 €", 24, TextAnchor.MiddleLeft, UITheme.Money, FontStyle.Bold);
-            economy.supportRichText = true;
-            var players = AddText(CreateRect("Players", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-24f, -106f), new Vector2(720f, 30f)),
-                string.Empty, 19, TextAnchor.UpperRight, UITheme.TextSecondary);
-            var orderInfo = AddText(CreateRect("OrderInfo", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -106f), new Vector2(1000f, 90f)),
-                string.Empty, 21, TextAnchor.UpperCenter, Color.white);
-
-            var prompt = AddText(CreateRect("Prompt", hudRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 1f), new Vector2(0f, -60f), new Vector2(1000f, 40f)),
-                string.Empty, 26, TextAnchor.UpperCenter, Color.white);
-
-            var hint = AddText(CreateRect("Hint", hudRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -20f), new Vector2(640f, 52f)),
-                string.Empty, 18, TextAnchor.UpperLeft, Muted);
-            hint.resizeTextForBestFit = true;
-            hint.resizeTextMinSize = 12;
-            hint.resizeTextMaxSize = 18;
+            var orderInfo = AddText(CreateRect("OrderInfo", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(900f, 50f)),
+                string.Empty, 17, TextAnchor.UpperCenter, Muted);
+            var toast = AddText(CreateRect("Toast", hudRoot, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -128f), new Vector2(900f, 34f)),
+                string.Empty, 22, TextAnchor.MiddleCenter, UITheme.Success, FontStyle.Bold);
+            // Alerte de l'aire de lavage : courte, seulement quand elle n'est pas propre.
             var workSurfaceLabel = AddText(CreateRect("WorkSurfaceAlert", hudRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(24f, -74f), new Vector2(760f, 30f)), string.Empty, 20, TextAnchor.UpperLeft, UITheme.Warning, FontStyle.Bold);
+                new Vector2(22f, -20f), new Vector2(560f, 50f)), string.Empty, 17, TextAnchor.UpperLeft, UITheme.Warning, FontStyle.Bold);
 
-            var toolPanel = CreateRect("ToolPanel", hudRoot, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(24f, 24f), new Vector2(380f, 116f));
-            Card(toolPanel, PanelColor);
-            AccentBar(toolPanel, new Vector2(0f, 1f), new Vector2(0f, -30f), new Vector2(5f, 30f), UITheme.Saffron);
-            var toolName = AddText(CreateRect("ToolName", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -10f), new Vector2(350f, 40f)),
-                "Outil", 30, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
+            // Argent seul, discret (réputation et niveau : menu pause et menu principal).
+            var economyPanel = CreateRect("EconomyPanel", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-20f, -18f), new Vector2(190f, 46f));
+            Card(economyPanel, hudSoft);
+            Icon(economyPanel, "Coin", new Vector2(0f, 0.5f), new Vector2(25f, 0f), 22f, UITheme.Money);
+            var economy = AddText(CreateRect("Label", economyPanel, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), new Vector2(18f, 0f), new Vector2(-50f, -8f)),
+                "0 €", 22, TextAnchor.MiddleLeft, UITheme.Money, FontStyle.Bold);
+            economy.supportRichText = true;
+            economy.resizeTextForBestFit = true;
+            economy.resizeTextMinSize = 14;
+            economy.resizeTextMaxSize = 22;
+            var players = AddText(CreateRect("Players", hudRoot, Vector2.one, Vector2.one, Vector2.one, new Vector2(-20f, -72f), new Vector2(720f, 28f)),
+                string.Empty, 16, TextAnchor.UpperRight, Muted);
+
+            var prompt = AddText(CreateRect("Prompt", hudRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 1f), new Vector2(0f, -44f), new Vector2(900f, 36f)),
+                string.Empty, 22, TextAnchor.UpperCenter, Color.white, FontStyle.Bold);
+
+            // Rappel des commandes : au-dessus de l'objet en main, quelques secondes au changement d'outil puis effacé.
+            var hint = AddText(CreateRect("Hint", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 148f), new Vector2(900f, 26f)),
+                string.Empty, 16, TextAnchor.MiddleCenter, Muted);
+
+            // Objet en main : nom et réserve sur une ligne, barre fine, juste au-dessus de la barre d'objets.
+            var toolPanel = CreateRect("ToolPanel", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 94f), new Vector2(460f, 46f));
+            Card(toolPanel, hudSoft);
+            var toolName = AddText(CreateRect("ToolName", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -4f), new Vector2(240f, 28f)),
+                "Outil", 19, TextAnchor.MiddleLeft, Color.white, FontStyle.Bold);
             toolName.resizeTextForBestFit = true;
-            toolName.resizeTextMinSize = 14;
-            toolName.resizeTextMaxSize = 30;
-            // Une seule ligne : un nom long (niveau, outil doré) rétrécit au lieu de passer sur la réserve en dessous.
+            toolName.resizeTextMinSize = 12;
+            toolName.resizeTextMaxSize = 19;
             toolName.horizontalOverflow = HorizontalWrapMode.Wrap;
             toolName.verticalOverflow = VerticalWrapMode.Truncate;
-            var toolStatus = AddText(CreateRect("ToolStatus", toolPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -50f), new Vector2(350f, 30f)),
-                string.Empty, 22, TextAnchor.MiddleLeft, Muted);
-            var resourceFill = CreateFillBar("ResourceBar", toolPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(344f, 14f),
+            var toolStatus = AddText(CreateRect("ToolStatus", toolPanel, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-16f, -4f), new Vector2(200f, 28f)),
+                string.Empty, 16, TextAnchor.MiddleRight, Muted);
+            toolStatus.resizeTextForBestFit = true;
+            toolStatus.resizeTextMinSize = 11;
+            toolStatus.resizeTextMaxSize = 16;
+            var resourceFill = CreateFillBar("ResourceBar", toolPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(428f, 6f),
                 sprites.Rounded, sprites.White, UITheme.Track, new Color(0.35f, 0.68f, 1f), out var resourceBar);
+
+            // Scan de saleté : pastille compacte en bas à droite (raccourci et recharge).
+            var scanPanel = CreateRect("ScanPanel", hudRoot, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-20f, 20f), new Vector2(170f, 44f));
+            Card(scanPanel, hudSoft);
+            Icon(scanPanel, "Spray", new Vector2(0f, 0.5f), new Vector2(22f, 3f), 20f, UITheme.Saffron);
+            var scanLabel = AddText(CreateRect("Label", scanPanel, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(40f, -4f), new Vector2(122f, 26f)),
+                "Scan", 16, TextAnchor.MiddleLeft, Color.white);
+            scanLabel.resizeTextForBestFit = true;
+            scanLabel.resizeTextMinSize = 11;
+            scanLabel.resizeTextMaxSize = 16;
+            var scanFill = CreateFillBar("Bar", scanPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(8f, 7f), new Vector2(130f, 5f),
+                sprites.Rounded, sprites.White, UITheme.Track, UITheme.Saffron, out _);
 
             built.Hud = hudRoot.gameObject.AddComponent<HUDController>();
             Wire(built.Hud, ("root", hudGroup), ("toolNameLabel", toolName), ("toolStatusLabel", toolStatus), ("resourceFill", resourceFill),
                 ("resourceBar", resourceBar.gameObject), ("cleanlinessLabel", cleanLabel), ("cleanlinessFill", cleanFill),
                 ("promptLabel", prompt), ("hintLabel", hint), ("toastLabel", toast), ("economyLabel", economy), ("orderLabel", orderInfo),
                 ("cleanlinessPanel", cleanPanel), ("scanLabel", scanLabel), ("scanFill", scanFill), ("workSurfaceLabel", workSurfaceLabel),
-                ("playersLabel", players));
+                ("playersLabel", players), ("toolPanel", toolPanel.gameObject));
 
-            // ---- Barre d'outils
-            // Quatre emplacements d'inventaire (grande mise à jour) entre le panneau d'outil (gauche) et le panneau de scan (droite).
-            var bar = CreateRect("ToolBar", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(40f, 24f), new Vector2(1000f, 60f));
+            // ---- Barre d'objets : quatre emplacements (touches 1 à 4) en icônes, le numéro en coin ; l'objet en main en surbrillance.
+            var bar = CreateRect("ToolBar", hudRoot, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(340f, 64f));
             var barLayout = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
-            barLayout.spacing = 6;
+            barLayout.spacing = 8;
             barLayout.childAlignment = TextAnchor.MiddleCenter;
             barLayout.childControlWidth = true;
             barLayout.childControlHeight = true;
@@ -1558,22 +1569,22 @@ namespace RugWash.Editor
             var slotIcons = new List<RawImage>();
             for (int i = 0; i < PlayerInventory.Capacity; i++)
             {
-                var slot = CreateRect($"Slot_{i}", bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(240f, 60f));
+                var slot = CreateRect($"Slot_{i}", bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(74f, 64f));
                 var element = slot.gameObject.AddComponent<LayoutElement>();
-                element.preferredWidth = 240f;
-                element.preferredHeight = 60f;
+                element.preferredWidth = 74f;
+                element.preferredHeight = 64f;
                 slotImages.Add(Card(slot, UITheme.SlotNormal));
-                // Icône 3D de l'objet porté (grande mise à jour), à gauche du nom.
-                var slotIcon = CreateRect("Icon", slot, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(4f, 0f), new Vector2(54f, 54f))
+                var slotIcon = CreateRect("Icon", slot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(56f, 56f))
                     .gameObject.AddComponent<RawImage>();
                 slotIcon.raycastTarget = false;
                 slotIcon.gameObject.SetActive(false);
                 slotIcons.Add(slotIcon);
-                var labelRect = CreateRect("Label", slot, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), new Vector2(29f, 0f), new Vector2(-66f, -8f));
-                var slotLabel = AddText(labelRect, "-", 19, TextAnchor.MiddleCenter, Color.white);
+                // Numéro de la touche en coin (le nom de l'objet n'apparaît que sans icône).
+                var labelRect = CreateRect("Label", slot, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(-10f, -6f));
+                var slotLabel = AddText(labelRect, "-", 14, TextAnchor.UpperLeft, Color.white, FontStyle.Bold);
                 slotLabel.resizeTextForBestFit = true;
-                slotLabel.resizeTextMinSize = 10;
-                slotLabel.resizeTextMaxSize = 19;
+                slotLabel.resizeTextMinSize = 9;
+                slotLabel.resizeTextMaxSize = 14;
                 slotLabels.Add(slotLabel);
             }
             built.Toolbar = bar.gameObject.AddComponent<ToolSelectionUI>();

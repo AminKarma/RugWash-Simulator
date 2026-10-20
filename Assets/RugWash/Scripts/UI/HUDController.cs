@@ -10,9 +10,11 @@ using UnityEngine.UI;
 namespace RugWash.UI
 {
     /// <summary>
-    /// HUD discret : outil actif, ressource, propreté (lue dans la grille), invite d'interaction,
-    /// aide contextuelle, messages courts, état du scan de saleté. Les jauges suivent leur valeur réelle
-    /// avec un léger lissage ; les paliers de propreté font « pulser » le panneau. Textes rafraîchis à fréquence limitée.
+    /// HUD minimaliste (V0.3.0) : argent, objet en main et sa réserve, propreté du tapis (seulement avec un tapis), commande
+    /// sur une ligne, interaction disponible près du viseur, scan, messages courts. Aucune liste de touches permanente : le
+    /// rappel des commandes de l'objet en main s'affiche quelques secondes à chaque changement (outil ou périphérique) puis
+    /// s'efface ; la liste complète est dans Réglages > Commandes. L'alerte de l'aire de lavage n'apparaît que si elle est sale.
+    /// Les jauges suivent leur valeur réelle avec un léger lissage ; les paliers de propreté font « pulser » le panneau.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class HUDController : MonoBehaviour
@@ -35,6 +37,10 @@ namespace RugWash.UI
         [SerializeField] Text workSurfaceLabel;
         [Tooltip("Optionnel : joueurs présents en partie en ligne.")]
         [SerializeField] Text playersLabel;
+        [Tooltip("Optionnel : panneau de l'objet en main (masqué les mains vides).")]
+        [SerializeField] GameObject toolPanel;
+        [Tooltip("Durée d'affichage du rappel des commandes après un changement d'outil ou de périphérique (s).")]
+        [SerializeField, Min(0f)] float hintSeconds = 5f;
         [SerializeField] Color gainColor = new Color(0.75f, 1f, 0.85f, 1f);
         [SerializeField] float barSmoothing = 10f;
         [SerializeField] float refreshInterval = 0.1f;
@@ -86,6 +92,7 @@ namespace RugWash.UI
 
         float nextRefresh;
         float toastUntil;
+        float hintUntil;
         string loadingMessage;
         int lastCleanPercent = -1;
         string lastPrompt, lastStatus, lastBlock;
@@ -234,14 +241,13 @@ namespace RugWash.UI
         {
             if (loadingMessage != null || surface == null || surface.Surface == null || surface.Surface.Grid == null) return string.Empty;
             string area = multiple && orders != null ? $"Aire de lavage ({OrderManager.BayLabel(orders.BayOf(surface.Surface)).ToLowerInvariant()})" : "Aire de lavage";
-            if (status.IsClean) return $"{area} : propre";
-            const string how = "rincez (lance ou seau) puis balayez ou raclez vers le caniveau";
+            if (status.IsClean) return string.Empty;
+            const string how = "rincez puis raclez vers le caniveau";
             if (!surface.AllowsNewOrder)
-                return $"{area} trop sale : {status.CleanlinessPercent} % propre ({surface.MinCleanlinessPercent} % requis " +
-                       $"pour une nouvelle commande) — {how}";
+                return $"{area} trop sale : {status.CleanlinessPercent} % propre ({surface.MinCleanlinessPercent} % requis) — {how}";
             if (surface.ContaminatesRug)
-                return $"{area} sale : {status.CleanlinessPercent} % propre — le tapis posé dessus se salit ! {how}";
-            return $"{area} : {status.CleanlinessPercent} % propre — {how}";
+                return $"{area} sale : {status.CleanlinessPercent} % propre — elle salit le tapis";
+            return $"{area} : {status.CleanlinessPercent} % propre";
         }
 
         void OnContaminated(float amount) =>
@@ -343,6 +349,7 @@ namespace RugWash.UI
         void OnSchemeChanged(InputScheme _)
         {
             lastTool = null;
+            hintUntil = Time.unscaledTime + hintSeconds;
             RefreshEconomy();
             RefreshAll(force: true);
         }
@@ -353,9 +360,8 @@ namespace RugWash.UI
         void RefreshEconomy()
         {
             if (wallet == null) return;
-            // V0.3.0 : solde en grand, réputation en dessous en plus petit et en gris (texte enrichi).
-            economyLabel.text = $"<size=28>{WalletManager.Format(wallet.Balance)}</size>\n<size=18><color=#C2C9CE>Réputation {reputation.Points}" +
-                                (profileSource != null ? $" · niveau {profileSource.Profile.Level}" : string.Empty) + "</color></size>";
+            // HUD minimaliste : l'argent seul (réputation et niveau dans le menu pause).
+            economyLabel.text = WalletManager.Format(wallet.Balance);
             int bay = orders.CurrentBay;
             var order = orders.OrderOf(bay);
             string interact = input != null ? input.Label("Interact") : "E";
@@ -363,10 +369,9 @@ namespace RugWash.UI
             bool finished = bayRug != null && bayRug.IsFinished;
             string zone = orders.UnlockedBayCount > 1 ? $"{OrderManager.BayLabel(bay)} · " : string.Empty;
             orderLabel.text = (order == null
-                ? $"{zone}Aucune commande — missions sur l'ordinateur ({interact})"
-                : $"{zone}{order.title} · " + (finished ? "tapis terminé" : $"objectif {order.objectives.targetCleanliness * 100f:0} %") +
-                  $" · {OrderEvaluator.FormatTime(orders.ElapsedOf(bay))}\n" +
-                  $"Livrer sur l'ordinateur, application Missions ({interact})") + OtherWork(bay);
+                ? $"{zone}Aucune commande · ordinateur ({interact})"
+                : $"{zone}{order.title} · " + (finished ? $"terminé, à livrer sur l'ordinateur ({interact})" : $"objectif {order.objectives.targetCleanliness * 100f:0} %") +
+                  $" · {OrderEvaluator.FormatTime(orders.ElapsedOf(bay))}") + OtherWork(bay);
         }
 
         /// <summary>Les autres zones occupées et la machine à laver, sur une ligne (vide s'il n'y a rien d'autre en cours).</summary>
@@ -473,6 +478,7 @@ namespace RugWash.UI
             }
 
             if (toastLabel.text.Length > 0 && Time.unscaledTime > toastUntil) toastLabel.text = string.Empty;
+            hintLabel.canvasRenderer.SetAlpha(Mathf.Clamp01((hintUntil - Time.unscaledTime) / 0.6f));
 
             if (Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + refreshInterval;
@@ -534,8 +540,9 @@ namespace RugWash.UI
             {
                 lastCleanPercent = percent;
                 cleanlinessLabel.text = loadingMessage != null ? "Synchronisation avec l'hôte…"
-                    : !hasRug ? "Aucun tapis — acceptez une mission sur l'ordinateur"
-                    : CurrentRug.IsFinished ? "Propreté du tapis : 100 % — terminé" : $"Propreté du tapis : {percent} %";
+                    : !hasRug ? "Aucun tapis"
+                    : CurrentRug.IsFinished ? "Propreté 100 % — terminé" : $"Propreté {percent} %";
+                cleanlinessPanel.gameObject.SetActive(hasRug || loadingMessage != null);
             }
 
 
@@ -544,6 +551,8 @@ namespace RugWash.UI
             {
                 lastTool = tool;
                 lastGadget = gadget;
+                hintUntil = Time.unscaledTime + hintSeconds;
+                if (toolPanel != null) toolPanel.SetActive(tool != null || gadget != Pranks.PrankGadget.None);
                 if (gadget != Pranks.PrankGadget.None)
                 {
                     toolNameLabel.text = $"{gadgets.Name(gadget)} (farce)";
@@ -565,8 +574,8 @@ namespace RugWash.UI
             if (scanner != null)
             {
                 string key = input.GetBindingLabel("Scan");
-                string scan = scanner.IsActive ? $"Scan actif · {Mathf.CeilToInt(scanner.ActiveRemaining)} s"
-                    : scanner.IsReady ? $"[{key}] Scanner la saleté" : $"Scan : recharge {Mathf.CeilToInt(scanner.CooldownRemaining)} s";
+                string scan = scanner.IsActive ? $"Scan · {Mathf.CeilToInt(scanner.ActiveRemaining)} s"
+                    : scanner.IsReady ? $"[{key}] Scan" : $"Scan · {Mathf.CeilToInt(scanner.CooldownRemaining)} s";
                 if (force || scan != lastScan)
                 {
                     lastScan = scan;
@@ -611,26 +620,23 @@ namespace RugWash.UI
             return string.Empty;
         }
 
-        /// <summary>Rappel des commandes avec un gadget de farce en main.</summary>
+        /// <summary>Rappel court avec un gadget de farce en main (affiché quelques secondes).</summary>
         string BuildGadgetHint()
         {
             string use = input.Scheme == InputScheme.Gamepad ? input.Label("Use") : "Clic gauche";
-            string back = input.Scheme == InputScheme.Gamepad ? $"{input.Label("ToolPrevious")} / {input.Label("ToolNext")}" : "1-4 / molette";
-            return $"{use} : {gadgets.ActionVerb}   ·   {input.Label("Gadget")} : gadget suivant / ranger   ·   {back} : outils   ·   " +
-                   $"{input.Label("Interact")} : interagir";
+            return $"{use} : {gadgets.ActionVerb}   ·   {input.Label("Gadget")} : gadget suivant / ranger";
         }
 
-        /// <summary>Rappel des commandes, selon le périphérique actif (clavier/souris ou manette).</summary>
+        /// <summary>
+        /// Rappel court de l'objet en main (affiché quelques secondes) : son action et le changement d'objet, selon le
+        /// périphérique actif. Les autres commandes : invite contextuelle, Réglages > Commandes.
+        /// </summary>
         string BuildHint(CleaningToolBase tool)
         {
             string verb = tool != null ? tool.ActionVerb : "utiliser";
-            string common = $"{input.Label("Interact")} : interagir   ·   {input.Label("Scan")} : scanner   ·   {input.Label("Product")} : produit   ·   " +
-                            $"{input.Label("Inspect")} : inspecter   ·   ";
-            if (gadgets != null && gadgets.HasAnyGadget) common += $"{input.Label("Gadget")} : farces   ·   ";
             if (input.Scheme == InputScheme.Gamepad)
-                return $"{input.Label("Use")} : {verb}   ·   {input.Label("ToolPrevious")} / {input.Label("ToolNext")} : outils   ·   " +
-                       common + $"{input.Label("Pause")} : pause";
-            return $"Clic gauche : {verb}   ·   1-4 / molette : inventaire   ·   " + common + "Échap : pause";
+                return $"{input.Label("Use")} : {verb}   ·   {input.Label("ToolPrevious")} / {input.Label("ToolNext")} : outils";
+            return $"Clic gauche : {verb}   ·   1-4 / molette : outils";
         }
     }
 }

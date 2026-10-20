@@ -202,6 +202,85 @@ namespace RugWash.Tests
             Player.PlayerInventory.AutomationCarriesOnSelect = false;
         }
 
+        /// <summary>
+        /// Ouvrier modélisé dans Blender (MCP), à squelette, tel que les autres joueurs le voient : salopette et combinaison, de
+        /// face et de dos, en marche, outil en main, à terre (ragdoll). Vérifie aussi que les os suivent la silhouette du jeu.
+        /// </summary>
+        [UnityTest, Category("Capture")]
+        public IEnumerator Capture_V030_Avatar()
+        {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) Assert.Ignore("Pas de GPU (mode -nographics) : captures ignorées.");
+            string folder = Folder();
+            var camera = game.ToolController.GetComponentInChildren<Camera>();
+#if UNITY_EDITOR
+            var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/RugWash/Prefabs/Network/PlayerAvatar.prefab");
+#else
+            GameObject prefab = null;
+#endif
+            Assert.IsNotNull(prefab, "Préfabriqué de l'avatar réseau.");
+            var feet = new Vector3(1.2f, 0.06f, 1.4f);
+            var avatarObject = Object.Instantiate(prefab, feet, Quaternion.identity);
+            var avatar = avatarObject.GetComponent<Network.NetworkPlayerAvatar>();
+            var appearance = avatarObject.GetComponentInChildren<Player.CharacterAppearance>(true);
+            var skeletons = avatarObject.GetComponentsInChildren<Player.AvatarSkeleton>(true);
+            Assert.AreEqual(2, skeletons.Length, "Deux ouvriers à squelette (salopette, combinaison).");
+            avatar.SetPreviewState(0, false, 0f);
+            void Look(float distance, float yaw, float height = 0.9f)
+            {
+                var forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+                var eye = feet - forward * distance;
+                float pitch = Mathf.Atan2(eye.y + 1.62f - (feet.y + height), distance) * Mathf.Rad2Deg;
+                game.PlayerController.Teleport(eye, yaw, pitch);
+            }
+            for (int style = 0; style < 2; style++)
+            {
+                appearance.Apply(new Player.CharacterLook { outfit = style, cap = style == 0 ? 1 : 2, gloves = style });
+                Assert.AreEqual(style, appearance.Style);
+                Assert.IsTrue(skeletons[style].gameObject.activeInHierarchy && !skeletons[1 - style].gameObject.activeInHierarchy, "Modèle de la tenue choisie.");
+                avatar.SetPreviewState(0, false, 0f);
+                Look(2.6f, 180f);
+                yield return new WaitForSeconds(0.4f);
+                WorkshopPlayModeTests.Save(camera, Path.Combine(folder, $"v30_avatar_{style}_front.png"));
+                Look(1.2f, 180f, 1.55f);
+                yield return new WaitForSeconds(0.2f);
+                WorkshopPlayModeTests.Save(camera, Path.Combine(folder, $"v30_avatar_{style}_face.png"));
+                Look(2.6f, 0f);
+                yield return new WaitForSeconds(0.2f);
+                WorkshopPlayModeTests.Save(camera, Path.Combine(folder, $"v30_avatar_{style}_back.png"));
+                // Marche : la silhouette avance, jambes balancées et genoux fléchis.
+                Look(2.8f, 250f);
+                for (float t = 0f; t < 0.7f; t += Time.deltaTime)
+                {
+                    avatarObject.transform.position += Vector3.right * (2.2f * Time.deltaTime);
+                    yield return null;
+                }
+                WorkshopPlayModeTests.Save(camera, Path.Combine(folder, $"v30_avatar_{style}_walk.png"));
+                avatarObject.transform.position = feet;
+                // Outil en main (lance de rinçage), visée vers le bas : bras refermés sur l'outil.
+                avatar.SetPreviewState(4, true, 30f);
+                Look(2.2f, 210f, 1.1f);
+                yield return new WaitForSeconds(0.5f);
+                Assert.Less(Vector3.Distance(avatar.RightWrist, avatar.ActiveTool.rightHand.TransformPoint(new Vector3(0f, 0f, -0.06f))), 0.03f, "Main sur la poignée.");
+                WorkshopPlayModeTests.Save(camera, Path.Combine(folder, $"v30_avatar_{style}_tool.png"));
+                avatar.SetPreviewState(0, false, 0f);
+            }
+            // À terre (ragdoll), puis KO cartoon du fusil : la tête disparaît et revient.
+            avatar.PreviewKnockdown(true, new Vector3(0f, 1.5f, -3f));
+            Look(3.2f, 180f, 0.3f);
+            yield return new WaitForSeconds(1.2f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_avatar_ragdoll.png"));
+            avatar.PreviewKnockdown(false, Vector3.zero);
+            yield return new WaitForSeconds(0.8f);
+            avatar.PreviewKnockdown(true, Vector3.zero, Player.KnockCause.Blaster);
+            yield return null;
+            Assert.IsTrue(avatar.HeadPopped);
+            Assert.Less(skeletons[1].HeadBone.localScale.x, 0.01f, "Tête masquée (os de la tête).");
+            avatar.PreviewKnockdown(false, Vector3.zero);
+            yield return null;
+            Assert.IsFalse(avatar.HeadPopped);
+            Object.Destroy(avatarObject);
+        }
+
         /// <summary>Modèles Blender (MCP) intégrés à l'atelier : casier (fermé, ouvert), caisse à outils, machine à laver de l'annexe.</summary>
         [UnityTest, Category("Capture")]
         public IEnumerator Capture_V030_BlenderModels()

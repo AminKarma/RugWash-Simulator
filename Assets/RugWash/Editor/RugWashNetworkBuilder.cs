@@ -158,6 +158,13 @@ namespace RugWash.Editor
                 ("foreArmRight", foreRight), ("handRight", handRight), ("appearance", appearance), ("ragdoll", ragdoll), ("headPop", headPop),
                 ("voice", voice));
             SetInt(avatar, "aimMask", ~((1 << RugWashPaths.PlayerLayer) | (1 << 2) | (1 << 5)));
+            WireList(avatar, "skeletons", visuals.GetComponentsInChildren<AvatarSkeleton>(true));
+            if (parts.UpperArmLength > 0f)
+            {
+                SetFloat(avatar, "upperArmLength", parts.UpperArmLength);
+                SetFloat(avatar, "foreArmLength", parts.ForeArmLength);
+                SetFloat(avatar, "maxArmStretch", 1.35f);
+            }
             var serialized = new SerializedObject(avatar);
             var list = serialized.FindProperty("tools");
             list.arraySize = models.Length;
@@ -217,6 +224,106 @@ namespace RugWash.Editor
         {
             public Transform Visuals, Head, View, LegLeft, LegRight, ShoulderLeft, ShoulderRight, UpperLeft, UpperRight, ForeLeft, ForeRight;
             public GameObject HandRight;
+            /// <summary>V0.3.0 : longueurs des segments du bras du personnage à squelette (0 : silhouette procédurale).</summary>
+            public float UpperArmLength, ForeArmLength;
+        }
+
+        /// <summary>Ouvriers modélisés dans Blender via le MCP (Art/Blender/Characters/Ouvrier.blend), même squelette.</summary>
+        internal static readonly string[] SkinnedModels = { "Characters/Ouvrier_Salopette", "Characters/Ouvrier_Combinaison" };
+
+        /// <summary>
+        /// V0.3.0 : silhouette à squelette. Les pièces pilotes de la silhouette (jambes, épaules, bras, avant-bras, tête, point
+        /// de vue) restent celles du jeu — même animation, même ragdoll, mêmes outils portés devant les yeux — mais n'ont plus
+        /// de maillage : les deux ouvriers (salopette, combinaison) suivent leurs orientations (<see cref="AvatarSkeleton"/>),
+        /// le modèle affiché dépendant de la tenue choisie. Épaules et longueurs des bras reprises du squelette, pour que les
+        /// mains se referment toujours sur l'outil. Le gant droit est rangé dans « Hand_R » (masqué quand un outil est tenu,
+        /// dont le modèle porte son propre gant).
+        /// </summary>
+        static AvatarVisuals BuildSkinnedVisuals(Transform visuals, RugWashContentBuilder.Content c)
+        {
+            Transform Empty(string name, Transform parent, Vector3 position)
+            {
+                var t = new GameObject(name).transform;
+                t.SetParent(parent, false);
+                t.localPosition = position;
+                return t;
+            }
+            var legLeft = Empty("Leg_L", visuals, new Vector3(-0.1f, 0.9f, 0f));
+            var legRight = Empty("Leg_R", visuals, new Vector3(0.1f, 0.9f, 0f));
+            var head = Empty("Head", visuals, new Vector3(0f, 1.55f, 0f));
+            var view = Empty("View", head, new Vector3(0f, 0.07f, 0f));
+            var models = new GameObject[SkinnedModels.Length];
+            for (int i = 0; i < models.Length; i++)
+                models[i] = RugWashFbxModels.Place(SkinnedModels[i], visuals, c, Vector3.zero, Quaternion.identity, System.IO.Path.GetFileName(SkinnedModels[i]));
+            Transform Bone(GameObject model, string name) =>
+                RugWashFbxModels.FindDeep(model.transform, name) ?? throw new System.InvalidOperationException($"[RugWash] Os absent : {model.name}/{name}");
+            Vector3 Local(Transform t) => visuals.InverseTransformPoint(t.position);
+            var reference = models[0];
+            var shoulderLeft = Empty("Shoulder_L", visuals, Local(Bone(reference, "LeftUpperArm")));
+            var shoulderRight = Empty("Shoulder_R", visuals, Local(Bone(reference, "RightUpperArm")));
+            // Segment pilote : Z le long de l'os, Y vers le pôle du coude (même règle que NetworkPlayerAvatar.SolveArm).
+            Transform Segment(string name, string from, string to, float side, out float length)
+            {
+                Vector3 a = Local(Bone(reference, from)), b = Local(Bone(reference, to));
+                length = (b - a).magnitude;
+                Vector3 dir = (b - a).normalized;
+                var segment = Empty(name, visuals, a);
+                segment.localRotation = Quaternion.LookRotation(dir, Vector3.ProjectOnPlane(new Vector3(side, -0.8f, -0.3f), dir).normalized);
+                return segment;
+            }
+            var upperLeft = Segment("UpperArm_L", "LeftUpperArm", "LeftLowerArm", -1f, out float upperLength);
+            var upperRight = Segment("UpperArm_R", "RightUpperArm", "RightLowerArm", 1f, out _);
+            var foreLeft = Segment("ForeArm_L", "LeftLowerArm", "LeftHand", -1f, out float foreLength);
+            var foreRight = Segment("ForeArm_R", "RightLowerArm", "RightHand", 1f, out _);
+            if (shoulderLeft.localPosition.x > 0f)
+                throw new System.InvalidOperationException("[RugWash] Squelette inversé : l'épaule gauche doit être du côté -X.");
+
+            // Axe local (unitaire, positif) de la longueur d'un os : celui qui pointe vers l'os suivant.
+            Vector3 LengthAxis(Transform bone, Transform next)
+            {
+                Vector3 d = bone.InverseTransformPoint(next.position);
+                Vector3 a = new Vector3(Mathf.Abs(d.x), Mathf.Abs(d.y), Mathf.Abs(d.z));
+                return a.x >= a.y && a.x >= a.z ? Vector3.right : a.y >= a.z ? Vector3.up : Vector3.forward;
+            }
+            var hand = new GameObject("Hand_R");
+            hand.transform.SetParent(visuals, false);
+            foreach (var model in models)
+            {
+                var skeleton = model.AddComponent<AvatarSkeleton>();
+                skeleton.AddLink(Bone(model, "LeftUpperLeg"), legLeft);
+                skeleton.AddLink(Bone(model, "RightUpperLeg"), legRight);
+                // Bras étirables sans trou entre manche et gant : avant-bras et main détachés de leur parent (aucune échelle
+                // héritée), chaque segment s'allonge le long de son axe comme la pièce pilote.
+                foreach (string side in new[] { "Left", "Right" })
+                {
+                    Bone(model, side + "LowerArm").SetParent(model.transform, true);
+                    Bone(model, side + "Hand").SetParent(model.transform, true);
+                }
+                skeleton.AddStretchLink(Bone(model, "LeftUpperArm"), upperLeft, LengthAxis(Bone(model, "LeftUpperArm"), Bone(model, "LeftLowerArm")));
+                skeleton.AddStretchLink(Bone(model, "RightUpperArm"), upperRight, LengthAxis(Bone(model, "RightUpperArm"), Bone(model, "RightLowerArm")));
+                // Avant-bras : orienté et placé sur le coude ; main placée au poignet (bras étirés pour atteindre l'outil).
+                skeleton.AddAnchor(Bone(model, "LeftLowerArm"), foreLeft, true, LengthAxis(Bone(model, "LeftLowerArm"), Bone(model, "LeftHand")));
+                skeleton.AddAnchor(Bone(model, "RightLowerArm"), foreRight, true, LengthAxis(Bone(model, "RightLowerArm"), Bone(model, "RightHand")));
+                skeleton.AddAnchor(Bone(model, "LeftHand"), foreLeft, true);
+                skeleton.AddAnchor(Bone(model, "RightHand"), foreRight, true);
+                // Tangage partagé : le cou en prend 40 %, la tête le reste (tête longue : moins de « cassure » au cou).
+                skeleton.AddLink(Bone(model, "Neck"), head, 0.4f);
+                skeleton.AddLink(Bone(model, "Head"), head);
+                skeleton.AddKnee(Bone(model, "LeftLowerLeg"), legLeft, visuals.right);
+                skeleton.AddKnee(Bone(model, "RightLowerLeg"), legRight, visuals.right);
+                skeleton.SetHeadBone(Bone(model, "Head"));
+                foreach (var skinned in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                {
+                    skinned.updateWhenOffscreen = false;
+                    if (skinned.name.EndsWith("_Glove_R")) skinned.transform.SetParent(hand.transform, true);
+                }
+            }
+            return new AvatarVisuals
+            {
+                Visuals = visuals, Head = head, View = view, LegLeft = legLeft, LegRight = legRight, ShoulderLeft = shoulderLeft,
+                ShoulderRight = shoulderRight, UpperLeft = upperLeft, UpperRight = upperRight, ForeLeft = foreLeft, ForeRight = foreRight,
+                HandRight = hand, UpperArmLength = upperLength, ForeArmLength = foreLength,
+            };
         }
 
         internal static AvatarVisuals BuildAvatarVisuals(Transform root, RugWashContentBuilder.Content c, MeshStore meshes)
@@ -225,6 +332,7 @@ namespace RugWash.Editor
             // Proportions d'un adulte de 1,75 m ; les yeux (point de vue des outils) sont à 1,62 m, comme la caméra du joueur.
             var visuals = new GameObject("Visuals").transform;
             visuals.SetParent(root, false);
+            if (System.Array.TrueForAll(SkinnedModels, RugWashFbxModels.Has)) return BuildSkinnedVisuals(visuals, c);
             // V0.3.0 : pièces modélisées dans Blender (Tools/Blender/models_character.py), mêmes pivots que les pièces procédurales.
             Mesh Model(string key, bool mirror = false) => RugWashModelLibrary.Mesh(meshes, "Character", key, mirror);
             bool modeled = RugWashModelLibrary.Has("Character", "Avatar_Face");
@@ -350,9 +458,41 @@ namespace RugWash.Editor
                 else if (renderer.sharedMaterial == c["CapFabric"]) cap.Add(renderer);
                 else if (renderer.sharedMaterial == c["Glove"]) gloves.Add(renderer);
             }
+            // V0.3.0 : personnage à squelette — rendus repérés par leur nom (exportés depuis Blender par rôle), modèle par tenue.
+            var capDetails = new List<Renderer>();
+            var styleObjects = new List<GameObject>();
+            var styleIndices = new List<int>();
+            int StyleOf(string name) => name.Contains("Combinaison") ? CharacterPalette.Coverall : CharacterPalette.Overalls;
+            foreach (var skinned in target.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                string name = skinned.name;
+                if (name.EndsWith("_Outfit")) outfit.Add(skinned);
+                else if (name.EndsWith("_CapDetail")) capDetails.Add(skinned);
+                else if (name.EndsWith("_Cap")) cap.Add(skinned);
+                else if (name.Contains("_Glove_")) gloves.Add(skinned);
+                if (name.EndsWith("_Glove_R"))
+                {
+                    styleObjects.Add(skinned.gameObject);
+                    styleIndices.Add(StyleOf(name));
+                }
+            }
+            foreach (var skeleton in target.GetComponentsInChildren<AvatarSkeleton>(true))
+            {
+                styleObjects.Add(skeleton.gameObject);
+                styleIndices.Add(StyleOf(skeleton.name));
+            }
             WireList(appearance, "outfitRenderers", outfit);
             WireList(appearance, "capRenderers", cap);
             WireList(appearance, "gloveRenderers", gloves);
+            WireList(appearance, "capDetailRenderers", capDetails);
+            WireList(appearance, "styleObjects", styleObjects);
+            var serializedAppearance = new SerializedObject(appearance);
+            var indices = serializedAppearance.FindProperty("styleIndices");
+            indices.arraySize = styleIndices.Count;
+            for (int i = 0; i < styleIndices.Count; i++) indices.GetArrayElementAtIndex(i).intValue = styleIndices[i];
+            serializedAppearance.ApplyModifiedPropertiesWithoutUndo();
+            // Modèle par défaut affiché dans le préfabriqué (l'apparence réelle est appliquée au lancement).
+            for (int i = 0; i < styleObjects.Count; i++) styleObjects[i].SetActive(styleIndices[i] == CharacterPalette.Overalls);
             return appearance;
         }
 

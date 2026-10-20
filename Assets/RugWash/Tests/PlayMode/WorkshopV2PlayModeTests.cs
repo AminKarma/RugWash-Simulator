@@ -231,7 +231,7 @@ namespace RugWash.Tests
             game.WorkSurface.RefreshStatus(force: true);
             yield return null;
             Assert.IsTrue(game.WorkSurface.Status.IsClean);
-            Assert.AreEqual("Aire de lavage : propre", game.Hud.WorkSurfaceAlert);
+            Assert.AreEqual(string.Empty, game.Hud.WorkSurfaceAlert, "HUD minimaliste : plus d'alerte une fois l'aire propre.");
         }
 
         /// <summary>Salit une part donnée de l'aire de lavage (rangées complètes, boue et eau sale).</summary>

@@ -338,6 +338,7 @@ namespace RugWash.Core
             pauseMenu.BindRugDex(rugDexUI);
             rugDex.NewRugDiscovered += OnNewRugDiscovered;
             pauseMenu.Bind(gameState, rug, orders, settingsUI, saveManager);
+            pauseMenu.BindProgress(reputation);
             settingsUI.Bind(settingsManager, saveManager, gameState);
             saveManager.Saved += OnSaved;
             orders.ObjectiveReached += OnObjectiveReached;

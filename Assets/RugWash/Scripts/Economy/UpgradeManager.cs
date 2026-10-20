@@ -190,8 +190,9 @@ namespace RugWash.Economy
                 {
                     var tool = FindTool(upgrade.targetToolId);
                     if (tool == null) return "Nouvel outil";
-                    // Inventaire à 4 emplacements (grande mise à jour) : l'outil acheté est porté s'il reste une place, sinon rangé.
-                    return $"Nouvel outil : {tool.Definition.displayName} — porté s'il reste un emplacement (touches 1 à 4), sinon rangé au casier";
+                    // Inventaire à 4 emplacements : l'outil acheté est porté s'il reste une place, sinon rangé (rappel du casier ;
+                    // V0.3.0 : plus répété sur chaque ligne de la boutique, la description de l'outil suffit).
+                    return $"Nouvel outil : {tool.Definition.displayName}";
                 }
                 case UpgradeEffect.FootprintTransfer:
                     return $"Boue laissée par vos pas : {stats.FootprintTransfer * 100f:0} % → {stats.FootprintTransfer * Mathf.Clamp01(upgrade.value) * 100f:0} %";

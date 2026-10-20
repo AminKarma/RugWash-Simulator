@@ -90,6 +90,15 @@ namespace RugWash.UI
         /// <summary>Bouton « RugDex » : ouvre la collection par-dessus la pause.</summary>
         public void BindRugDex(RugDex.RugDexUI rugDex) => rugDexButton.onClick.AddListener(() => rugDex.Open());
 
+        Economy.ReputationManager reputation;
+
+        /// <summary>V0.3.0 : réputation et niveau du joueur, retirés du HUD, rappelés dans la pause.</summary>
+        public void BindProgress(Economy.ReputationManager reputationManager) => reputation = reputationManager;
+
+        /// <summary>Ligne « Réputation · niveau » affichée sous la commande en cours.</summary>
+        public string ProgressLine => (reputation != null ? $"Réputation {reputation.Points}" : string.Empty)
+            + (save != null ? (reputation != null ? " · " : string.Empty) + $"niveau {save.Profile.Level}" : string.Empty);
+
         void OnDestroy()
         {
             if (gameState != null) gameState.StateChanged -= OnStateChanged;
@@ -106,7 +115,9 @@ namespace RugWash.UI
             bool online = session != null && session.InSession;
             bool guest = online && session.IsGuest;
             string zone = inOrder && orders.UnlockedBayCount > 1 ? $" ({OrderManager.BayLabel(orders.CurrentBay).ToLowerInvariant()})" : string.Empty;
+            string progress = ProgressLine;
             subtitleLabel.text = (inOrder ? $"Commande en cours{zone} : {orders.ActiveOrder.title}" : "Aucune commande en cours")
+                + (progress.Length > 0 ? "\n" + progress : string.Empty)
                 + (online ? (guest ? "\nPartie en ligne — le jeu continue pendant la pause" : "\nVous êtes l'hôte — le jeu continue pendant la pause") : string.Empty);
             resetRugLabel.text = "Recommencer la commande";
             // Invité : le tapis et la commande appartiennent à l'hôte. Hors commande, il n'y a pas de tapis à recommencer.

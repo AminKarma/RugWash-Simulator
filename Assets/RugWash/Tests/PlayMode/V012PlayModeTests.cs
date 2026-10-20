@@ -424,8 +424,7 @@ namespace RugWash.Tests
                     Assert.Less(avatar.TipToTargetMeters, 0.06f, $"Outil {slot} : tête posée sur le point visé par le joueur distant.");
 
                 // La main droite de la silhouette est refermée sur la poignée (gant de l'outil).
-                var fore = avatarObject.transform.Find("Visuals/ForeArm_R");
-                Vector3 wrist = fore.position + fore.forward * 0.3f;
+                Vector3 wrist = avatar.RightWrist;
                 Assert.Less(Vector3.Distance(wrist, held.rightHand.TransformPoint(new Vector3(0f, 0f, -0.06f))), 0.03f, $"Outil {slot} : main sur la poignée.");
             }
 

@@ -92,8 +92,23 @@ namespace RugWash.UI
         /// <summary>Couleur de fond de l'emplacement affiché n° <paramref name="index"/> (surbrillance de l'objet en main).</summary>
         public Color SlotColor(int index) => slotBackgrounds[index].color;
 
-        /// <summary>Texte de l'emplacement n° <paramref name="index"/>.</summary>
-        public string SlotText(int index) => slotLabels[index].text;
+        /// <summary>
+        /// Contenu de l'emplacement n° <paramref name="index"/> (« touche  nom ») ; à l'écran, l'icône et le numéro de la
+        /// touche suffisent (le nom de l'objet en main est affiché au-dessus de la barre).
+        /// </summary>
+        public string SlotText(int index) => index < descriptions.Count ? descriptions[index] : slotLabels[index].text;
+
+        readonly List<string> descriptions = new List<string>();
+
+        /// <summary>Numéro seul quand l'icône est affichée, sinon numéro et nom.</summary>
+        void SetSlot(int index, string key, string name, Color color)
+        {
+            while (descriptions.Count <= index) descriptions.Add(string.Empty);
+            descriptions[index] = name.Length > 0 ? $"{key}  {name}" : $"{key}  —";
+            bool icon = SlotHasIcon(index);
+            slotLabels[index].text = icon || name.Length == 0 ? (name.EndsWith("★") ? $"{key} ★" : key) : $"{key}  {name}";
+            slotLabels[index].color = color;
+        }
 
         void Rebuild()
         {
@@ -115,8 +130,7 @@ namespace RugWash.UI
                 SetIcon(i, item.IsValid ? item.Id : null);
                 if (!item.IsValid)
                 {
-                    slotLabels[i].text = $"{key}  —";
-                    slotLabels[i].color = new Color(1f, 1f, 1f, 0.45f);
+                    SetSlot(i, key, string.Empty, new Color(1f, 1f, 1f, 0.45f));
                     slotBackgrounds[i].color = emptyColor;
                     continue;
                 }
@@ -125,8 +139,7 @@ namespace RugWash.UI
                     ? item.Tool == tools.ActiveTool && !tools.Suspended
                     : gadgets != null && gadgets.Equipped == item.Gadget;
                 bool gold = item.IsTool && item.Tool.IsGolden;
-                slotLabels[i].text = gold ? $"{key}  {item.DisplayName} ★" : $"{key}  {item.DisplayName}";
-                slotLabels[i].color = gold ? GoldText : Color.white;
+                SetSlot(i, key, gold ? $"{item.DisplayName} ★" : item.DisplayName, gold ? GoldText : Color.white);
                 slotBackgrounds[i].color = active ? activeColor : normalColor;
             }
         }
@@ -146,8 +159,7 @@ namespace RugWash.UI
                 var tool = owned[i];
                 SetIcon(i, tool.Definition.id);
                 string key = RugWashInputActions.SlotKeyLabel(tool.Definition.slot);
-                slotLabels[i].text = key.Length > 0 ? $"{key}  {tool.Definition.displayName}" : tool.Definition.displayName;
-                slotLabels[i].color = Color.white;
+                SetSlot(i, key, tool.Definition.displayName, Color.white);
                 slotBackgrounds[i].color = tool == tools.ActiveTool && !tools.Suspended ? activeColor : normalColor;
             }
         }

@@ -181,7 +181,7 @@ namespace RugWash.Tests
             Assert.Greater(Vector3.Distance(start, game.PlayerController.transform.position), 0.6f, "Le stick gauche déplace le joueur.");
             Assert.AreEqual(InputScheme.Gamepad, monitor.Scheme);
             yield return new WaitForSecondsRealtime(0.15f);
-            Assert.That(game.Hud.HintText, Does.Contain("RT").And.Contain("LB / RB").And.Contain("A : interagir"));
+            Assert.That(game.Hud.HintText, Does.Contain("RT").And.Contain("LB / RB"));
             Assert.That(game.Hud.ScanText, Does.Contain("[Y]"));
             Assert.That(game.Hud.OrderText, Does.Contain("(A)"));
 

@@ -793,3 +793,22 @@ Exécutions du 19 octobre 2026 (Unity 6000.5.7f1, mode batch, éditeur fermé) :
   réglage d'import.
 - Non lancés : build, benchmark, test multijoueur à deux processus.
 
+### 23.3 Ouvrier à squelette (Blender MCP) et HUD minimaliste
+Exécutions du 20 octobre 2026 (Unity 6000.5.7f1, mode batch, éditeur fermé) :
+
+- Blender (MCP, `execute_blender_code` par petites opérations, `look`) : deux ouvriers modélisés d'après la référence,
+  squelette de 42 os, déformations contrôlées visuellement (pose de marche, bras levé, poings fermés) ; `Ouvrier.blend`
+  sauvegardé, deux FBX exportés.
+- `Capture_V030_Avatar` : deux modèles à squelette dans l'avatar réseau, modèle de la tenue choisie, main droite sur la poignée
+  de la lance (< 3 cm), ragdoll, tête masquée puis rétablie au KO du fusil ; captures `v30_avatar_*` relues (face, visage, dos,
+  marche, outil, ragdoll). **Réussi.**
+- HUD et fenêtres : `Capture_V030_Workshop`, `Capture_V030_Windows`, `Capture_V030_Menu` et les tests qui lisent le HUD
+  (manette, aire de lavage, emplacements, boutique, agrandissement, inventaire, niveaux d'outils, farces, présentation) :
+  **58/58 réussis** avant le dernier correctif des bras ; captures relues. Attentes modifiées (et pourquoi) : le rappel des
+  touches ne liste plus « interagir » (invite contextuelle), l'aire propre n'affiche plus d'alerte, le niveau se lit dans le
+  menu pause.
+- Suites complètes, après tous les correctifs : EditMode **265/265** ; PlayMode **171 réussis, 0 échec, 2 ignorés**
+  (diagnostics `Explicit`). Une première exécution EditMode avait échoué sur 1 test (choix de gants hors plage : il y a
+  désormais quatre couleurs de gants) ; test corrigé, puis les deux suites relancées en entier.
+- Non lancés : build, benchmark, test multijoueur à deux processus.
+

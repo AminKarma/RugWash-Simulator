@@ -23,31 +23,38 @@ namespace RugWash.Player
     }
 
     /// <summary>
-    /// Options réellement disponibles : la silhouette est un placeholder procédural, seules les couleurs de la tenue de
-    /// travail, de la casquette (ou pas de casquette) et des gants peuvent changer.
+    /// Options réellement disponibles. V0.3.0 : deux ouvriers modélisés dans Blender d'après la planche de référence — la
+    /// salopette (casquette, tee-shirt rouge, genouillères) et la combinaison (bonnet, écusson, poches garnies) ; chaque tenue
+    /// porte son modèle et sa couleur (les deux premières sont celles de la référence). La casquette (ou le bonnet de la
+    /// combinaison) peut être retirée ; les gants changent de couleur.
     /// </summary>
     public static class CharacterPalette
     {
-        public static readonly (string name, Color color)[] Outfits =
+        /// <summary>Modèles d'ouvrier (indice <c>style</c> des tenues).</summary>
+        public const int Overalls = 0, Coverall = 1;
+
+        public static readonly (string name, Color color, int style)[] Outfits =
         {
-            ("Bleu marine", new Color(0.16f, 0.24f, 0.36f)), ("Rouge brique", new Color(0.5f, 0.16f, 0.12f)),
-            ("Vert forêt", new Color(0.14f, 0.32f, 0.2f)), ("Gris anthracite", new Color(0.2f, 0.21f, 0.23f)),
-            ("Orange sécurité", new Color(0.85f, 0.42f, 0.1f)), ("Bleu ciel", new Color(0.3f, 0.52f, 0.75f)),
+            ("Salopette bleue", new Color(0.227f, 0.408f, 0.722f), Overalls), ("Combinaison verte", new Color(0.18f, 0.541f, 0.227f), Coverall),
+            ("Salopette rouge brique", new Color(0.5f, 0.16f, 0.12f), Overalls), ("Combinaison bleu marine", new Color(0.16f, 0.24f, 0.36f), Coverall),
+            ("Salopette gris anthracite", new Color(0.2f, 0.21f, 0.23f), Overalls), ("Combinaison orange sécurité", new Color(0.85f, 0.42f, 0.1f), Coverall),
+            ("Salopette bleu ciel", new Color(0.3f, 0.52f, 0.75f), Overalls), ("Combinaison vert forêt", new Color(0.14f, 0.32f, 0.2f), Coverall),
         };
 
         /// <summary>Indice 0 : pas de casquette.</summary>
         public static readonly (string name, Color color)[] Caps =
         {
-            ("Aucune", Color.clear), ("Rouge", new Color(0.74f, 0.2f, 0.14f)), ("Bleue", new Color(0.15f, 0.3f, 0.65f)),
-            ("Jaune", new Color(0.92f, 0.72f, 0.12f)), ("Noire", new Color(0.08f, 0.08f, 0.09f)),
+            ("Aucune", Color.clear), ("Bleue", new Color(0.227f, 0.392f, 0.725f)), ("Verte", new Color(0.173f, 0.518f, 0.22f)),
+            ("Rouge", new Color(0.74f, 0.2f, 0.14f)), ("Jaune", new Color(0.92f, 0.72f, 0.12f)), ("Noire", new Color(0.08f, 0.08f, 0.09f)),
         };
 
         public static readonly (string name, Color color)[] Gloves =
         {
-            ("Orange", new Color(0.86f, 0.52f, 0.18f)), ("Noirs", new Color(0.1f, 0.1f, 0.11f)), ("Bleus", new Color(0.18f, 0.38f, 0.75f)),
+            ("Jaunes", new Color(0.973f, 0.816f, 0.102f)), ("Bleus", new Color(0.306f, 0.596f, 0.894f)), ("Orange", new Color(0.86f, 0.52f, 0.18f)),
+            ("Noirs", new Color(0.1f, 0.1f, 0.11f)),
         };
 
-        /// <summary>Apparence d'origine (celle des modèles avant la personnalisation).</summary>
+        /// <summary>Apparence d'origine : l'ouvrier en salopette de la référence (casquette bleue, gants jaunes).</summary>
         public static CharacterLook Default => new CharacterLook { outfit = 0, cap = 1, gloves = 0 };
 
         public static CharacterLook Clamp(CharacterLook look) => new CharacterLook
@@ -70,6 +77,11 @@ namespace RugWash.Player
         [SerializeField] List<Renderer> outfitRenderers = new List<Renderer>();
         [SerializeField] List<Renderer> capRenderers = new List<Renderer>();
         [SerializeField] List<Renderer> gloveRenderers = new List<Renderer>();
+        [Tooltip("Détails du couvre-chef (écusson) : affichés avec lui, jamais recolorés.")]
+        [SerializeField] List<Renderer> capDetailRenderers = new List<Renderer>();
+        [Tooltip("Pièces propres à chaque modèle d'ouvrier (indice de modèle correspondant dans styleIndices).")]
+        [SerializeField] List<GameObject> styleObjects = new List<GameObject>();
+        [SerializeField] List<int> styleIndices = new List<int>();
 
         MaterialPropertyBlock block;
 
@@ -77,16 +89,23 @@ namespace RugWash.Player
         public int OutfitRendererCount => outfitRenderers.Count;
         public int GloveRendererCount => gloveRenderers.Count;
         public bool CapVisible => capRenderers.Count > 0 && capRenderers[0] != null && capRenderers[0].enabled;
+        /// <summary>Modèle d'ouvrier affiché (0 salopette, 1 combinaison).</summary>
+        public int Style { get; private set; }
 
         public void Apply(CharacterLook look)
         {
             look = CharacterPalette.Clamp(look);
             Current = look;
+            Style = CharacterPalette.Outfits[look.outfit].style;
+            for (int i = 0; i < styleObjects.Count; i++)
+                if (styleObjects[i] != null) styleObjects[i].SetActive(i >= styleIndices.Count || styleIndices[i] == Style);
             block ??= new MaterialPropertyBlock();
             Paint(outfitRenderers, CharacterPalette.Outfits[look.outfit].color);
             Paint(gloveRenderers, CharacterPalette.Gloves[look.gloves].color);
             bool cap = look.cap > 0;
             foreach (var renderer in capRenderers)
+                if (renderer != null) renderer.enabled = cap;
+            foreach (var renderer in capDetailRenderers)
                 if (renderer != null) renderer.enabled = cap;
             if (cap) Paint(capRenderers, CharacterPalette.Caps[look.cap].color);
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using RugWash.Cleaning;
 using RugWash.Player;
@@ -81,9 +81,13 @@ namespace RugWash.Network
         [SerializeField] Transform foreArmRight;
         [Tooltip("Gant propre à la silhouette, masqué quand le gant de l'outil prend sa place.")]
         [SerializeField] GameObject handRight;
+        [Tooltip("V0.3.0 : squelettes des modèles d'ouvrier (suivent la silhouette ; tête masquée au KO du fusil).")]
+        [SerializeField] List<AvatarSkeleton> skeletons = new List<AvatarSkeleton>();
         [SerializeField] float upperArmLength = 0.3f;
         [SerializeField] float foreArmLength = 0.3f;
         [SerializeField] float strideDegrees = 26f;
+        [Tooltip("V0.3.0 : étirement maximal du bras (personnage aux bras courts) pour refermer la main sur l'outil tenu.")]
+        [SerializeField, Range(1f, 1.6f)] float maxArmStretch = 1f;
 
         readonly NetworkVariable<FixedString64Bytes> displayName = new NetworkVariable<FixedString64Bytes>();
         /// <summary>Outils dorés de ce joueur (un bit par emplacement), calculés par l'hôte depuis sa carrière : non falsifiable.</summary>
@@ -133,6 +137,8 @@ namespace RugWash.Network
         }
 
         public string DisplayName => displayName.Value.ToString();
+        /// <summary>Poignet droit de la silhouette (bout de l'avant-bras, étirement compris).</summary>
+        public Vector3 RightWrist => foreArmRight != null ? foreArmRight.TransformPoint(new Vector3(0f, 0f, foreArmLength)) : transform.position;
         /// <summary>Voix de ce joueur (null pour le joueur local : on ne s'entend pas soi-même).</summary>
         public VoicePlayback Voice => voice;
         bool shownSpeaking;
@@ -279,7 +285,8 @@ namespace RugWash.Network
 
         readonly List<Renderer> poppedHead = new List<Renderer>();
         /// <summary>La tête a « éclaté » (KO du fusil) et n'est pas encore revenue.</summary>
-        public bool HeadPopped => poppedHead.Count > 0;
+        public bool HeadPopped => headPopped;
+        bool headPopped;
 
         void ShowKnockdown(bool down, Vector3 impulse, KnockCause cause)
         {
@@ -297,6 +304,9 @@ namespace RugWash.Network
         void PopHead()
         {
             if (head == null || HeadPopped) return;
+            headPopped = true;
+            foreach (var skeleton in skeletons)
+                if (skeleton != null) skeleton.HeadHidden = true;
             foreach (var renderer in head.GetComponentsInChildren<Renderer>())
             {
                 if (view != null && renderer.transform.IsChildOf(view)) continue;
@@ -321,6 +331,9 @@ namespace RugWash.Network
             foreach (var renderer in poppedHead)
                 if (renderer != null) renderer.enabled = true;
             poppedHead.Clear();
+            headPopped = false;
+            foreach (var skeleton in skeletons)
+                if (skeleton != null) skeleton.HeadHidden = false;
         }
 
         public AvatarRagdoll Ragdoll => ragdoll;
@@ -515,10 +528,17 @@ namespace RugWash.Network
             Transform body = visuals != null ? visuals.transform : transform;
             Vector3 restRight = body.TransformPoint(new Vector3(0.3f, 0.86f, 0.06f));
             Vector3 restLeft = body.TransformPoint(new Vector3(-0.3f, 0.86f, 0.06f));
+            // Personnage à squelette (bras courts) : bras au repos tendus le long du corps, légèrement écartés (sans étirement).
+            if (maxArmStretch > 1f && shoulderLeft != null && shoulderRight != null)
+            {
+                float reach = (upperArmLength + foreArmLength) * 0.99f;
+                restRight = shoulderRight.position + (-body.up * 0.97f + body.right * 0.24f + body.forward * 0.03f).normalized * reach;
+                restLeft = shoulderLeft.position + (-body.up * 0.97f - body.right * 0.24f + body.forward * 0.03f).normalized * reach;
+            }
             Vector3 rightTarget = tool != null && tool.rightHand != null ? tool.rightHand.TransformPoint(new Vector3(0f, 0f, -0.06f)) : restRight;
             Vector3 leftTarget = restLeft;
             if (tool != null && tool.leftHand != null && shoulderLeft != null
-                && Vector3.Distance(shoulderLeft.position, tool.leftHand.position) <= upperArmLength + foreArmLength + 0.06f)
+                && Vector3.Distance(shoulderLeft.position, tool.leftHand.position) <= (upperArmLength + foreArmLength) * maxArmStretch + 0.06f)
                 leftTarget = tool.leftHand.position;
             Vector3 outward = body.right;
             Vector3 down = -body.up;
@@ -533,6 +553,10 @@ namespace RugWash.Network
             Vector3 start = shoulder.position;
             Vector3 toTarget = target - start;
             float a = upperArmLength, b = foreArmLength;
+            // Bras étirables (V0.3.0) : au-delà de la longueur du bras, les deux segments s'allongent ensemble (borné).
+            float stretch = Mathf.Clamp(toTarget.magnitude / (a + b), 1f, maxArmStretch);
+            a *= stretch;
+            b *= stretch;
             float distance = Mathf.Clamp(toTarget.magnitude, 0.05f, a + b - 1e-3f);
             Vector3 direction = toTarget.sqrMagnitude > 1e-8f ? toTarget.normalized : -transform.up;
             Vector3 bend = Vector3.ProjectOnPlane(pole, direction);
@@ -544,6 +568,7 @@ namespace RugWash.Network
             Vector3 wrist = start + direction * distance;
             upper.SetPositionAndRotation(start, Quaternion.LookRotation(elbow - start, bend));
             fore.SetPositionAndRotation(elbow, Quaternion.LookRotation(wrist - elbow, bend));
+            upper.localScale = fore.localScale = new Vector3(1f, 1f, stretch);
         }
 
         static void SetEffect(ParticleSystem effect, bool on)

@@ -65,7 +65,7 @@ namespace RugWash.Tests
             game = Game();
             Assert.AreEqual(0, game.Wallet.Balance, "L'argent de l'emplacement 2 n'apparaît pas dans l'emplacement 1.");
             Assert.AreEqual(3, game.SaveSystem.Profile.Level, "Le niveau appartient au joueur, pas à l'emplacement.");
-            StringAssert.Contains("niveau 3", game.Hud.EconomyText);
+            StringAssert.Contains("niveau 3", game.PauseMenu.ProgressLine, "Niveau rappelé dans le menu pause (retiré du HUD).");
             Assert.AreEqual(1, game.SaveSystem.Profile.lastSoloSlot, "Le profil retient le dernier emplacement joué.");
 
             yield return LoadWorkshop(second);

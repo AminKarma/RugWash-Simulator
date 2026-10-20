@@ -107,7 +107,7 @@ namespace RugWash.Tests
         {
             var look = new CharacterLook { outfit = 4, cap = 0, gloves = 2 };
             Assert.AreEqual(look, CharacterLook.Unpack(look.Pack()));
-            var wrapped = CharacterPalette.Clamp(new CharacterLook { outfit = -1, cap = 99, gloves = 3 });
+            var wrapped = CharacterPalette.Clamp(new CharacterLook { outfit = -1, cap = 99, gloves = CharacterPalette.Gloves.Length });
             Assert.AreEqual(CharacterPalette.Outfits.Length - 1, wrapped.outfit);
             Assert.That(wrapped.cap, Is.InRange(0, CharacterPalette.Caps.Length - 1));
             Assert.AreEqual(0, wrapped.gloves);
