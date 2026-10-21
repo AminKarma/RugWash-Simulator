@@ -107,6 +107,7 @@ namespace RugWash.Save
             new RebindableAction("Outil suivant", "ToolNext", keyboardRebindable: false, keyboardHint: "Molette / 1-4"),
             new RebindableAction("Outil précédent", "ToolPrevious", keyboardRebindable: false, keyboardHint: "Molette / 1-4"),
             new RebindableAction("Gadget de farce", "Gadget"),
+            new RebindableAction("Lâcher l'objet en main", "Drop"),
         };
 
         static readonly FullScreenMode[] DisplayModes = { FullScreenMode.ExclusiveFullScreen, FullScreenMode.FullScreenWindow, FullScreenMode.Windowed };
@@ -184,6 +185,25 @@ namespace RugWash.Save
         /// <summary>Chat vocal : micro (appuyer pour parler, toujours ouvert, coupé) et volume des voix des autres.</summary>
         public void SetVoiceMode(int value) { Current.voiceMode = Mathf.Clamp(value, 0, 2); Changed?.Invoke(); }
         public void SetVoiceVolume(float value) { Current.voiceVolume = Mathf.Clamp01(value); Changed?.Invoke(); }
+        /// <summary>V0.4.2 : micro du chat vocal (nom du périphérique Windows ; vide = micro par défaut).</summary>
+        public void SetVoiceInputDevice(string device) { Current.voiceInputDevice = device ?? string.Empty; Changed?.Invoke(); }
+
+        /// <summary>Micro suivant dans la liste « par défaut, puis les micros branchés » (sens <paramref name="direction"/>).</summary>
+        public static string StepInputDevice(string current, string[] devices, int direction)
+        {
+            int count = (devices != null ? devices.Length : 0) + 1;
+            int index = string.IsNullOrEmpty(current) || devices == null ? 0 : System.Array.IndexOf(devices, current) + 1;
+            index = ((index + direction) % count + count) % count;
+            return index == 0 ? string.Empty : devices[index - 1];
+        }
+
+        /// <summary>Libellé du micro choisi (« Par défaut (Windows) », son nom, ou « introuvable » s'il n'est plus branché).</summary>
+        public static string InputDeviceLabel(string device, string[] devices)
+        {
+            if (string.IsNullOrEmpty(device)) return "Par défaut (Windows)";
+            bool present = devices != null && System.Array.IndexOf(devices, device) >= 0;
+            return present ? device : $"{device} (débranché)";
+        }
 
         public static string VoiceModeLabel(int mode)
         {

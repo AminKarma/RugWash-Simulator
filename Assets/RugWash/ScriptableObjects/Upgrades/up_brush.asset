@@ -19,6 +19,6 @@ MonoBehaviour:
   effect: 4
   value: 1.35
   targetToolId: brush
-  prerequisite: {fileID: 0}
+  prerequisite: {fileID: 11400000, guid: 9a512b39cee2a4f4b9becdf7dd4fa95a, type: 2}
   requiredReputation: 0
   level: 1

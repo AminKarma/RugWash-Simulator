@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.IO;
 using NUnit.Framework;
 using RugWash.Cleaning;
@@ -312,18 +312,18 @@ namespace RugWash.Tests
             StringAssert.Contains("Flacon de", all);
             game.ShopUI.ShowTab(false);
             yield return null;
-            int upgrades = 0;
-            foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) upgrades++;
+            // V0.4.2 : l'onglet « Améliorations » regroupe les articles d'un outil sur une carte : on compte les articles présentés.
+            int upgrades = game.ShopUI.ShownItemCount;
             // v0.1.2 (jalon 5) : l'équipement d'atelier (paliers, machines, robot) a son propre onglet.
             game.ShopUI.ShowTab(ShopUI.Tab.Workshop);
             yield return null;
-            foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) upgrades++;
+            upgrades += game.ShopUI.ShownItemCount;
             // Jalon 6 : les gadgets de farce ont aussi leur onglet ; mission de corrections : Outils et Améliorations séparés.
             foreach (var tab in new[] { ShopUI.Tab.Pranks, ShopUI.Tab.Upgrades })
             {
                 game.ShopUI.ShowTab(tab);
                 yield return null;
-                foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) upgrades++;
+                upgrades += game.ShopUI.ShownItemCount;
             }
             Assert.AreEqual(game.Upgrades.Catalog.Count, upgrades, "Les onglets Outils, Améliorations, Atelier et Farces listent tout le catalogue, une fois.");
             game.ShopUI.Close();

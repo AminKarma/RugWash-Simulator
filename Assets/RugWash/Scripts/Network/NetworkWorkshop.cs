@@ -539,6 +539,16 @@ namespace RugWash.Network
         }
 
         /// <summary>Objets que cet invité peut porter : outils du kit de départ, outils et gadgets qu'il a achetés.</summary>
+        /// <summary>V0.4.2 : emplacements d'inventaire de ce joueur (4, ou 5 s'il a acheté l'emplacement supplémentaire).</summary>
+        int SlotsOf(SessionMember member)
+        {
+            var owned = OwnedBy(member);
+            int extra = 0;
+            foreach (var upgrade in game.Upgrades.Catalog)
+                if (upgrade != null && upgrade.effect == Economy.UpgradeEffect.InventorySlot && owned.Contains(upgrade.id)) extra += Mathf.RoundToInt(upgrade.value);
+            return Player.PlayerInventory.CapacityFor(extra);
+        }
+
         List<string> CarriableBy(SessionMember member)
         {
             var owned = OwnedBy(member);
@@ -579,7 +589,7 @@ namespace RugWash.Network
         void InventoryRpc(FixedString512Bytes carried, float soapReserve, RpcParams rpcParams = default)
         {
             if (!members.TryGetValue(rpcParams.Receive.SenderClientId, out var member)) return;
-            member.Data.carried = Player.InventoryRules.Normalize(Split(carried.ToString()), CarriableBy(member), IsToolId, Player.PlayerInventory.Capacity);
+            member.Data.carried = Player.InventoryRules.Normalize(Split(carried.ToString()), CarriableBy(member), IsToolId, SlotsOf(member));
             member.Data.soapReserve = float.IsNaN(soapReserve) || float.IsInfinity(soapReserve) ? -1f : Mathf.Clamp(soapReserve, 0f, MaxReserveLiters);
             memberSaveDirty = true;
         }

@@ -46,6 +46,17 @@ namespace RugWash.Network
     [DisallowMultipleComponent]
     public sealed class NetworkPlayerAvatar : NetworkBehaviour
     {
+        /// <summary>
+        /// V0.4.2 : silhouettes apparues, par joueur, sur TOUS les postes. NetworkSpawnManager.GetPlayerNetworkObject ne
+        /// répond qu'à l'hôte en client-serveur (« Only the server can find player objects from other clients ») : chez un
+        /// invité, la voix des autres joueurs et les effets de leurs farces ne trouvaient jamais leur silhouette.
+        /// </summary>
+        static readonly Dictionary<ulong, NetworkPlayerAvatar> spawned = new Dictionary<ulong, NetworkPlayerAvatar>();
+
+        /// <summary>Silhouette du joueur <paramref name="clientId"/> sur ce poste (null s'il n'est pas apparu).</summary>
+        public static NetworkPlayerAvatar Of(ulong clientId) =>
+            spawned.TryGetValue(clientId, out var avatar) && avatar != null && avatar.IsSpawned ? avatar : null;
+
         [SerializeField] GameObject visuals;
         [Tooltip("Couleurs de la tenue, de la casquette et des gants (personnalisation, v0.1.2).")]
         [SerializeField] CharacterAppearance appearance;
@@ -213,6 +224,7 @@ namespace RugWash.Network
 
         public override void OnNetworkSpawn()
         {
+            spawned[OwnerClientId] = this;
             if (IsServer && !string.IsNullOrEmpty(initialName)) displayName.Value = new FixedString64Bytes(initialName);
             if (IsOwner)
             {
@@ -249,6 +261,8 @@ namespace RugWash.Network
 
         public override void OnNetworkDespawn()
         {
+            // Reconnexion : la nouvelle silhouette a pu apparaître avant le départ de l'ancienne ; on ne retire que soi.
+            if (spawned.TryGetValue(OwnerClientId, out var current) && current == this) spawned.Remove(OwnerClientId);
             if (localKnockdown != null)
             {
                 localKnockdown.KnockedDown -= OnLocalKnockedDown;
@@ -270,10 +284,22 @@ namespace RugWash.Network
             if (IsSpawned && IsOwner) knockedDown.Value = false;
         }
 
+        // V0.4.2 : chute appliquée à l'image suivante. L'élan est déclaré après « à terre » : au moment où cette valeur
+        // arrive, il peut encore valoir celui de la chute précédente (direction de glissade fausse).
+        bool pendingKnockdown, pendingDown;
+
         void ApplyKnockdown(bool down)
         {
             if (IsOwner) return;
-            ShowKnockdown(down, knockImpulse.Value, (KnockCause)knockCause.Value);
+            pendingKnockdown = true;
+            pendingDown = down;
+        }
+
+        void ApplyPendingKnockdown()
+        {
+            if (!pendingKnockdown) return;
+            pendingKnockdown = false;
+            ShowKnockdown(pendingDown, knockImpulse.Value, (KnockCause)knockCause.Value);
         }
 
         /// <summary>Tests (hors réseau) : fait chuter ou relève la silhouette.</summary>
@@ -292,7 +318,11 @@ namespace RugWash.Network
         {
             if (down)
             {
-                if (ragdoll != null) ragdoll.Begin(impulse);
+                // V0.4.2 : glissade sur la mousse jouée en chute cartoon qui suit la position réelle du joueur (voir BeginSlip).
+                if (ragdoll != null && cause == KnockCause.Slip) ragdoll.BeginSlip(impulse);
+                // V0.4.2 : dynamite : chute exagérée et membres dispersés (temporaire, purement visuel).
+                else if (ragdoll != null && cause == KnockCause.Dynamite) ragdoll.BeginScatter(impulse);
+                else if (ragdoll != null) ragdoll.Begin(impulse);
                 if (cause == KnockCause.Blaster) PopHead();
                 return;
             }
@@ -343,6 +373,8 @@ namespace RugWash.Network
 
         /// <summary>Apparence reçue de ce joueur (valeur compacte, -1 si aucune).</summary>
         public int PackedLook => look.Value;
+        /// <summary>Emplacement tenu par ce joueur (outil, gadget ; 0 = rien), tel que les autres le voient.</summary>
+        public int HeldSlot => CurrentSlot;
 
         void ApplyLook(int packed)
         {
@@ -375,6 +407,7 @@ namespace RugWash.Network
                 FollowLocalPlayer();
                 return;
             }
+            ApplyPendingKnockdown();
             PresentRemote(Time.deltaTime);
         }
 
@@ -402,7 +435,12 @@ namespace RugWash.Network
             if (ragdoll != null && ragdoll.IsBusy)
             {
                 ragdoll.Tick(deltaTime);
-                if (ragdoll.IsActive) return;
+                ShowLimbs(!ragdoll.LimbsScattered);
+                if (ragdoll.IsActive)
+                {
+                    FaceName();
+                    return;
+                }
             }
             // Tangage lissé (le réseau l'envoie au degré près) : la tête et l'outil ne saccadent pas.
             pitch = Mathf.LerpAngle(pitch, CurrentPitch, deltaTime > 0f ? 1f - Mathf.Exp(-18f * deltaTime) : 1f);
@@ -499,13 +537,22 @@ namespace RugWash.Network
             }
 
             AnimateBody(deltaTime, tool);
+            FaceName();
+        }
 
-            // Nom toujours tourné vers la caméra locale.
-            if (nameLabel != null)
-            {
-                if (viewer == null && Camera.main != null) viewer = Camera.main.transform;
-                if (viewer != null) nameLabel.transform.rotation = Quaternion.LookRotation(nameLabel.transform.position - viewer.position);
-            }
+        /// <summary>Nom toujours tourné vers la caméra locale (debout comme à terre).</summary>
+        /// <summary>V0.4.2 : membres du squelette cachés pendant leur dispersion (les morceaux lancés les remplacent).</summary>
+        void ShowLimbs(bool shown)
+        {
+            foreach (var skeleton in skeletons)
+                if (skeleton != null) skeleton.LimbsHidden = !shown;
+        }
+
+        void FaceName()
+        {
+            if (nameLabel == null) return;
+            if (viewer == null && Camera.main != null) viewer = Camera.main.transform;
+            if (viewer != null) nameLabel.transform.rotation = Quaternion.LookRotation(nameLabel.transform.position - viewer.position);
         }
 
         /// <summary>Jambes selon la vitesse réelle de la silhouette ; bras refermés sur l'outil (deux segments).</summary>
@@ -520,7 +567,9 @@ namespace RugWash.Network
                 speed = Mathf.Lerp(speed, Mathf.Min(measured, 6f), 1f - Mathf.Exp(-10f * deltaTime));
                 float stride = Mathf.Clamp01(speed / 3f);
                 stridePhase += speed * deltaTime * 2.6f;
-                float swing = Mathf.Sin(stridePhase) * strideDegrees * stride;
+                // V0.3.0 : course (au-delà de 3 m/s) : foulée plus ample.
+                float run = Mathf.Clamp01((speed - 3f) / 2f);
+                float swing = Mathf.Sin(stridePhase) * strideDegrees * stride * (1f + 0.45f * run);
                 if (legLeft != null) legLeft.localRotation = Quaternion.Euler(swing, 0f, 0f);
                 if (legRight != null) legRight.localRotation = Quaternion.Euler(-swing, 0f, 0f);
             }
@@ -540,6 +589,19 @@ namespace RugWash.Network
             if (tool != null && tool.leftHand != null && shoulderLeft != null
                 && Vector3.Distance(shoulderLeft.position, tool.leftHand.position) <= (upperArmLength + foreArmLength) * maxArmStretch + 0.06f)
                 leftTarget = tool.leftHand.position;
+            // V0.3.0 : bras libres balancés en opposition aux jambes (marche, course plus ample, coude un peu plus fléchi).
+            float armSwing = Mathf.Sin(stridePhase) * Mathf.Clamp01(speed / 3f) * (0.11f + 0.07f * Mathf.Clamp01((speed - 3f) / 2f));
+            Vector3 armLift = body.up * Mathf.Abs(armSwing) * 0.35f;
+            if (rightTarget == restRight) rightTarget = restRight - body.forward * armSwing + armLift;
+            bool leftOnTool = leftTarget != restLeft;
+            if (!leftOnTool) leftTarget = restLeft + body.forward * armSwing + armLift;
+            // Doigts : main gauche refermée sur l'outil qu'elle soutient, mains au repos légèrement fléchies.
+            for (int i = 0; i < skeletons.Count; i++)
+            {
+                if (skeletons[i] == null) continue;
+                skeletons[i].LeftGrip = leftOnTool ? 0.9f : 0.25f;
+                skeletons[i].RightGrip = tool != null ? 0.9f : 0.25f;
+            }
             Vector3 outward = body.right;
             Vector3 down = -body.up;
             SolveArm(shoulderRight, upperArmRight, foreArmRight, rightTarget, (outward + down * 0.8f - body.forward * 0.3f).normalized);

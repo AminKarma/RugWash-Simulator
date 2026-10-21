@@ -64,8 +64,10 @@ namespace RugWash.Pranks
         bool TryGetFeet(ulong clientId, out Vector3 feet);
         bool IsDown(ulong clientId);
         void Splash(ulong clientId, float intensity, float seconds, float fadeSeconds, string from);
-        /// <param name="cause">Gadget responsable (batte : chute ; fusil : KO cartoon, tête qui éclate).</param>
+        /// <param name="cause">Gadget responsable (batte : chute ; fusil : KO cartoon, tête qui éclate ; dynamite : membres dispersés).</param>
         void Knock(ulong clientId, Vector3 impulse, float seconds, string from, PrankGadget cause);
+        /// <summary>V0.4.2 : tous les joueurs de la partie (hôte compris) : candidats d'une explosion de zone.</summary>
+        void CollectPlayers(List<ulong> into);
     }
 
     /// <summary>

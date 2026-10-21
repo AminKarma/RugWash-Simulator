@@ -65,6 +65,32 @@ namespace RugWash.Editor
             return go;
         }
 
+        /// <summary>
+        /// Décor : FBX posé (lacet <paramref name="yaw"/>) puis abaissé pour que son point le plus bas touche
+        /// <paramref name="surfaceY"/> ; rendus statiques ; boîte de collision englobante si <paramref name="collider"/>.
+        /// </summary>
+        public static GameObject PlaceDecor(string path, Transform parent, RugWashContentBuilder.Content c, Vector3 position, Vector3 euler,
+            bool collider, float surfaceY = float.NaN, string name = null, ICollection<string> only = null)
+        {
+            var go = Place(path, parent, c, position, Quaternion.Euler(euler), name, only);
+            if (go == null) return null;
+            if (!float.IsNaN(surfaceY))
+            {
+                var world = LocalBounds(go, parent);
+                go.transform.localPosition += new Vector3(0f, surfaceY - world.min.y, 0f);
+            }
+            foreach (var renderer in go.GetComponentsInChildren<Renderer>(true)) RugWashBuildHelpers.MakeStatic(renderer.gameObject);
+            RugWashBuildHelpers.MakeStatic(go);
+            if (collider)
+            {
+                var b = LocalBounds(go, go.transform);
+                var box = go.AddComponent<BoxCollider>();
+                box.center = b.center;
+                box.size = b.size;
+            }
+            return go;
+        }
+
         /// <summary>Pièce <paramref name="part"/> d'un FBX, détachée et posée sous <paramref name="parent"/> (pivot du FBX conservé).</summary>
         public static Transform Detach(GameObject model, string part, Transform parent)
         {

@@ -40,6 +40,8 @@ namespace RugWash.Network
             game.Gadgets.RemotePlayers = RemotePrankTargets;
             game.Gadgets.Swung -= OnLocalSwing;
             game.Gadgets.Swung += OnLocalSwing;
+            // V0.4.2 : ralenti de la dynamite local ; jamais chez l'hôte quand des invités jouent (l'autorité ne ralentit pas).
+            game.Gadgets.AllowSlowMotion = () => !IsServer || NetworkManager.ConnectedClientsIds.Count <= 1;
         }
 
         // ---------------------------------------------------------------- Coups de batte (geste visible par tous)
@@ -101,6 +103,7 @@ namespace RugWash.Network
             if (game.Gadgets == null) return;
             game.Gadgets.Remote = null;
             game.Gadgets.RemotePlayers = null;
+            game.Gadgets.AllowSlowMotion = null;
             game.Gadgets.LocalId = 0;
             // Fin de partie : plus aucune farce subie à l'écran.
             game.Gadgets.ClearReceived();
@@ -117,8 +120,8 @@ namespace RugWash.Network
 
         NetworkPlayerAvatar AvatarOf(ulong clientId)
         {
-            var player = NetworkManager != null && NetworkManager.SpawnManager != null ? NetworkManager.SpawnManager.GetPlayerNetworkObject(clientId) : null;
-            return player != null ? player.GetComponent<NetworkPlayerAvatar>() : null;
+            // V0.4.2 : registre des silhouettes, valable chez l'hôte comme chez les invités (voir NetworkPlayerAvatar.Of).
+            return NetworkPlayerAvatar.Of(clientId);
         }
 
         // ---------------------------------------------------------------- Invité → hôte
@@ -131,7 +134,7 @@ namespace RugWash.Network
         {
             ulong sender = rpcParams.Receive.SenderClientId;
             var target1 = RpcTarget.Single(sender, RpcTargetUse.Temp);
-            if (game.Pranks == null || gadget < 1 || gadget > 3 || target > 1 || !syncedClients.Contains(sender)
+            if (game.Pranks == null || gadget < 1 || gadget > 4 || target > 2 || !syncedClients.Contains(sender)
                 || !members.TryGetValue(sender, out var member) || AvatarOf(sender) == null)
             {
                 PrankResultRpc(gadget, (byte)PrankResult.Unavailable, false, target1);
@@ -202,6 +205,14 @@ namespace RugWash.Network
             return true;
         }
 
+        /// <summary>V0.4.2 : joueurs de la partie (l'hôte et les invités synchronisés) : candidats d'une explosion.</summary>
+        public void CollectPlayers(List<ulong> into)
+        {
+            into.Add(NetworkManager.LocalClientId);
+            foreach (ulong id in syncedClients)
+                if (id != NetworkManager.LocalClientId && AvatarOf(id) != null) into.Add(id);
+        }
+
         public bool IsDown(ulong clientId)
         {
             if (clientId == NetworkManager.LocalClientId) return game.Knockdown != null && game.Knockdown.IsDown;
@@ -232,7 +243,7 @@ namespace RugWash.Network
         void KnockRpc(Vector3 impulse, float seconds, FixedString64Bytes from, byte cause, RpcParams rpcParams)
         {
             // Valeurs bornées même venant de l'hôte : élan raisonnable, KO de 6 s au plus.
-            var gadget = cause == (byte)PrankGadget.Blaster ? PrankGadget.Blaster : PrankGadget.Bat;
+            var gadget = cause == (byte)PrankGadget.Blaster ? PrankGadget.Blaster : cause == (byte)PrankGadget.Dynamite ? PrankGadget.Dynamite : PrankGadget.Bat;
             game.Gadgets.ReceiveKnock(Vector3.ClampMagnitude(impulse, 12f), Mathf.Clamp(seconds, 0.5f, 6f), from.ToString(), gadget);
         }
 

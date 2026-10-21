@@ -6,8 +6,8 @@
 Légende de l'état : **Fait** · **Partiel** (une partie seulement, détaillée) · **Non fait**.
 
 - Captures de contrôle : `Logs/ci/screens/` (préfixes `v30_*`, `v30_fbx_*`, `v30_avatar_*`).
-- Exécutions réelles des tests : `VALIDATION.md` § 23, 23.1, 23.2, 23.3, 23.4. Détail des changements : `V0_3_0.md`.
-- Build testé : `Builds/Windows/RugWashSimulator.exe` (build du 20/10/2026, 07:50, commit `ae2770d`).
+- Exécutions réelles des tests : `VALIDATION.md` § 23 à 23.5. Détail des changements : `V0_3_0.md`.
+- Build testé : `Builds/Windows/RugWashSimulator.exe` (build du 21/10/2026, 03:13, fin de la V0.3.0).
 
 Testeur : ____________________ Date : ____/____/______ Version / commit testé : ____________________
 
@@ -27,8 +27,9 @@ PC de test : processeur ____________ carte graphique ____________ résolution __
   État : Fait. Preuve : `V0_3_0.md` § 2 « atelier artisanal moderne », `RugWashArtDirection`, `UITheme`.
   Remarques : ______________________________________________
 - [ ] **Cible qualité / performance réaliste**
-  État : Partiel. Budgets de textures et de triangles fixés (`V0_3_0.md` § 5) ; mesure A/B contre la V0.2.5 faite à ta
-  demande (`VALIDATION.md` § 23.1) ; pas de cible chiffrée de FPS par configuration de PC.
+  État : Fait (21/10). Cible : 144 FPS en 1080p Ultra sur la machine de test, 60 FPS en 1080p Moyen sur un PC d'entrée de
+  gamme (GPU classe GTX 1650 ou CPU deux fils). Mesuré : 175 à 180 FPS en Ultra ; approximations d'entrée de gamme 119,5 et
+  168 FPS au pire (`V0_3_0.md` § 5, `VALIDATION.md` § 23.5). Limite : pas de vrai PC d'entrée de gamme testé.
   Remarques : ______________________________________________
 - [ ] **Ensemble de référence / scène pilote avant généralisation**
   État : Partiel. Galeries de contrôle (studio FBX `v30_fbx_*`, vues de l'atelier `v30_01` à `v30_10`) ; pas de scène
@@ -40,16 +41,16 @@ Terminé lorsque la direction est claire et validée sur une zone représentativ
 ## 2 — Objets, outils et équipements
 
 - [ ] **Outils, buses, batte, brosses, pulvérisateurs, seaux, bidons, machines, équipements**
-  État : Partiel.
-  - Modèles Blender intégrés en jeu : lance de rinçage, seau, raclette, monobrosse, brosse, batte, casier, machine à laver,
-    caisse à outils ; pièces Blender sur pistolet, canon à mousse, pulvérisateur, aspirateur, souffleur, robot, gant.
-  - Modélisés mais **pas branchés** : pistolet, lance-brosse, brosse rotative, pulvérisateur mousse, aspirateur à eau,
-    bidon 40 L, pompe, petits accessoires (`Models/FBX/`).
-  - Formes encore procédurales : postes eau et détergent, rampe de pré-mouillage, extracteur, fusil à farces.
+  État : Fait (21/10), avec exceptions justifiées.
+  - Modèles Blender en jeu : lance de rinçage, seau, raclette, monobrosse, brosse, batte, **extracteur, brosse de détail**,
+    casier, machine à laver, caisse à outils ; décor de l'annexe (sèche-linge, établi, panneau d'outils, suspension,
+    aspirateur à eau, bidons, pompe, lance-brosse, pulvérisateur, pistolet, éponge, chiffons).
+  - Gardés volontairement : pulvérisateur de détergent (flacon translucide qui montre le niveau réel), postes eau et
+    détergent, rampe de pré-mouillage, fusil à farces (procéduraux, matériaux refaits).
   Preuve : `v30_tool_*`, `v30_toolrest_*`, `v30_fbx_tools_*`, `v30_fbx_ingame_*`.
   Remarques : ______________________________________________
 - [ ] **Silhouettes, proportions, détails, matériaux, usure, reflets**
-  État : Partiel (sur les objets ci-dessus). Remarques : ______________________________________________
+  État : Fait (sur les objets remplacés ci-dessus). Remarques : ______________________________________________
 - [ ] **Items achetables / ramassables immédiatement reconnaissables**
   État : Partiel. Icônes 3D des outils dans la barre d'objets, la boutique et le casier (`v30_22_shop`, `v30_23_locker`).
   Remarques : ______________________________________________
@@ -70,14 +71,15 @@ Terminé lorsque la direction est claire et validée sur une zone représentativ
 - [ ] **Fibres, motifs, bordures, reliefs crédibles et lisibles**
   État : Fait : normale de nœuds alignée sur le motif, velours des fibres dans le shader. Remarques : ____________________
 - [ ] **États sale / propre et transition de nettoyage**
-  État : Partiel. Le rendu de la saleté en jeu reste celui du système existant (non cassé). Six matériaux d'état
-  (`M_RugState_*`) créés, mais utilisés seulement dans la galerie (`v30_fbx_states_*`), pas en jeu.
+  État : Fait (21/10). Saleté et nettoyage en jeu : système existant (non cassé). Le tapis qui sèche dans l'atelier utilise
+  l'état « mouillé » (`v30_fbx_ingame_drying_wet`) ; les autres états restent dans la galerie (`v30_fbx_states_*`).
   Remarques : ______________________________________________
 - [ ] **Mousse, eau, humidité, résidus**
   État : Partiel : le velours s'éteint sous l'eau et la mousse ; pas de refonte des particules ni de la mousse.
   Preuve : `v30_08_rug_half_clean`, `v30_10_foam_close`. Remarques : ____________________
 - [ ] **Lisibilité sous différents éclairages et angles**
-  État : Partiel : contrôlé sur les captures de l'atelier seulement. Remarques : ____________________
+  État : Fait (21/10) : `Capture_V030_RugLighting` (vue plongeante, angle rasant, contre-jour, zone 2 sous la lumière de
+  l'annexe ; `v30_light_*`). Remarques : ____________________
 
 ## 4 — Personnages et animations
 
@@ -89,9 +91,10 @@ Terminé lorsque la direction est claire et validée sur une zone représentativ
 - [ ] **Mains / éléments de la vue première personne**
   État : Fait : gant modélisé dans Blender sur tous les outils. Remarques : ____________________
 - [ ] **Animations, poses, transitions, ombres, autres joueurs en multijoueur**
-  État : Partiel. Squelette de 42 os ; l'animation reste celle du jeu (jambes, genoux, bras sur l'outil, tête, ragdoll,
-  KO). **Pas de clips** de marche, course ou gestes ; doigts non animés en jeu ; bras immobiles en marchant.
-  Vérifié par captures et tests hors réseau, puis en session à deux processus (67 contrôles réussis) ; pas sur deux PC.
+  État : Fait (21/10). Squelette de 42 os, animation procédurale du jeu enrichie : jambes et genoux, bras balancés en
+  marchant, foulée plus ample en course, bras refermés sur l'outil, doigts serrés sur l'outil tenu, tête, ragdoll, KO.
+  Pas de clips (le jeu n'a pas d'Animator). Vérifié par captures et tests, puis à deux processus (67 contrôles) ; pas sur
+  deux PC.
   À tester en ligne : ☐ l'autre joueur apparaît ☐ marche ☐ tient l'outil ☐ couleurs / tenue choisies
   ☐ chute (batte) ☐ KO (fusil) — Remarques : ____________________
 - [ ] **Rigs, points d'attache, contrôleurs, synchronisation réseau préservés**
@@ -102,9 +105,10 @@ Terminé lorsque la direction est claire et validée sur une zone représentativ
 ## 5 — Atelier et environnement
 
 - [ ] **Sols, murs, plafonds, portes, étagères, éclairages, machines, ordinateur, mobilier, décor**
-  État : Partiel : 13 surfaces PBR, 28 accessoires réels, casier, machine à laver, caisse à outils. Les éléments modulaires
-  Blender (sol, murs, cloisons, étagère, établi, suspensions, panneaux) sont modélisés mais **pas branchés**.
-  Preuve : `v30_01` à `v30_06`. Remarques : ______________________________________________
+  État : Fait (21/10) : 13 surfaces PBR, 28 accessoires réels, casier, machine à laver, caisse à outils, affiche Canva,
+  enseigne RugWash, décor Blender de l'annexe (sèche-linge, établi, panneau d'outils, suspension éclairée, accessoires).
+  Gardé volontairement : le bâti procédural (sol, murs, cloisons, aire de lavage), qui porte collisions, lumière et surfaces
+  nettoyables. Preuve : `v30_01` à `v30_06`, `v30_fbx_ingame_*`. Remarques : ______________________________________________
 - [ ] **Profondeur visuelle (matériaux, lumière, ombres, composition)**
   État : Fait. Remarques : ____________________
 - [ ] **Lisibilité des zones interactives et objets importants**
@@ -113,7 +117,8 @@ Terminé lorsque la direction est claire et validée sur une zone représentativ
   État : Fait (accessoires hors des allées). À vérifier en jeu : ☐ pas de blocage ☐ pas d'objet qui flotte
   Remarques : ____________________
 - [ ] **Collisions, navigation, interactions, visibilité en vue première personne**
-  État : Partiel : vérifié par les tests PlayMode et les captures ; pas de tour complet à la main. Remarques : ____________________
+  État : Partiel : tests PlayMode, captures, et test du décor de l'annexe (aire de lavage 2, passage et machine dégagés) ;
+  pas de tour complet à la main. Remarques : ____________________
 
 ## 6 — Refonte du HUD et des menus
 
@@ -165,11 +170,12 @@ Le HUD est-il assez minimaliste ? ☐ Oui ☐ Trop chargé ☐ Il manque une inf
   État : Partiel : 2048 px au plus ; deux ouvriers d'environ 60 000 triangles chacun (lourds à plusieurs joueurs, à surveiller).
   Remarques : ____________________
 - [ ] **Draw calls, overdraw UI, transparences, éclairages coûteux**
-  État : Partiel : coût GPU mesuré (V0.3.0 contre V0.2.5, `VALIDATION.md` § 23.1, avant l'ouvrier et le nouveau HUD) ; draw
-  calls non relevés un par un. FPS ressentis : ____________ Remarques : ____________________
+  État : Partiel : coût GPU mesuré sur le build final (3,1 à 4,9 ms en Ultra, `VALIDATION.md` § 23.5), comme avant les
+  derniers ajouts ; draw calls non disponibles dans les builds (compteurs du profileur à -1) ; coût de plusieurs ouvriers
+  affichés non mesuré. FPS ressentis : ____________ Remarques : ____________________
 - [ ] **Nettoyage, outils, sauvegardes, multijoueur non affectés**
-  État : Partiel : EditMode 265/265, PlayMode 171 réussis, 0 échec, 2 ignorés (`VALIDATION.md` § 23.3) ; multijoueur
-  réel non testé. À tester : ☐ nettoyage complet d'une commande ☐ sauvegarde puis rechargement ☐ partie en ligne
+  État : Fait (21/10) : EditMode 265/265 ; PlayMode dans l'éditeur 171 réussis, 1 échec propre à l'éditeur (robot, à
+  revérifier en mode batch), 2 ignorés ; multijoueur à deux processus 67/67 (`VALIDATION.md` § 23.5). À tester : ☐ nettoyage complet d'une commande ☐ sauvegarde puis rechargement ☐ partie en ligne
   Remarques : ____________________
 - [ ] **Erreurs d'importation / références manquantes corrigées**
   État : Fait (galerie FBX : aucun matériau manquant ; tests sans erreur). Remarques : ____________________
@@ -182,7 +188,7 @@ Le HUD est-il assez minimaliste ? ☐ Oui ☐ Trop chargé ☐ Il manque une inf
   Remarques : ____________________
 - [ ] **Vue première personne, animations, collisions, points d'attache** — État : Fait par les tests et les captures.
   Remarques : ____________________
-- [ ] **Joueurs et objets en session multijoueur** — État : Fait (20/10) sur le build `ae2770d` : test à deux processus
+- [ ] **Joueurs et objets en session multijoueur** — État : Fait (20/10 sur `ae2770d`, puis 21/10 sur le build final) : test à deux processus
   (hôte, invité, invité relancé après crash), **67 contrôles réussis, 0 échec**, aucune exception dans les journaux (tapis,
   argent et missions identiques, apparence de l'invité vue par l'hôte, silhouette de l'hôte visible, reconnexion sans
   fantôme, sauvegardes intactes). Limite : contrôles par données, pas d'image de l'autre joueur ; pas de test sur deux PC.
@@ -190,8 +196,8 @@ Le HUD est-il assez minimaliste ? ☐ Oui ☐ Trop chargé ☐ Il manque une inf
 - [ ] **Anciennes fonctionnalités accessibles** — État : Fait par les tests (boutique, casier, missions, pause, RugDex,
   paramètres, personnage, machine à laver, agrandissement, farces). Remarques : ____________________
 - [ ] **Récapitulatif (changements, assets remplacés, outils, limites, reste à faire, contrôles réels)**
-  État : Fait : `V0_3_0.md` et `VALIDATION.md` § 23. Attention : l'en-tête de `V0_3_0.md` dit encore « aucun build ni
-  benchmark » ; les deux ont depuis été lancés à ta demande (§ 23.1, builds des commits `ceb7d96` et `ae2770d`).
+  État : Fait : `V0_3_0.md`, `VALIDATION.md` § 23 à 23.5 et cette fiche (en-tête de `V0_3_0.md` corrigé : builds et
+  benchmarks lancés à ta demande).
 
 ---
 

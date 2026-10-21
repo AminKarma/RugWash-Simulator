@@ -64,9 +64,13 @@ namespace RugWash.Network
             }
         }
 
+        /// <summary>Objets au sol affichés sans modèle (modèles pas encore déclarés) : recréés dès que les icônes sont prêtes.</summary>
+        readonly HashSet<uint> dropsWithoutModel = new HashSet<uint>();
+
         void SetUpItems()
         {
             drops.OnListChanged += OnDropsChanged;
+            if (game.ToolIcons != null) game.ToolIcons.Changed += RebuildDropsWithoutModel;
             if (IsServer)
             {
                 // Objets restés au sol à la dernière partie sur cet emplacement : ils y sont toujours.
@@ -85,6 +89,8 @@ namespace RugWash.Network
         void TearDownItems()
         {
             drops.OnListChanged -= OnDropsChanged;
+            if (game.ToolIcons != null) game.ToolIcons.Changed -= RebuildDropsWithoutModel;
+            dropsWithoutModel.Clear();
             foreach (var visual in dropVisuals.Values)
                 if (visual != null) Destroy(visual);
             dropVisuals.Clear();
@@ -104,22 +110,21 @@ namespace RugWash.Network
                 var upgrade = PickLostItem(victim);
                 if (upgrade == null || !TakeFrom(victim, upgrade)) break;
                 Vector3 side = Vector3.Cross(Vector3.up, away) * ((float)dropRandom.NextDouble() - 0.5f) * 0.6f;
-                Vector3 position = feet + away * (0.8f + 0.3f * n) + side;
-                drops.Add(new DroppedItemNet
-                {
-                    Id = ++nextDropId, Upgrade = new FixedString64Bytes(upgrade.id), Position = position, Yaw = (float)dropRandom.NextDouble() * 360f,
-                });
+                AddDrop(upgrade, feet + away * (0.8f + 0.3f * n) + side);
                 PersistDrops("objet tombé au sol");
                 ToastRpc($"{session?.NameOf(victim) ?? "Un joueur"} a laissé tomber : {upgrade.displayName}");
             }
         }
 
         /// <summary>
-        /// Objet perdu : le dernier objet acheté que ce joueur porte (emplacement le plus à droite de son inventaire), règle
-        /// identique pour tous et prévisible ; null s'il ne porte rien d'acheté (kit de départ seulement).
+        /// Objet perdu : V0.4.2 — l'objet acheté que ce joueur TIENT en main (outil ou gadget de son emplacement actif) ;
+        /// sinon le dernier objet acheté qu'il porte (emplacement le plus à droite de son inventaire). Null s'il ne porte rien
+        /// d'acheté (kit de départ seulement).
         /// </summary>
         UpgradeDefinition PickLostItem(ulong victim)
         {
+            var held = HeldUpgrade(victim);
+            if (held != null) return held;
             IEnumerable<string> carried;
             ICollection<string> owned;
             if (victim == NetworkManager.LocalClientId)
@@ -141,6 +146,111 @@ namespace RugWash.Network
                 if (SessionEconomyRules.IsDroppable(upgrade) && owned.Contains(upgrade.id) && !candidates.Contains(upgrade)) candidates.Add(upgrade);
             }
             return candidates.Count == 0 ? null : candidates[candidates.Count - 1];
+        }
+
+        void AddDrop(UpgradeDefinition upgrade, Vector3 position) => drops.Add(new DroppedItemNet
+        {
+            Id = ++nextDropId, Upgrade = new FixedString64Bytes(upgrade.id), Position = position, Yaw = (float)dropRandom.NextDouble() * 360f,
+        });
+
+        /// <summary>Objet acheté tenu par ce joueur (hôte : son outil ou gadget actif ; invité : l'emplacement que montre sa silhouette).</summary>
+        UpgradeDefinition HeldUpgrade(ulong victim)
+        {
+            string item;
+            if (victim == NetworkManager.LocalClientId) item = LocalHeldItem();
+            else
+            {
+                var avatar = AvatarOf(victim);
+                item = avatar != null ? ItemOfSlot(avatar.HeldSlot) : null;
+            }
+            return HeldDroppable(victim, item);
+        }
+
+        /// <summary>Objet tenu en main sur ce poste : gadget sorti, sinon outil actif (identifiant d'inventaire).</summary>
+        string LocalHeldItem()
+        {
+            var gadget = game.Gadgets != null ? game.Gadgets.Equipped : PrankGadget.None;
+            if (gadget != PrankGadget.None) return InventoryRules.GadgetId(gadget);
+            var tool = game.ToolController.ActiveTool;
+            return tool != null && !game.ToolController.Suspended ? tool.Definition.id : null;
+        }
+
+        /// <summary>L'objet <paramref name="item"/>, s'il est acheté, porté et lâchable par ce joueur (sinon null).</summary>
+        UpgradeDefinition HeldDroppable(ulong player, string item)
+        {
+            if (string.IsNullOrEmpty(item)) return null;
+            ICollection<string> owned;
+            IEnumerable<string> carried;
+            if (player == NetworkManager.LocalClientId)
+            {
+                owned = game.Upgrades.OwnedIds;
+                carried = game.ToolController.Inventory != null ? game.ToolController.Inventory.Carried : (IEnumerable<string>)Array.Empty<string>();
+            }
+            else
+            {
+                if (!members.TryGetValue(player, out var member)) return null;
+                owned = member.Personal;
+                carried = member.Data.carried;
+            }
+            bool isCarried = false;
+            foreach (string c in carried) isCarried |= c == item;
+            var upgrade = game.Upgrades.ItemUpgrade(item);
+            return isCarried && SessionEconomyRules.IsDroppable(upgrade) && owned.Contains(upgrade.id) ? upgrade : null;
+        }
+
+        // ---------------------------------------------------------------- Lâcher l'objet en main (V0.4.2)
+
+        /// <summary>
+        /// Touche « Lâcher » (Q par défaut, remappable) : l'objet acheté tenu en main est posé devant le joueur, au sol pour
+        /// tous ; il quitte ses achats (comme sous la batte) et se ramasse avec E. L'hôte décide (un invité envoie ce qu'il tient,
+        /// vérifié sur SA fiche) ; le kit de départ ne se lâche pas.
+        /// </summary>
+        public void RequestDropHeld()
+        {
+            string item = LocalHeldItem();
+            if (IsServer)
+            {
+                game.Hud.ShowToast(DropHeld(NetworkManager.LocalClientId, item));
+                return;
+            }
+            FlushInventoryReport();
+            DropHeldRpc(new FixedString64Bytes(item ?? string.Empty));
+        }
+
+        [Rpc(SendTo.Server)]
+        void DropHeldRpc(FixedString64Bytes item, RpcParams rpcParams = default)
+        {
+            ulong sender = rpcParams.Receive.SenderClientId;
+            if (sender == NetworkManager.LocalClientId) return;
+            ToastToRpc(DropHeld(sender, item.ToString()), RpcTarget.Single(sender, RpcTargetUse.Temp));
+        }
+
+        /// <summary>Hôte : pose l'objet tenu par ce joueur devant lui (une fois) ; message pour le joueur.</summary>
+        string DropHeld(ulong player, string item)
+        {
+            if (string.IsNullOrEmpty(item)) return "Rien à lâcher : aucun objet en main";
+            var upgrade = HeldDroppable(player, item);
+            if (upgrade == null) return "Cet objet ne se lâche pas (kit de départ ou objet non porté)";
+            if (!TryGetFeet(player, out var feet)) return "Partie en cours de synchronisation";
+            Vector3 forward = player == NetworkManager.LocalClientId ? game.PlayerController.transform.forward
+                : AvatarOf(player) != null ? AvatarOf(player).transform.forward : Vector3.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
+            if (!TakeFrom(player, upgrade)) return "Cet objet ne se lâche pas";
+            AddDrop(upgrade, feet + forward.normalized * 0.7f);
+            PersistDrops("objet posé au sol");
+            return $"{upgrade.displayName} posé au sol (E pour le reprendre)";
+        }
+
+        /// <summary>Objet d'un emplacement de silhouette (outil, batte, fusil ; 0 et le pipi : main libre).</summary>
+        string ItemOfSlot(int slot)
+        {
+            if (slot <= 0) return null;
+            if (slot == PrankTuning.AvatarSlot(PrankGadget.Bat)) return InventoryRules.GadgetId(PrankGadget.Bat);
+            if (slot == PrankTuning.AvatarSlot(PrankGadget.Blaster)) return InventoryRules.GadgetId(PrankGadget.Blaster);
+            foreach (var tool in game.ToolController.Tools)
+                if (tool != null && tool.Definition != null && tool.Definition.slot == slot) return tool.Definition.id;
+            return null;
         }
 
         /// <summary>L'objet quitte les achats du joueur (et ce qu'il porte) ; sa vue lui est renvoyée.</summary>
@@ -221,15 +331,18 @@ namespace RugWash.Network
 
         public void RequestSale(string upgradeId)
         {
-            // Inventaire signalé d'abord (même canal fiable et ordonné) : l'hôte sait que l'objet vient d'être rangé.
-            if (careerReceived && game.ToolController.Inventory != null)
-            {
-                inventoryTimer = 0f;
-                inventoryDirty = false;
-                lastReportedSoap = game.ToolController.Equipment.Soap.Amount;
-                InventoryRpc(new FixedString512Bytes(Truncate(string.Join(",", game.ToolController.Inventory.Carried), 500)), lastReportedSoap);
-            }
+            FlushInventoryReport();
             SaleRpc(new FixedString64Bytes(upgradeId ?? string.Empty));
+        }
+
+        /// <summary>Inventaire signalé d'abord (même canal fiable et ordonné) : l'hôte sait ce que l'invité porte à l'instant.</summary>
+        void FlushInventoryReport()
+        {
+            if (!careerReceived || game.ToolController.Inventory == null) return;
+            inventoryTimer = 0f;
+            inventoryDirty = false;
+            lastReportedSoap = game.ToolController.Equipment.Soap.Amount;
+            InventoryRpc(new FixedString512Bytes(Truncate(string.Join(",", game.ToolController.Inventory.Carried), 500)), lastReportedSoap);
         }
 
         /// <summary>Revente demandée par un invité : vérifiée sur SA fiche (possédé, rangé), payée une fois dans l'argent de la session.</summary>
@@ -258,6 +371,23 @@ namespace RugWash.Network
         // ---------------------------------------------------------------- Objets au sol : affichage (tous les postes)
 
         void OnDropsChanged(NetworkListEvent<DroppedItemNet> change) => RefreshDropVisuals();
+
+        void RebuildDropsWithoutModel()
+        {
+            if (dropsWithoutModel.Count == 0) return;
+            foreach (uint id in new List<uint>(dropsWithoutModel))
+            {
+                if (dropVisuals.TryGetValue(id, out var visual) && visual != null) Destroy(visual);
+                dropVisuals.Remove(id);
+            }
+            dropsWithoutModel.Clear();
+            RefreshDropVisuals();
+        }
+
+        /// <summary>Objet au sol affiché avec son modèle sur ce poste (tests multijoueur).</summary>
+        public bool DropVisible(uint dropId) =>
+            dropVisuals.TryGetValue(dropId, out var visual) && visual != null && !dropsWithoutModel.Contains(dropId)
+            && visual.GetComponentsInChildren<Renderer>().Length > 0;
 
         void RefreshDropVisuals()
         {
@@ -304,7 +434,11 @@ namespace RugWash.Network
                     bounds.center += Vector3.up * lift;
                 }
             }
-            else Debug.LogWarning($"[RugWash] Objet au sol « {drop.Upgrade} » sans modèle : seul le ramassage est possible.");
+            else
+            {
+                dropsWithoutModel.Add(drop.Id);
+                Debug.LogWarning($"[RugWash] Objet au sol « {drop.Upgrade} » sans modèle pour l'instant : recréé quand les modèles sont prêts.");
+            }
             var collider = holder.AddComponent<BoxCollider>();
             collider.isTrigger = true;
             collider.center = holder.transform.InverseTransformPoint(bounds.center);

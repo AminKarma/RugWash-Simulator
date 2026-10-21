@@ -331,6 +331,11 @@ namespace RugWash.UI
         public string OrderText => orderLabel.text;
         public string ScanText => scanLabel.text;
         public string ToolStatusText => toolStatusLabel.text;
+        /// <summary>Remplissage affiché de la barre de réserve (0 à 1) et sa hauteur réelle à l'écran (tests).</summary>
+        public float ResourceBarFill => resourceFill.fillAmount;
+        public bool ResourceBarShown => resourceBar.activeInHierarchy;
+        public float ResourceBarPixelHeight => ((RectTransform)resourceFill.transform).rect.height;
+        public float CleanlinessBarPixelHeight => ((RectTransform)cleanlinessFill.transform).rect.height;
 
         void OnScanDenied(float remaining) =>
             ShowToast(remaining > 0f ? $"Scan en recharge — encore {Mathf.CeilToInt(remaining)} s" : "Scan déjà en cours");
@@ -468,7 +473,8 @@ namespace RugWash.UI
             float fraction = CurrentGadget != Pranks.PrankGadget.None ? gadgets.ReadyFraction : tool != null ? tool.GetResourceFraction() : -1f;
             if (fraction >= 0f)
             {
-                displayedResource = tool != lastTool || displayedResource < 0f ? fraction : Mathf.Lerp(displayedResource, fraction, smoothing);
+                // V0.4.2 : la barre montre la réserve réelle à l'instant (même valeur que le texte), bornée entre vide et plein.
+                displayedResource = Mathf.Clamp01(fraction);
                 resourceFill.fillAmount = displayedResource;
             }
 

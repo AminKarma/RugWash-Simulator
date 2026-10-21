@@ -40,6 +40,23 @@ namespace RugWash.Player
         public float KnockdownRoll { get; set; }
         public float Roll => roll;
 
+        float shakeAmplitude, shakeUntil, shakeSeconds;
+        /// <summary>V0.4.2 : secousse en cours (tests).</summary>
+        public bool IsShaking => Time.unscaledTime < shakeUntil;
+
+        /// <summary>
+        /// V0.4.2 : secousse brève (explosion) : décalage aléatoire décroissant, en temps réel (le ralenti ne la prolonge pas),
+        /// dosée par le réglage « Balancement » ; une nouvelle secousse ne fait que remplacer une plus faible.
+        /// </summary>
+        public void Shake(float amplitude, float seconds)
+        {
+            float remaining = IsShaking ? shakeAmplitude * (shakeUntil - Time.unscaledTime) / Mathf.Max(0.01f, shakeSeconds) : 0f;
+            if (amplitude < remaining) return;
+            shakeAmplitude = Mathf.Clamp(amplitude, 0f, 0.12f);
+            shakeSeconds = Mathf.Clamp(seconds, 0.05f, 1.5f);
+            shakeUntil = Time.unscaledTime + shakeSeconds;
+        }
+
         void Awake()
         {
             restPosition = transform.localPosition;
@@ -64,7 +81,14 @@ namespace RugWash.Player
             var bob = new Vector3(Mathf.Sin(phase * Mathf.PI) * bobHorizontal, Mathf.Abs(Mathf.Cos(phase * Mathf.PI)) * bobVertical - bobVertical * 0.5f, 0f);
             // La chute s'ajoute verticalement dans le monde, quel que soit le tangage de la tête.
             Vector3 drop = transform.parent != null ? transform.parent.InverseTransformVector(Vector3.down * KnockdownDrop) : Vector3.down * KnockdownDrop;
-            transform.localPosition = restPosition + bob * (weight * intensity) + drop;
+            Vector3 shake = Vector3.zero;
+            if (IsShaking)
+            {
+                float k = (shakeUntil - Time.unscaledTime) / shakeSeconds;
+                float t = Time.unscaledTime * 38f;
+                shake = new Vector3(Mathf.PerlinNoise(t, 0.3f) - 0.5f, Mathf.PerlinNoise(0.7f, t) - 0.5f, 0f) * (2f * shakeAmplitude * k * k * intensity);
+            }
+            transform.localPosition = restPosition + bob * (weight * intensity) + drop + shake;
             transform.localRotation = restRotation * Quaternion.Euler(0f, 0f, roll * intensity + KnockdownRoll);
         }
     }

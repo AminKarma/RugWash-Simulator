@@ -43,6 +43,8 @@ namespace RugWash.Save
         public int voiceMode;
         /// <summary>Volume des voix des autres joueurs (0 = coupées).</summary>
         public float voiceVolume = 1f;
+        /// <summary>V0.4.2 : micro choisi (nom Windows) ; vide = micro par défaut de Windows.</summary>
+        public string voiceInputDevice = string.Empty;
 
         public SettingsData Clone() => (SettingsData)MemberwiseClone();
     }
@@ -213,6 +215,7 @@ namespace RugWash.Save
             if (System.Array.IndexOf(SettingsRules.FrameRateCaps, s.frameRateCap) < 0) s.frameRateCap = 0;
             s.voiceMode = Mathf.Clamp(s.voiceMode, 0, 2);
             s.voiceVolume = Mathf.Clamp01(s.voiceVolume);
+            if (s.voiceInputDevice == null) s.voiceInputDevice = string.Empty;
         }
     }
 }

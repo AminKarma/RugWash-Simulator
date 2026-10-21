@@ -41,11 +41,15 @@ namespace RugWash.Diagnostics
         public const string GuestKey = "mp-guest";
         /// <summary>Achats personnels de l'invité déjà enregistrés dans la sauvegarde de l'hôte (venue précédente).</summary>
         public static readonly string[] GuestPersonal =
-            { "up_tool_vacuum", "up_tool_rinse", "up_tool_extractor", "up_tool_foam", "up_tool_broom", "up_tool_squeegee", "up_prank_pee" };
+            { "up_tool_vacuum", "up_tool_rinse", "up_tool_extractor", "up_tool_foam", "up_tool_broom", "up_tool_squeegee", "up_prank_pee", "up_inventory_slot", "up_tool_brush" };
         /// <summary>Ce que porte l'invité à son arrivée (fiche) : la raclette, achetée et en dernier, tombera sous la batte.</summary>
         public static readonly string[] GuestCarried = { "soap", "brush", "vacuum", "squeegee" };
         /// <summary>Objet perdu par l'invité sous la batte (que l'hôte ne possède pas : il le ramasse puis le revend).</summary>
         public const string DroppedUpgrade = "up_tool_squeegee";
+        /// <summary>V0.4.2 : objet que l'hôte lâche pendant l'absence de l'invité (l'invité ne l'a pas) : vu et ramassé à son retour.</summary>
+        public const string LateJoinDrop = "up_prank_bat";
+        /// <summary>V0.4.2 : objet que tient l'invité revenu quand le fusil le touche (il le lâche, puis le ramasse après le KO).</summary>
+        public const string BlasterDrop = "up_tool_vacuum";
         /// <summary>Achat de l'invité pendant la partie (amélioration personnelle, payée avec l'argent de la session).</summary>
         public const string GuestPurchase = "up_water_1";
         /// <summary>Objet revendu par l'invité (rangé au casier) : moitié du prix de base, dans l'argent de la session.</summary>
@@ -57,7 +61,7 @@ namespace RugWash.Diagnostics
         public const string ChatFromGuest = "Bonjour depuis l'invité";
         public const string ChatFromHost = "Bienvenue dans l'atelier";
         /// <summary>Apparence choisie par l'invité (menu Personnage) : l'hôte doit la voir sur sa silhouette.</summary>
-        public static readonly CharacterLook GuestLook = new CharacterLook { outfit = 3, cap = 2, gloves = 1 };
+        public static readonly CharacterLook GuestLook = new CharacterLook { outfit = 3, cap = 2, gloves = 1, skin = 5 };
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Initialize()
@@ -118,9 +122,10 @@ namespace RugWash.Diagnostics
             };
             seeded.upgrades.AddRange(SaveMigration.LegacyWorkshopUnlocks);
             seeded.upgrades.AddRange(SaveMigration.LegacyDecorUnlocks);
+            seeded.upgrades.AddRange(SaveMigration.LegacyStarterUnlocks);
             if (host)
             {
-                seeded.upgrades.AddRange(new[] { "up_base_2", "up_machine_blower", "up_prank_bat", "up_prank_pee" });
+                seeded.upgrades.AddRange(new[] { "up_base_2", "up_machine_blower", "up_prank_bat", "up_prank_pee", "up_prank_blaster", "up_extension", "up_prank_dynamite" });
                 seeded.members.Add(new SessionMemberData
                 {
                     key = GuestKey, name = "Invité", upgrades = new List<string>(GuestPersonal), carried = new List<string>(GuestCarried),
@@ -395,6 +400,79 @@ namespace RugWash.Diagnostics
 
         static int AvatarCount() => FindObjectsByType<NetworkPlayerAvatar>().Length;
 
+        /// <summary>V0.4.2 : voix de test (tonalité) envoyée pendant <paramref name="seconds"/> s, 25 trames par seconde.</summary>
+        IEnumerator SendTone(float seconds)
+        {
+            for (float t = 0f; t < seconds; t += 0.04f)
+            {
+                game.Voice.SendDiagnosticFrame();
+                yield return new WaitForSecondsRealtime(0.04f);
+            }
+        }
+
+        static NetworkPlayerAvatar AvatarOf(ulong clientId)
+        {
+            foreach (var avatar in FindObjectsByType<NetworkPlayerAvatar>())
+                if (avatar.OwnerClientId == clientId) return avatar;
+            return null;
+        }
+
+        /// <summary>
+        /// V0.4.2 : glissade d'un autre joueur vue d'ici. Pendant la chute : animation cartoon (pas de ragdoll physique), corps
+        /// resté avec la silhouette, aucun saut d'une image à l'autre ; la silhouette continue de glisser ; au relevé, corps revenu.
+        /// </summary>
+        IEnumerator WatchSlip(NetworkPlayerAvatar avatar, string who)
+        {
+            yield return WaitFor(() => avatar == null || avatar.IsKnockedDown, 40f);
+            if (avatar == null || !avatar.IsKnockedDown)
+            {
+                Record($"Glissade de {who} vue par les autres : chute cartoon qui suit sa position", false, "aucune chute vue");
+                yield break;
+            }
+            var ragdoll = avatar.Ragdoll;
+            Vector3 rootStart = avatar.transform.position, lastHip = ragdoll.HipPosition, lastRoot = avatar.transform.position;
+            bool sliding = false, physics = false;
+            float maxOffset = 0f, maxJump = 0f, waited = 0f;
+            while (avatar != null && avatar.IsKnockedDown && waited < 6f)
+            {
+                yield return null;
+                waited += Time.unscaledDeltaTime;
+                sliding |= ragdoll.IsSliding;
+                physics |= ragdoll.BodyRigidbody != null;
+                maxOffset = Mathf.Max(maxOffset, ragdoll.BodyOffsetFromRoot);
+                // Vitesse des hanches par rapport à la silhouette : chute animée en 0,3 s, jamais un saut.
+                Vector3 relative = (ragdoll.HipPosition - lastHip) - (avatar.transform.position - lastRoot);
+                maxJump = Mathf.Max(maxJump, relative.magnitude / Mathf.Max(Time.unscaledDeltaTime, 1e-3f));
+                lastHip = ragdoll.HipPosition;
+                lastRoot = avatar.transform.position;
+            }
+            if (avatar == null) yield break;
+            Vector3 travel = avatar.transform.position - rootStart;
+            float slid = new Vector2(travel.x, travel.z).magnitude;
+            Record($"Glissade de {who} vue par les autres : chute cartoon (sans ragdoll physique), corps resté avec la silhouette, sans saut",
+                sliding && !physics && maxOffset < 1.6f && maxJump < 8f,
+                $"animée {sliding}, physique {physics}, écart max {maxOffset:0.00} m, hanches au plus {maxJump:0.0} m/s, {waited:0.0} s");
+            Record($"Glissade de {who} : la silhouette continue de glisser pendant la chute", slid > 0.3f, $"{slid:0.00} m");
+            yield return new WaitForSeconds(1.2f);
+            Record($"Glissade de {who} : relevé, corps revenu à sa pose", !ragdoll.IsBusy && ragdoll.BodyOffsetFromRoot < 0.05f,
+                $"en cours {ragdoll.IsBusy}, écart {ragdoll.BodyOffsetFromRoot:0.000} m");
+        }
+
+        /// <summary>Ramasse l'objet au sol <paramref name="dropId"/> (nouvelles demandes tant que l'hôte ne voit pas encore ce joueur à portée).</summary>
+        IEnumerator PickUp(uint dropId, string upgradeId, float timeout)
+        {
+            var upgrade = game.Upgrades.Find(upgradeId);
+            float end = Time.realtimeSinceStartup + timeout;
+            while (Time.realtimeSinceStartup < end && !game.Upgrades.IsOwned(upgrade))
+            {
+                foreach (var drop in NetworkWorkshop.Instance.Drops)
+                    if (drop.Id == dropId) game.PlayerController.Teleport(new Vector3(drop.Position.x, 0.06f, drop.Position.z - 0.8f), 0f, 20f);
+                yield return new WaitForSeconds(0.8f);
+                NetworkWorkshop.Instance.TryPickup(dropId);
+                yield return new WaitForSeconds(0.7f);
+            }
+        }
+
         void Aim(Vector2 uv)
         {
             Vector3 target = game.Rug.UVToWorld(uv);
@@ -493,6 +571,12 @@ namespace RugWash.Diagnostics
             yield return WaitFor(() => ChatContains("Invité", MultiplayerAutotest.ChatFromGuest), 40f);
             Record("Chat : message de l'invité reçu par l'hôte", ChatContains("Invité", MultiplayerAutotest.ChatFromGuest));
             NetworkWorkshop.Instance.SendChat(MultiplayerAutotest.ChatFromHost);
+            // V0.4.2 : voix dans les deux sens (tonalité de test par le vrai chemin : encodage, envoi, relais, lecture).
+            var guestVoice = AvatarOf(guestId);
+            yield return WaitFor(() => guestVoice != null && guestVoice.Voice != null && guestVoice.Voice.FramesReceived >= 10, 30f);
+            Record("Voix : l'hôte entend l'invité (trames lues sur sa silhouette)", guestVoice != null && guestVoice.Voice != null && guestVoice.Voice.FramesReceived >= 10,
+                guestVoice != null && guestVoice.Voice != null ? $"{guestVoice.Voice.FramesReceived} trame(s)" : "silhouette absente");
+            StartCoroutine(SendTone(2.5f));
 
             var order = game.Orders.Book.Orders[0];
             // Gains suivis à chaque variation du solde : un double paiement serait vu même si un achat suit.
@@ -575,8 +659,8 @@ namespace RugWash.Diagnostics
             values["missionsTableau"] = GeneratedOffers(game);
             Record("Trois missions générées proposées sur le tableau de l'hôte", game.Orders.Missions.Offers.Count == 3, values["missionsTableau"]);
 
-            // Débris secs sur l'aire de lavage : le robot (que l'invité va démarrer) a réellement de quoi travailler.
-            var pad = game.WorkSurface.Surface.Grid;
+            // Débris secs sur l'aire du robot (zone 2) : le robot (que l'invité va démarrer) a réellement de quoi travailler.
+            var pad = game.Robot.Floor.Grid;
             var debris = new DepositOperation { Type = DirtType.Dust, Debris = 0.3f };
             pad.ApplyRect(new RectInt(0, 0, pad.Width, 6), 1f, ref debris);
             pad.ApplyRect(new RectInt(0, pad.Height - 6, pad.Width, 6), 1f, ref debris);
@@ -606,6 +690,17 @@ namespace RugWash.Diagnostics
                 if (avatar.OwnerClientId == guestId) guestAvatar = avatar;
             Record("Apparence de l'invité (menu Personnage) vue par l'hôte", guestAvatar != null && guestAvatar.PackedLook == MultiplayerAutotest.GuestLook.Pack(),
                 guestAvatar != null ? guestAvatar.PackedLook.ToString() : "-");
+            // V0.4.2 : couleur de peau de l'invité appliquée sur sa silhouette chez l'hôte (matériau de peau seulement).
+            var guestSkin = guestAvatar != null ? guestAvatar.GetComponentInChildren<CharacterAppearance>(true) : null;
+            Color expectedSkin = CharacterPalette.Skins[MultiplayerAutotest.GuestLook.skin].color;
+            Record("Couleur de peau de l'invité vue par l'hôte", guestSkin != null && guestSkin.SkinRendererCount > 0
+                && ((Vector4)(guestSkin.AppliedColor(3) - expectedSkin)).magnitude < 0.01f,
+                guestSkin != null ? $"{guestSkin.AppliedColor(3)} pour {expectedSkin}, {guestSkin.SkinRendererCount} rendu(s)" : "-");
+            // V0.4.2 : 5e emplacement de l'invité (acheté, dans SA fiche) : l'hôte accepte cinq objets portés.
+            yield return WaitFor(() => { var m = NetworkWorkshop.Instance.MemberOf(guestId); return m != null && m.carried.Count == 5; }, 30f);
+            var five = NetworkWorkshop.Instance.MemberOf(guestId);
+            Record("5e emplacement : cinq objets portés par l'invité, acceptés et gardés dans SA fiche", five != null && five.carried.Count == 5,
+                five != null ? string.Join(",", five.carried) : "-");
 
             // Farces : l'invité utilise le pipi de l'atelier de l'hôte ; l'hôte répond d'un coup de batte.
             yield return WaitFor(() => splashSeen, 60f);
@@ -657,15 +752,27 @@ namespace RugWash.Diagnostics
             var seller = NetworkWorkshop.Instance.MemberOf(guestId);
             Record("Revente par l'invité validée par l'hôte : l'objet quitte SA fiche", seller != null && !seller.upgrades.Contains(MultiplayerAutotest.GuestSale),
                 seller != null ? $"{seller.upgrades.Count} achat(s) personnel(s)" : "-");
+            // V0.4.2 : l'invité glisse sur la mousse ; l'hôte voit la chute cartoon et la glissade continuer.
+            yield return WatchSlip(guestAvatar, "l'invité");
             values["empreinteTapis"] = MultiplayerAutotest.Hash(game.Rug.Grid).ToString();
             values["empreinteTapisDetail"] = MultiplayerAutotest.HashDetail(game.Rug.Grid);
 
             // Crash de l'invité (processus tué) puis reconnexion du même joueur : jamais deux personnages pour lui.
             int moneyBeforeCrash = game.Wallet.Balance;
-            int ownedBeforeCrash = game.Upgrades.OwnedIds.Count;
             float crashWait = Time.realtimeSinceStartup;
             yield return WaitFor(() => guestAvatar == null, 60f);
             values["secondesAvantRetraitDuPersonnageDeLInvite"] = Invariant(Time.realtimeSinceStartup - crashWait, "0.0");
+            // V0.4.2 : pendant son absence, l'hôte lâche l'objet qu'il tient (la batte, que l'invité n'a pas) : à son retour,
+            // l'invité doit le voir au sol et pouvoir le ramasser.
+            game.Gadgets.Equip(PrankGadget.Bat);
+            yield return null;
+            var hostFeet = game.PlayerController.transform.position;
+            NetworkWorkshop.Instance.LoseItems(NetworkWorkshop.Instance.NetworkManager.LocalClientId, hostFeet, game.PlayerController.transform.forward, 1);
+            var lateDrops = NetworkWorkshop.Instance.Drops;
+            Record("Objet tenu lâché par l'hôte pendant l'absence de l'invité (la batte qu'il tenait, pas le dernier objet porté)",
+                lateDrops.Count == 1 && lateDrops[0].Upgrade.ToString() == MultiplayerAutotest.LateJoinDrop && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.LateJoinDrop),
+                lateDrops.Count > 0 ? $"{lateDrops.Count} objet(s) : {lateDrops[0].Upgrade}" : "rien au sol");
+            int ownedBeforeCrash = game.Upgrades.OwnedIds.Count;
             yield return WaitFor(() => AvatarCount() >= 2, 120f);
             yield return new WaitForSeconds(3f);
             Record("Crash puis reconnexion de l'invité : un seul personnage par joueur (aucun fantôme)", AvatarCount() == 2 && guestAvatar == null,
@@ -682,8 +789,106 @@ namespace RugWash.Diagnostics
                 && !returned.Upgrades.Contains(MultiplayerAutotest.GuestSale) && returned.Money == game.Wallet.Balance,
                 returned != null ? $"{returned.Money} €" : "-");
             values["argentInviteApresReconnexion"] = returned != null ? returned.Money.ToString() : "-";
+            var returnedLook = AvatarOf(returnedId);
+            Record("Reconnexion : même apparence (couleur de peau comprise) vue par l'hôte", returnedLook != null
+                && returnedLook.PackedLook == MultiplayerAutotest.GuestLook.Pack(), returnedLook != null ? returnedLook.PackedLook.ToString() : "-");
             Record("Partie de l'hôte toujours en cours après le crash de l'invité", session.InSession && session.State == SessionState.InGame,
                 session.State.ToString());
+
+            // V0.4.2 : l'invité revenu ramasse la batte tombée pendant son absence (une seule fois, aucun doublon).
+            yield return WaitFor(() => NetworkWorkshop.Instance.Drops.Count == 0, 60f);
+            var lateMember = NetworkWorkshop.Instance.MemberOf(returnedId);
+            Record("Objet tombé pendant l'absence : ramassé par l'invité revenu, rangé dans SA fiche, plus rien au sol",
+                NetworkWorkshop.Instance.Drops.Count == 0 && lateMember != null && lateMember.upgrades.Contains(MultiplayerAutotest.LateJoinDrop)
+                && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.LateJoinDrop), $"{NetworkWorkshop.Instance.Drops.Count} au sol");
+
+            // V0.4.2 : fusil à farces sur l'invité revenu : KO, et il lâche l'objet qu'il TIENT (l'aspirateur, pas le dernier porté).
+            var returnedAvatar = AvatarOf(returnedId);
+            int vacuumSlot = game.ToolController.Tools[0].Definition.slot;
+            float blasterAt = Time.time;
+            // L'invité revenu tient l'aspirateur et porte la lance (signalée à l'hôte) : la lance est le dernier objet porté.
+            yield return WaitFor(() =>
+            {
+                var m = NetworkWorkshop.Instance.MemberOf(returnedId);
+                return returnedAvatar != null && returnedAvatar.HeldSlot == vacuumSlot && m != null && m.carried.Contains("rinse");
+            }, 40f);
+            yield return new WaitForSeconds(1f);
+            PrankResult blast = PrankResult.Unavailable;
+            if (returnedAvatar != null)
+            {
+                var behind = returnedAvatar.transform.position - returnedAvatar.transform.forward * 1.5f;
+                game.PlayerController.Teleport(new Vector3(behind.x, 0.06f, behind.z), returnedAvatar.transform.eulerAngles.y, 10f);
+                yield return new WaitForSeconds(0.5f);
+                blast = game.Pranks.Execute(game.Gadgets.Actor, new PrankRequest { Gadget = PrankGadget.Blaster, Target = PrankTarget.Player, Victim = returnedId }, out _);
+                blasterAt = Time.time;
+                yield return WaitFor(() => returnedAvatar.IsKnockedDown, 10f);
+            }
+            var blastDrops = NetworkWorkshop.Instance.Drops;
+            var blastMember = NetworkWorkshop.Instance.MemberOf(returnedId);
+            Record("Fusil à farces : KO de l'invité, il lâche l'objet qu'il tient (un seul, au sol, retiré de SA fiche)",
+                blast == PrankResult.Done && returnedAvatar != null && returnedAvatar.IsKnockedDown && blastDrops.Count == 1
+                && blastDrops[0].Upgrade.ToString() == MultiplayerAutotest.BlasterDrop && blastMember != null && !blastMember.upgrades.Contains(MultiplayerAutotest.BlasterDrop),
+                $"{blast}, {blastDrops.Count} objet(s) au sol{(blastDrops.Count > 0 ? " : " + blastDrops[0].Upgrade : "")}");
+            yield return WaitFor(() => NetworkWorkshop.Instance.Drops.Count == 0, 40f);
+            blastMember = NetworkWorkshop.Instance.MemberOf(returnedId);
+            Record("Fusil : l'invité ramasse son objet après le KO (rendu une seule fois)", NetworkWorkshop.Instance.Drops.Count == 0
+                && blastMember != null && blastMember.upgrades.Contains(MultiplayerAutotest.BlasterDrop), $"{NetworkWorkshop.Instance.Drops.Count} au sol");
+
+            // V0.4.2 : touche « Lâcher » de l'invité revenu : la lance qu'il tient tombe au sol pour tous, puis il la reprend.
+            yield return WaitFor(() => NetworkWorkshop.Instance.Drops.Count > 0, 40f);
+            var keyDrops = NetworkWorkshop.Instance.Drops;
+            var keyMember = NetworkWorkshop.Instance.MemberOf(returnedId);
+            Record("Touche « Lâcher » de l'invité : l'objet tenu (lance) posé au sol, retiré de SA fiche (validé par l'hôte)",
+                keyDrops.Count == 1 && keyDrops[0].Upgrade.ToString() == "up_tool_rinse" && keyMember != null && !keyMember.upgrades.Contains("up_tool_rinse"),
+                keyDrops.Count > 0 ? $"{keyDrops.Count} objet(s) : {keyDrops[0].Upgrade}" : "rien au sol");
+            yield return WaitFor(() => NetworkWorkshop.Instance.Drops.Count == 0, 40f);
+            keyMember = NetworkWorkshop.Instance.MemberOf(returnedId);
+            Record("Objet lâché repris par l'invité (une seule fois)", NetworkWorkshop.Instance.Drops.Count == 0 && keyMember != null
+                && keyMember.upgrades.Contains("up_tool_rinse"), $"{NetworkWorkshop.Instance.Drops.Count} au sol");
+
+            // V0.4.2 : dynamite lancée par l'hôte aux pieds de l'invité revenu (aspirateur en main) : une explosion, KO de 5 s,
+            // objet tenu lâché, membres dispersés vus ici, puis relevé et apparence normale.
+            yield return WaitFor(() => returnedAvatar != null && returnedAvatar.HeldSlot == vacuumSlot, 40f);
+            float protectedFor = blasterAt + 16f - Time.time;
+            if (protectedFor > 0f) yield return new WaitForSeconds(protectedFor);
+            PrankResult dynamite = PrankResult.Unavailable;
+            bool scatteredSeen = false;
+            int piecesSeen = 0;
+            int detonations = game.Pranks.Detonations;
+            if (returnedAvatar != null)
+            {
+                Vector3 target = returnedAvatar.transform.position;
+                Vector3 from = target - returnedAvatar.transform.forward * 3f;
+                game.PlayerController.Teleport(new Vector3(from.x, 0.06f, from.z), returnedAvatar.transform.eulerAngles.y, 20f);
+                yield return new WaitForSeconds(0.5f);
+                dynamite = game.Pranks.Execute(game.Gadgets.Actor,
+                    new PrankRequest { Gadget = PrankGadget.Dynamite, Target = PrankTarget.Area, Point = target + Vector3.up * 0.05f }, out _);
+                yield return WaitFor(() =>
+                {
+                    if (returnedAvatar.Ragdoll.LimbsScattered)
+                    {
+                        scatteredSeen = true;
+                        piecesSeen = Mathf.Max(piecesSeen, returnedAvatar.Ragdoll.ScatterPiecesShown);
+                    }
+                    return returnedAvatar.IsKnockedDown && scatteredSeen;
+                }, 10f);
+            }
+            var dynDrops = NetworkWorkshop.Instance.Drops;
+            var dynMember = NetworkWorkshop.Instance.MemberOf(returnedId);
+            Record("Dynamite : une explosion, l'invité dans le souffle est mis KO (membres dispersés vus par l'hôte), l'hôte qui lance est épargné",
+                dynamite == PrankResult.Done && game.Pranks.Detonations == detonations + 1 && returnedAvatar != null && returnedAvatar.IsKnockedDown
+                && scatteredSeen && piecesSeen == 4 && !game.Knockdown.IsDown, $"{dynamite}, explosions +{game.Pranks.Detonations - detonations}, morceaux {piecesSeen}");
+            Record("Dynamite : l'invité lâche l'objet qu'il tient (un seul, retiré de SA fiche)", dynDrops.Count == 1
+                && dynDrops[0].Upgrade.ToString() == MultiplayerAutotest.BlasterDrop && dynMember != null && !dynMember.upgrades.Contains(MultiplayerAutotest.BlasterDrop),
+                $"{dynDrops.Count} au sol");
+            yield return WaitFor(() => returnedAvatar == null || !returnedAvatar.IsKnockedDown, 10f);
+            yield return new WaitForSeconds(1f);
+            Record("Dynamite : relevé, membres rassemblés et corps à sa place chez l'hôte", returnedAvatar != null && !returnedAvatar.IsKnockedDown
+                && !returnedAvatar.Ragdoll.LimbsScattered && returnedAvatar.Ragdoll.ScatterPiecesShown == 0 && returnedAvatar.Ragdoll.BodyOffsetFromRoot < 0.05f,
+                returnedAvatar != null ? $"écart {returnedAvatar.Ragdoll.BodyOffsetFromRoot:0.000} m" : "-");
+            yield return WaitFor(() => NetworkWorkshop.Instance.Drops.Count == 0, 40f);
+            Record("Dynamite : objet ramassé par l'invité après le KO (aucun doublon)", NetworkWorkshop.Instance.Drops.Count == 0,
+                $"{NetworkWorkshop.Instance.Drops.Count} au sol");
 
             values["octetsSurfacesEnvoyes"] = NetworkWorkshop.Instance.SurfaceBytesSent.ToString();
             values["fpsMoyenNettoyage"] = Invariant(AverageFps(), "0");
@@ -723,6 +928,12 @@ namespace RugWash.Diagnostics
                 game.Upgrades.OwnedIds.Contains("up_tool_squeegee") && game.Upgrades.OwnedIds.Contains("up_base_2")
                 && !game.Upgrades.OwnedIds.Contains("up_prank_bat") && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.GuestOnlyUpgrade)
                 && Carries(game, "squeegee"), $"{game.Upgrades.OwnedIds.Count} achat(s)");
+            // V0.4.2 : 5e emplacement acheté (fiche chez l'hôte) : la lance se porte en plus des quatre objets.
+            Record("5e emplacement : retrouvé dans sa fiche chez l'hôte (5 emplacements)", game.ToolController.Inventory.SlotCount == 5,
+                $"{game.ToolController.Inventory.SlotCount} emplacements");
+            game.ToolController.SelectSlot(4);
+            Record("5e emplacement : cinq objets portés", game.ToolController.Inventory.Carried.Count == 5,
+                string.Join(",", game.ToolController.Inventory.Carried));
             bool ownMulti = MultiplayerAutotest.GuestMultiUntouched(ReadOwnSave(), out string ownDetail);
             Record("Emplacement multijoueur personnel de l'invité ni chargé ni modifié", ownMulti, ownDetail);
             NetworkWorkshop.Instance.SendChat(MultiplayerAutotest.ChatFromGuest);
@@ -734,6 +945,11 @@ namespace RugWash.Diagnostics
             foreach (var avatar in FindObjectsByType<NetworkPlayerAvatar>())
                 if (!avatar.IsOwner) hostAvatar = avatar;
             Record("Silhouette de l'hôte visible", hostAvatar != null, hostAvatar != null ? hostAvatar.DisplayName : "-");
+            // V0.4.2 : voix dans les deux sens. Avant : chez un invité, la voix des autres ne trouvait jamais leur silhouette.
+            StartCoroutine(SendTone(2.5f));
+            yield return WaitFor(() => hostAvatar != null && hostAvatar.Voice != null && hostAvatar.Voice.FramesReceived >= 10, 40f);
+            Record("Voix : l'invité entend l'hôte (trames lues sur sa silhouette)", hostAvatar != null && hostAvatar.Voice != null && hostAvatar.Voice.FramesReceived >= 10,
+                hostAvatar != null && hostAvatar.Voice != null ? $"{hostAvatar.Voice.FramesReceived} trame(s)" : "silhouette absente");
 
             yield return WaitFor(() => game.Orders.ActiveOrder != null, 40f);
             Record("Commande de l'hôte reçue (état partagé)", game.Orders.ActiveOrder != null, game.Orders.ActiveOrder != null ? game.Orders.ActiveOrder.title : "-");
@@ -797,6 +1013,8 @@ namespace RugWash.Diagnostics
             Record("Décor et machines de l'atelier de l'hôte affichés chez l'invité", game.Decor.Tier == 2 && blower != null && blower.IsOwned,
                 $"palier {game.Decor.Tier}, souffleur {(blower != null && blower.IsOwned ? "présent" : "absent")}");
 
+            // V0.4.2 : la raclette en main (elle tombera sous la batte : objet tenu).
+            game.ToolController.SelectSlot(10);
             // Farce : pipi sur l'hôte avec le gadget de l'atelier (portée mesurée chez l'hôte depuis la silhouette de l'invité).
             if (hostAvatar != null)
             {
@@ -840,6 +1058,18 @@ namespace RugWash.Diagnostics
             Record("Revente demandée à l'hôte : l'objet quitte l'inventaire de l'invité, la moitié du prix revient à la session",
                 sale == Economy.SaleResult.Requested && !game.Upgrades.IsOwned(broom) && game.Wallet.Balance >= moneyBeforeSale + broom.price / 2,
                 $"{sale} : {moneyBeforeSale} € → {game.Wallet.Balance} €");
+
+            // V0.4.2 : glissade sur la mousse (même chute locale qu'avant) ; l'hôte vérifie ce qu'il en voit.
+            game.PlayerController.Teleport(new Vector3(-2.5f, 0.06f, -1.5f), 90f, 10f);
+            yield return new WaitForSeconds(1.5f);
+            bool slipped = game.Knockdown.Knockdown(game.PlayerController.transform.forward * 6f + Vector3.up * 2f, 1.6f,
+                "Glissade sur la mousse ! (évitez de courir dessus)", KnockCause.Slip);
+            Vector3 slipStart = game.PlayerController.transform.position;
+            yield return new WaitForSeconds(0.8f);
+            float slidLocally = Vector3.Distance(slipStart, game.PlayerController.transform.position);
+            yield return WaitFor(() => !game.Knockdown.IsDown, 10f);
+            Record("Glissade : chute locale inchangée (glisse, puis relevé et contrôles rendus)", slipped && slidLocally > 0.3f
+                && !game.Knockdown.IsDown && !game.PlayerController.ControlLocked, $"{slidLocally:0.00} m");
 
             yield return new WaitForSeconds(4f);
             values["empreinteTapis"] = MultiplayerAutotest.Hash(game.Rug.Grid).ToString();
@@ -888,6 +1118,65 @@ namespace RugWash.Diagnostics
                 && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.DroppedUpgrade) && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.GuestSale),
                 $"{game.Wallet.Balance} €, {game.Upgrades.OwnedIds.Count} achat(s)");
             values["argentVuApresReconnexion"] = game.Wallet.Balance.ToString();
+
+            // V0.4.2 : objet tombé pendant son absence : visible (modèle affiché) dès son arrivée, puis ramassé.
+            yield return WaitFor(() => NetworkWorkshop.Instance.Drops.Count > 0 && NetworkWorkshop.Instance.DropVisible(NetworkWorkshop.Instance.Drops[0].Id), 10f);
+            var lateDrops = NetworkWorkshop.Instance.Drops;
+            bool lateVisible = lateDrops.Count == 1 && NetworkWorkshop.Instance.DropVisible(lateDrops[0].Id);
+            Record("Arrivée en cours de partie : objet tombé avant son arrivée visible au sol (modèle affiché)",
+                lateVisible && lateDrops[0].Upgrade.ToString() == MultiplayerAutotest.LateJoinDrop, $"{lateDrops.Count} objet(s), visible {lateVisible}");
+            if (lateDrops.Count > 0) yield return PickUp(lateDrops[0].Id, MultiplayerAutotest.LateJoinDrop, 20f);
+            Record("Arrivée en cours de partie : objet ramassé, il devient le sien (une seule fois)",
+                game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.LateJoinDrop) && NetworkWorkshop.Instance.Drops.Count == 0, $"{NetworkWorkshop.Instance.Drops.Count} au sol");
+
+            // V0.4.2 : l'aspirateur en main (la lance portée après lui) : le fusil doit faire tomber l'aspirateur, pas la lance.
+            game.ToolController.SelectSlot(4);
+            yield return new WaitForSeconds(0.5f);
+            game.ToolController.SelectSlot(1);
+            yield return WaitFor(() => game.Knockdown.IsDown, 60f);
+            bool blasted = game.Knockdown.IsDown && game.Knockdown.Cause == KnockCause.Blaster;
+            yield return WaitFor(() => !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.BlasterDrop), 10f);
+            Record("Fusil reçu : KO, l'objet tenu (aspirateur) quitte l'inventaire ; la lance reste",
+                blasted && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.BlasterDrop) && game.Upgrades.OwnedIds.Contains("up_tool_rinse") && Carries(game, "rinse"),
+                $"cause {game.Knockdown.Cause}, au sol {NetworkWorkshop.Instance.Drops.Count}");
+            yield return WaitFor(() => !game.Knockdown.IsDown, 10f);
+            var blastDrops = NetworkWorkshop.Instance.Drops;
+            bool blastVisible = blastDrops.Count == 1 && NetworkWorkshop.Instance.DropVisible(blastDrops[0].Id);
+            if (blastDrops.Count > 0) yield return PickUp(blastDrops[0].Id, MultiplayerAutotest.BlasterDrop, 20f);
+            Record("Fusil : après le KO, objet visible au sol puis ramassé (rendu une seule fois)",
+                blastVisible && game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.BlasterDrop) && NetworkWorkshop.Instance.Drops.Count == 0,
+                $"visible {blastVisible}, {NetworkWorkshop.Instance.Drops.Count} au sol");
+
+            // V0.4.2 : touche « Lâcher » : la lance en main tombe devant lui (pour tous), puis il la reprend.
+            game.ToolController.SelectSlot(4);
+            yield return new WaitForSeconds(0.5f);
+            NetworkWorkshop.Instance.RequestDropHeld();
+            yield return WaitFor(() => !game.Upgrades.OwnedIds.Contains("up_tool_rinse") && NetworkWorkshop.Instance.Drops.Count == 1, 15f);
+            var keyDrops = NetworkWorkshop.Instance.Drops;
+            bool keyVisible = keyDrops.Count == 1 && NetworkWorkshop.Instance.DropVisible(keyDrops[0].Id);
+            Record("Touche « Lâcher » : la lance quitte l'inventaire et apparaît au sol (modèle affiché)",
+                !game.Upgrades.OwnedIds.Contains("up_tool_rinse") && !Carries(game, "rinse") && keyVisible, $"visible {keyVisible}");
+            if (keyDrops.Count > 0) yield return PickUp(keyDrops[0].Id, "up_tool_rinse", 20f);
+            Record("Objet lâché repris (une seule fois)", game.Upgrades.OwnedIds.Contains("up_tool_rinse") && NetworkWorkshop.Instance.Drops.Count == 0,
+                $"{NetworkWorkshop.Instance.Drops.Count} au sol");
+
+            // V0.4.2 : l'aspirateur en main ; la dynamite de l'hôte explose à ses pieds : KO de 5 s, objet lâché, relevé normal.
+            game.ToolController.SelectSlot(1);
+            yield return WaitFor(() => game.Knockdown.IsDown, 60f);
+            bool byDynamite = game.Knockdown.IsDown && game.Knockdown.Cause == KnockCause.Dynamite;
+            float knockedAt = Time.realtimeSinceStartup;
+            yield return WaitFor(() => !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.BlasterDrop), 10f);
+            Record("Dynamite reçue : KO (cause dynamite), l'objet tenu (aspirateur) quitte l'inventaire",
+                byDynamite && !game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.BlasterDrop), $"cause {game.Knockdown.Cause}");
+            yield return WaitFor(() => !game.Knockdown.IsDown, 12f);
+            float downFor = Time.realtimeSinceStartup - knockedAt;
+            Record("Dynamite : relevé automatique après le KO de 5 s, contrôles rendus, temps normal", !game.Knockdown.IsDown
+                && !game.PlayerController.ControlLocked && downFor > 4f && downFor < 8f && Mathf.Approximately(Time.timeScale, 1f),
+                $"{downFor:0.0} s à terre, ralentis {game.Gadgets.SlowMotions}, échelle du temps {Time.timeScale:0.00}");
+            var dynDrops = NetworkWorkshop.Instance.Drops;
+            if (dynDrops.Count > 0) yield return PickUp(dynDrops[0].Id, MultiplayerAutotest.BlasterDrop, 20f);
+            Record("Dynamite : objet ramassé après le KO (une seule fois)", game.Upgrades.OwnedIds.Contains(MultiplayerAutotest.BlasterDrop)
+                && NetworkWorkshop.Instance.Drops.Count == 0, $"{NetworkWorkshop.Instance.Drops.Count} au sol");
 
             // L'hôte se ferme brutalement : retour au menu avec un message, sauvegarde personnelle intacte.
             yield return WaitFor(() => !session.InSession && SceneManager.GetActiveScene().name == MultiplayerSession.MainMenuScene, 60f);

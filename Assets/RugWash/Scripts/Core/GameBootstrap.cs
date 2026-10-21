@@ -280,6 +280,14 @@ namespace RugWash.Core
             }
             // Ordre = priorité de fermeture par Échap (les paramètres s'ouvrent par-dessus la pause).
             modalPanels = new IModalPanel[] { chatUI, settingsUI, rugDexUI, inspection, orderBoard, shopUI, computer, lockerUI, washerUI, playersUI };
+            // V0.4.2 : modèles des icônes et des objets au sol déclarés dès Awake. L'atelier réseau peut apparaître avant le
+            // Start de la scène (arrivée en cours de partie) : les objets déjà au sol étaient alors créés sans modèle, donc
+            // invisibles chez le nouvel arrivant (seul le ramassage restait possible).
+            foreach (var tool in toolController.Tools)
+                if (tool != null && tool.Definition != null) toolIcons.Register(tool.Definition.id, tool.ViewModel);
+            toolIcons.Register(InventoryRules.GadgetId(RugWash.Pranks.PrankGadget.Bat), gadgets.BatModel);
+            toolIcons.Register(InventoryRules.GadgetId(RugWash.Pranks.PrankGadget.Blaster), gadgets.BlasterModel);
+            toolIcons.Register(InventoryRules.GadgetId(RugWash.Pranks.PrankGadget.Dynamite), gadgets.DynamiteModel);
             IsReady = true;
         }
 
@@ -304,14 +312,11 @@ namespace RugWash.Core
             chatUI.Bind(gameState);
             playersUI.Bind(gameState);
             pauseMenu.BindPlayers(playersUI);
-            // Icônes 3D : les modèles tenus en main, photographiés une fois les achats appliqués (outils dorés compris).
-            foreach (var tool in toolController.Tools)
-                if (tool != null && tool.Definition != null) toolIcons.Register(tool.Definition.id, tool.ViewModel);
-            toolIcons.Register(InventoryRules.GadgetId(RugWash.Pranks.PrankGadget.Bat), gadgets.BatModel);
-            toolIcons.Register(InventoryRules.GadgetId(RugWash.Pranks.PrankGadget.Blaster), gadgets.BlasterModel);
+            // Icônes 3D : modèles déclarés dans Awake, photographiés une fois les achats appliqués (outils dorés compris).
             toolbar.BindIcons(toolIcons);
             lockerUI.BindIcons(toolIcons);
             shopUI.BindIcons(toolIcons);
+            settingsUI.BindVoice(voice);
             StartCoroutine(RenderIconsWhenReady());
             voice.CanTalk = () => gameState.IsGameplayActive;
             hud.BindVoice(voice);
@@ -410,6 +415,7 @@ namespace RugWash.Core
         {
             var current = settingsManager.Current;
             voice.Mode = (Network.VoiceMode)Mathf.Clamp(current.voiceMode, 0, 2);
+            voice.PreferredDevice = current.voiceInputDevice;
             Network.VoicePlayback.GlobalVolume = Mathf.Clamp01(current.voiceVolume);
         }
 
@@ -473,6 +479,13 @@ namespace RugWash.Core
             {
                 if (inspection.IsOpen) inspection.Close();
                 else if (!AnyPanelOpen()) inspection.Open();
+            }
+            else if (input.DropPressed && (knockdown == null || !knockdown.IsDown))
+            {
+                // V0.4.2 : l'objet tenu tombe devant le joueur ; les objets au sol sont partagés par la partie en ligne.
+                var workshop = Network.NetworkWorkshop.Instance;
+                if (workshop != null && workshop.IsSpawned) workshop.RequestDropHeld();
+                else hud.ShowToast("Lâcher un objet : en partie en ligne seulement (en solo, rangez-le au casier)");
             }
         }
 

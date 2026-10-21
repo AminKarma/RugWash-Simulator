@@ -13,6 +13,10 @@ namespace RugWash.Player
         Bat = 1,
         /// <summary>Fusil de farces : KO cartoon, la tête éclate (silhouette vue par les autres).</summary>
         Blaster = 2,
+        /// <summary>V0.4.2 : glissade sur la mousse (même chute locale que <see cref="Fall"/> ; vue comme une glissade par les autres).</summary>
+        Slip = 3,
+        /// <summary>V0.4.2 : explosion de dynamite : KO de 5 s, membres dispersés (cartoon, temporaire) vus par les autres.</summary>
+        Dynamite = 4,
     }
 
     /// <summary>
@@ -86,7 +90,7 @@ namespace RugWash.Player
         public bool TryQuickRecover()
         {
             // KO du fusil : relevé automatique à la fin du délai (pas de relevé anticipé).
-            if (Cause == KnockCause.Blaster) return false;
+            if (Cause == KnockCause.Blaster || Cause == KnockCause.Dynamite) return false;
             if (!CanQuickRecover(phase == Phase.Down, timer + fallSeconds, quickRecoverAfter)) return false;
             Next(Phase.GettingUp);
             return true;
@@ -205,7 +209,7 @@ namespace RugWash.Player
             if (!ShouldSlip(true, true, horizontal.magnitude, cell.Foam, slipMinSpeed, slipFoam)) return;
             slipReadyAt = Time.time + slipCooldown;
             // Réaction exagérée (mission de corrections) : les pieds partent, le corps est projeté ; élan borné par maxImpulse.
-            Knockdown(horizontal * 1.4f + Vector3.up * 2f, slipDuration, "Glissade sur la mousse ! (évitez de courir dessus)", KnockCause.Fall);
+            Knockdown(horizontal * 1.4f + Vector3.up * 2f, slipDuration, "Glissade sur la mousse ! (évitez de courir dessus)", KnockCause.Slip);
         }
     }
 }

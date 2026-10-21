@@ -95,6 +95,28 @@ namespace RugWash.Tests
         }
 
         RugCleaningController Pad => game.WorkSurface.Surface;
+        /// <summary>V0.4.2 : aire du robot aspirateur (zone de lavage 2).</summary>
+        RugCleaningController RobotPad => game.Robot.Floor;
+
+        /// <summary>V0.4.2 : le robot travaille dans la zone 2 : agrandissement acheté, tapis posé dans la zone 2.</summary>
+        IEnumerator OpenRobotZone()
+        {
+            game.Upgrades.Grant("up_extension");
+            yield return null;
+            game.Orders.RugOf(1).LoadRug(game.AvailableRugs[0]);
+            yield return null;
+        }
+
+        /// <summary>Débris secs sur le pourtour de l'aire du robot (zone 2), hors du tapis.</summary>
+        void SeedDryDebrisOnRobotPad()
+        {
+            var grid = RobotPad.Grid;
+            var debris = new DepositOperation { Type = DirtType.Dust, Debris = 0.3f };
+            grid.ApplyRect(new RectInt(0, 0, grid.Width, 6), 1f, ref debris);
+            grid.ApplyRect(new RectInt(0, grid.Height - 6, grid.Width, 6), 1f, ref debris);
+            grid.ApplyRect(new RectInt(0, 6, 6, grid.Height - 12), 1f, ref debris);
+            grid.ApplyRect(new RectInt(grid.Width - 6, 6, 6, grid.Height - 12), 1f, ref debris);
+        }
 
         /// <summary>Dépose des débris secs (aspirables) sur le pourtour de l'aire de lavage, hors du tapis.</summary>
         void SeedDryDebrisAroundRug()
@@ -295,39 +317,23 @@ namespace RugWash.Tests
         // ------------------------------------------------------------------ 2.3 Balais et brosses
 
         [UnityTest]
-        public IEnumerator DetailBrush_IsLockedUntilBought_ThenSelectable()
+        public IEnumerator DetailBrush_IsAStartingTool_NotSoldAnymore()
         {
+            // V0.4.2 : la brosse de détail fait partie du kit de départ (plus d'achat) ; l'ancien article n'est plus en boutique.
             var detail = tools.Tools[7];
-            Assert.IsFalse(detail.IsUnlocked);
-            CleaningToolBase requested = null;
-            tools.LockedToolRequested += t => requested = t;
-            Assert.IsFalse(tools.SelectSlot(8), "Outil pas encore acheté.");
-            Assert.AreEqual(detail, requested);
-            var toolbar = Object.FindAnyObjectByType<ToolSelectionUI>();
-            // Mission de corrections : la barre n'affiche que les outils possédés.
-            CollectionAssert.DoesNotContain(toolbar.Shown, detail, "Outil non possédé : absent de la barre.");
-
-            game.Wallet.Wallet.Add(500);
-            Assert.IsTrue(game.ShopUI.Open());
-            int index = -1;
-            for (int i = 0; i < game.Upgrades.Catalog.Count; i++)
-                if (game.Upgrades.Catalog[i].id == "up_detail_brush") index = i;
-            Assert.GreaterOrEqual(index, 0);
-            Assert.AreEqual(PurchaseResult.Purchased, game.ShopUI.Buy(index));
-            game.ShopUI.Close();
-            yield return null;
-
-            Assert.IsTrue(detail.IsUnlocked);
+            Assert.IsTrue(detail.IsUnlocked, "Brosse de détail disponible sans achat.");
+            foreach (var upgrade in game.Upgrades.Catalog)
+                Assert.AreNotEqual("up_detail_brush", upgrade.id, "Plus vendue : elle est offerte à tous.");
             Assert.IsTrue(tools.SelectSlot(8));
             Assert.AreEqual(detail, tools.ActiveTool);
-            CollectionAssert.Contains(toolbar.Shown, detail, "Acheté : il apparaît aussitôt dans la barre.");
-            foreach (var label in toolbar.GetComponentsInChildren<Text>()) StringAssert.DoesNotContain("(boutique)", label.text);
+            yield return null;
         }
 
         [UnityTest]
         public IEnumerator DetailBrush_BeatsTheRegularBrushOnGrease()
         {
-            game.Upgrades.Restore(new[] { "up_detail_brush" });
+            // V0.4.2 : brosse standard achetée (elle n'est plus dans le kit de départ), brosse de détail offerte.
+            game.Upgrades.Restore(new[] { "up_tool_brush" });
             var grid = game.Rug.Grid;
             for (int y = 0; y < grid.Height; y++)
             for (int x = 0; x < grid.Width; x++)
@@ -405,12 +411,14 @@ namespace RugWash.Tests
         [UnityTest]
         public IEnumerator Robot_StartsFromItsDock_CleansTheWashArea_AvoidsTheRug_AndReturnsWhenStopped()
         {
+            yield return OpenRobotZone();
             var robot = game.Robot;
-            SeedDryDebrisAroundRug();
-            float debrisBefore = Pad.Grid.TotalDirt;
-            Assert.AreEqual(Pad, robot.Floor, "Le robot travaille sur l'aire de lavage.");
+            SeedDryDebrisOnRobotPad();
+            float debrisBefore = RobotPad.Grid.TotalDirt;
+            Assert.AreNotEqual(Pad, robot.Floor, "V0.4.2 : le robot travaille sur l'aire de la zone 2, pas sur la zone 1.");
             // Le tapis posé est un obstacle de la grille d'occupation.
-            var rugCell = robot.Occupancy.WorldToCell(new Vector2(game.Rug.transform.position.x, game.Rug.transform.position.z));
+            var rug2 = game.Orders.RugOf(1);
+            var rugCell = robot.Occupancy.WorldToCell(new Vector2(rug2.transform.position.x, rug2.transform.position.z));
             Assert.IsTrue(robot.Occupancy.IsBlocked(rugCell), "Le tapis posé est un obstacle.");
             Assert.AreEqual(RobotMode.Docked, robot.Mode);
             Assert.IsTrue(robot.IsAtDock);
@@ -427,11 +435,11 @@ namespace RugWash.Tests
                 yield return null;
                 var cell = robot.Occupancy.WorldToCell(new Vector2(robot.transform.position.x, robot.transform.position.z));
                 Assert.IsFalse(robot.Occupancy.IsBlocked(cell), $"Le robot est entré dans une case bloquée : {cell}");
-                Assert.IsTrue(Pad.TryWorldToUV(robot.transform.position, out _), "Le robot reste sur l'aire de lavage.");
+                Assert.IsTrue(RobotPad.TryWorldToUV(robot.transform.position, out _), "Le robot reste sur l'aire de lavage.");
             }
             Assert.Greater(Vector3.Distance(start, robot.transform.position), 0.3f, "Le robot s'est éloigné de sa base.");
             Assert.Greater(robot.TotalCleaned, 0f, "Il a réellement aspiré les débris de l'aire de lavage.");
-            Assert.Less(Pad.Grid.TotalDirt, debrisBefore);
+            Assert.Less(RobotPad.Grid.TotalDirt, debrisBefore);
 
             StringAssert.Contains("arrêté", robot.Toggle());
             Assert.AreEqual(RobotMode.Returning, robot.Mode);
@@ -444,8 +452,9 @@ namespace RugWash.Tests
         [UnityTest]
         public IEnumerator Robot_StopsForThePlayer_ThenCarriesOn()
         {
+            yield return OpenRobotZone();
             var robot = game.Robot;
-            SeedDryDebrisAroundRug();
+            SeedDryDebrisOnRobotPad();
             robot.Toggle();
             // Attend un trajet en ligne droite d'au moins 0,8 m, robot déjà orienté vers son prochain point.
             Vector2 heading = default;
@@ -479,8 +488,9 @@ namespace RugWash.Tests
         [UnityTest]
         public IEnumerator Robot_LowBattery_ReturnsToCharge_ThenRestartsByItself()
         {
+            yield return OpenRobotZone();
             var robot = game.Robot;
-            SeedDryDebrisAroundRug();
+            SeedDryDebrisOnRobotPad();
             robot.Toggle();
             yield return new WaitForSeconds(1.5f);
             robot.Brain.Restore((int)RobotMode.Cleaning, 0.201f, false);
@@ -501,8 +511,9 @@ namespace RugWash.Tests
         [UnityTest]
         public IEnumerator RobotAndWashArea_AreSavedAndRestored()
         {
+            yield return OpenRobotZone();
             var robot = game.Robot;
-            SeedDryDebrisAroundRug();
+            SeedDryDebrisOnRobotPad();
             robot.Toggle();
             yield return new WaitForSeconds(4f);
             SoilFrontOfWashArea();
@@ -579,8 +590,9 @@ namespace RugWash.Tests
             yield return CaptureTopDown(new Vector3((1.9f + walkEnd.x) * 0.5f, 0f, walkEnd.z - 0.4f), 1.6f, Path.Combine(folder, "34_footprints.png"));
 
             // Robot : sur sa base, puis en nettoyage (trace propre dans la poussière).
+            yield return OpenRobotZone();
             var robot = game.Robot;
-            SeedDryDebrisAroundRug();
+            SeedDryDebrisOnRobotPad();
             tools.SelectSlot(2);
             var dockView = robot.transform.position + new Vector3(1.2f, 0f, -1.1f);
             game.PlayerController.Teleport(new Vector3(dockView.x, 0.06f, dockView.z), Quaternion.LookRotation(robot.transform.position - dockView).eulerAngles.y, 42f);
@@ -589,8 +601,9 @@ namespace RugWash.Tests
             robot.Toggle();
             yield return new WaitForSeconds(20f);
             Vector3 r = robot.transform.position;
-            // Recul vers le centre de l'aire de lavage, regard vers le robot.
-            Vector3 toCenter = new Vector3(-r.x, 0f, 0.8f - r.z).normalized;
+            // Recul vers le centre de l'aire de lavage (zone 2), regard vers le robot.
+            Vector3 padCenter = RobotPad.transform.position;
+            Vector3 toCenter = new Vector3(padCenter.x - r.x, 0f, padCenter.z - r.z).normalized;
             Vector3 eye = r + toCenter * 1.3f;
             float yaw = Quaternion.LookRotation(-toCenter).eulerAngles.y;
             game.PlayerController.Teleport(new Vector3(eye.x, 0.06f, eye.z), yaw, 48f);

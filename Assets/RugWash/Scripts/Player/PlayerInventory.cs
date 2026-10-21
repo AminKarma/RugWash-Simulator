@@ -50,10 +50,10 @@ namespace RugWash.Player
     {
         /// <summary>Identifiant d'inventaire d'un gadget (le pipi n'en a pas : null).</summary>
         public static string GadgetId(PrankGadget gadget) =>
-            gadget == PrankGadget.Bat ? "prank:bat" : gadget == PrankGadget.Blaster ? "prank:blaster" : null;
+            gadget == PrankGadget.Bat ? "prank:bat" : gadget == PrankGadget.Blaster ? "prank:blaster" : gadget == PrankGadget.Dynamite ? "prank:dynamite" : null;
 
         public static PrankGadget GadgetOf(string id) =>
-            id == "prank:bat" ? PrankGadget.Bat : id == "prank:blaster" ? PrankGadget.Blaster : PrankGadget.None;
+            id == "prank:bat" ? PrankGadget.Bat : id == "prank:blaster" ? PrankGadget.Blaster : id == "prank:dynamite" ? PrankGadget.Dynamite : PrankGadget.None;
 
         /// <summary>
         /// Identifiant d'inventaire de l'objet que débloque cet achat : l'outil (son identifiant) ou le gadget porté ; null
@@ -64,7 +64,8 @@ namespace RugWash.Player
             if (upgrade == null || string.IsNullOrEmpty(upgrade.targetToolId)) return null;
             if (upgrade.effect == Economy.UpgradeEffect.UnlockTool) return upgrade.targetToolId;
             if (upgrade.effect != Economy.UpgradeEffect.PrankGadget) return null;
-            return upgrade.targetToolId == "bat" ? GadgetId(PrankGadget.Bat) : upgrade.targetToolId == "blaster" ? GadgetId(PrankGadget.Blaster) : null;
+            return upgrade.targetToolId == "bat" ? GadgetId(PrankGadget.Bat) : upgrade.targetToolId == "blaster" ? GadgetId(PrankGadget.Blaster)
+                : upgrade.targetToolId == "dynamite" ? GadgetId(PrankGadget.Dynamite) : null;
         }
 
         /// <summary>Ordre de départ (sauvegarde sans inventaire) : détergent, brosse, seau, puis les outils dans l'ordre des touches.</summary>
@@ -133,7 +134,7 @@ namespace RugWash.Player
         {
             InventoryResult.Done => string.Empty,
             InventoryResult.NotOwned => $"{name ?? "Objet"} : à acheter d'abord",
-            InventoryResult.Full => $"Inventaire plein ({PlayerInventory.Capacity} emplacements) : rangez d'abord un objet au casier",
+            InventoryResult.Full => $"Inventaire plein : rangez d'abord un objet au casier",
             InventoryResult.AlreadyCarried => $"{name ?? "Objet"} : déjà sur vous",
             InventoryResult.NotCarried => $"{name ?? "Objet"} : déjà au casier",
             InventoryResult.LastTool => "Gardez au moins un outil de nettoyage sur vous",
@@ -151,7 +152,28 @@ namespace RugWash.Player
     [DisallowMultipleComponent]
     public sealed class PlayerInventory : MonoBehaviour
     {
+        /// <summary>Emplacements de base ; V0.4.2 : un 5e s'achète (<see cref="Economy.UpgradeEffect.InventorySlot"/>).</summary>
         public const int Capacity = 4;
+        /// <summary>V0.4.2 : nombre maximal d'emplacements (barre d'objets et casier en affichent autant, verrouillés au besoin).</summary>
+        public const int MaxCapacity = 5;
+
+        /// <summary>Emplacements réels avec <paramref name="extraSlots"/> emplacements achetés (4 à 5).</summary>
+        public static int CapacityFor(int extraSlots) => Mathf.Clamp(Capacity + extraSlots, Capacity, MaxCapacity);
+
+        /// <summary>Emplacements utilisables par ce joueur (4, ou 5 après l'achat de l'emplacement supplémentaire).</summary>
+        public int SlotCount => CapacityFor(upgrades != null && upgrades.Stats != null ? upgrades.Stats.ExtraInventorySlots : 0);
+
+        /// <summary>Article de la boutique qui ajoute un emplacement (prix affiché sur l'emplacement verrouillé) ; null s'il n'existe pas.</summary>
+        public Economy.UpgradeDefinition SlotUpgrade
+        {
+            get
+            {
+                if (upgrades == null) return null;
+                foreach (var upgrade in upgrades.Catalog)
+                    if (upgrade != null && upgrade.effect == Economy.UpgradeEffect.InventorySlot) return upgrade;
+                return null;
+            }
+        }
 
         /// <summary>
         /// Tests automatisés et benchmark uniquement : sélectionner un outil non porté le met dans l'inventaire (à la place du
@@ -243,7 +265,7 @@ namespace RugWash.Player
         {
             var owned = Owned();
             carried.Clear();
-            carried.AddRange(InventoryRules.Normalize(saved, owned, IsTool, Capacity));
+            carried.AddRange(InventoryRules.Normalize(saved, owned, IsTool, SlotCount));
             known.Clear();
             foreach (string id in owned) known.Add(id);
             restored = true;
@@ -266,7 +288,7 @@ namespace RugWash.Player
             {
                 if (!known.Add(id)) continue;
                 // Nouvel objet (achat, carrière reçue de l'hôte) : dans l'inventaire s'il reste de la place.
-                if (carried.Count < Capacity)
+                if (carried.Count < SlotCount)
                 {
                     carried.Add(id);
                     changed = true;
@@ -276,9 +298,15 @@ namespace RugWash.Player
             known.RemoveWhere(id => !ownedSet.Contains(id));
             if (!carried.Exists(IsTool))
             {
-                var normalized = InventoryRules.Normalize(carried, owned, IsTool, Capacity);
+                var normalized = InventoryRules.Normalize(carried, owned, IsTool, SlotCount);
                 carried.Clear();
                 carried.AddRange(normalized);
+                changed = true;
+            }
+            // Emplacement acheté retiré (jamais en jeu, mais une sauvegarde modifiée) : le surplus retourne au casier.
+            if (carried.Count > SlotCount)
+            {
+                carried.RemoveRange(SlotCount, carried.Count - SlotCount);
                 changed = true;
             }
             if (changed) Changed?.Invoke();
@@ -288,7 +316,7 @@ namespace RugWash.Player
         public InventoryResult Carry(string id)
         {
             var owned = new HashSet<string>(Owned());
-            var result = InventoryRules.CanCarry(carried, owned, id, Capacity);
+            var result = InventoryRules.CanCarry(carried, owned, id, SlotCount);
             if (result != InventoryResult.Done) return result;
             carried.Add(id);
             Changed?.Invoke();
@@ -314,7 +342,7 @@ namespace RugWash.Player
             string id = InventoryRules.GadgetId(gadget);
             if (!AutomationCarriesOnSelect || id == null || gadgets == null || !gadgets.Owns(gadget)) return false;
             if (carried.Contains(id)) return true;
-            if (carried.Count >= Capacity)
+            if (carried.Count >= SlotCount)
             {
                 // Jamais le dernier outil : le dernier objet qui n'est pas l'outil en main laisse sa place.
                 for (int i = carried.Count - 1; i >= 0; i--)
@@ -331,7 +359,7 @@ namespace RugWash.Player
         {
             if (!AutomationCarriesOnSelect || tool == null || tool.Definition == null || !tool.IsUnlocked) return false;
             if (IsCarried(tool)) return true;
-            if (carried.Count >= Capacity)
+            if (carried.Count >= SlotCount)
             {
                 int victim = carried.Count - 1;
                 for (int i = carried.Count - 1; i >= 0; i--)

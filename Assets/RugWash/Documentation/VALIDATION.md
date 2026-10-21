@@ -822,3 +822,40 @@ Exécutions du 20 octobre 2026 (Unity 6000.5.7f1, mode batch, éditeur fermé) :
 - Suites complètes après ces changements : EditMode **265/265** ; PlayMode **172 réussis, 0 échec, 2 ignorés**.
 - Le build n'a pas été relancé après ces changements (le test multijoueur a porté sur le build `ae2770d`).
 
+### 23.5 Fin de la V0.3.0 (21 octobre 2026, éditeur Unity ouvert, piloté par MCP for Unity)
+- Intégrations : extracteur et brosse de détail (modèles Blender), décor Blender de l'annexe, enseigne RugWash, tapis
+  « mouillé » au séchage ; animation procédurale de l'ouvrier (bras balancés, course, doigts).
+- Scènes régénérées dans l'éditeur (`RugWashSceneBuilder`, sans fermer Unity) ; build Windows depuis l'éditeur
+  (`RugWashBuild.Build`, 21/10 03:13).
+- EditMode **265/265**. PlayMode dans l'éditeur ouvert : **171 réussis, 1 échec, 2 ignorés** ; l'échec,
+  `RobotAndWashArea_AreSavedAndRestored` (robot retrouvé à 0,113 m au lieu de moins de 0,1 m après rechargement), se
+  reproduit à l'identique dans l'éditeur et vient de son premier pas de temps après le chargement de scène ; le code du robot
+  n'a pas changé et ce test passait en mode batch le 20/10. **À revérifier en mode batch** (éditeur fermé).
+- Nouveaux tests réussis : `Capture_V030_RugLighting` (vue plongeante, angle rasant, contre-jour, zone 2 sous l'éclairage de
+  l'annexe, même tapis dans les deux zones), `AnnexDecor_KeepsTheWashBayPassageAndWasherFree`, `Capture_V030_BlenderModels`
+  (annexe, enseigne, tapis mouillé), `Capture_V030_Tools`, `Capture_V030_Avatar` (doigts).
+- Benchmark sur ce build, 1080p Ultra, deux exécutions : 15/15 contrôles ; 175 à 180 FPS (plafond de 180) et 3,1 à 4,9 ms
+  de GPU, comme le 19/10. Une mesure isolée à 16 FPS (scénario « mousse + canon à mousse, rendu… », exécution 2) avec un GPU à
+  3,6 ms et un fil principal à 3,5 ms : à-coup extérieur au jeu (179,7 FPS dans l'exécution 1).
+  Approximations d'entrée de gamme, qualité Moyenne : `-RenderScale 2` (×4 pixels) 119,5 à 179,7 FPS ; `-CpuAffinity 3`
+  (deux fils) 168 à 178 FPS. Rapports : `Logs/ci/bench_v030_final_1.json`, `_2`, `bench_v030_lowgpu.json`, `bench_v030_lowcpu.json`.
+- Multijoueur à deux processus sur ce build : **67 contrôles réussis, 0 échec**, aucune exception.
+
+## 24. V0.4.2 (21 octobre 2026, mode batch, éditeur fermé)
+- Compilation sans erreur (runtime, éditeur, tests). Scènes régénérées (`RugWashSceneBuilder`), build Windows OK.
+- EditMode : **270/270** (dont `V042RulesTests` : choix du micro, 5e emplacement, migration v6 → v7 de la brosse standard).
+- PlayMode : **186 réussis, 1 échec, 2 ignorés** (diagnostics de premier usage) sur la suite complète ; l'échec
+  (`Robot_Zone2_CleansEveryDirtTypeOfItsPad_Faster_StaysOnIt`, taches mal frottées à sec) a été corrigé (humidification des
+  taches) puis les 6 tests du robot relancés : **6/6**. Nouveaux tests `V042PlayModeTests` : barres du HUD, glissade vue par
+  les autres, cartes d'améliorations, bottes, kit de départ, 5e emplacement, touche « Lâcher », périphériques audio,
+  robot de la zone 2, dynamite (autorité, lancer local, dispersion des membres), couleur de peau.
+- Robot de la zone 2 (même dépôt sur l'aire témoin de la zone 1, sans robot) : poussière 120 → 48,4 (témoin 120),
+  boue 150 → 30,5 (150), savon 180 → 15,4 (180), taches 150 → 34,1 (150), eau et mousse ramassées ; vitesse mesurée
+  0,55 m/s (0,32 m/s avant).
+- Multijoueur à deux processus sur ce build : **97 contrôles réussis, 0 échec** (67 en V0.3.0) : voix dans les deux sens,
+  objet tombé pendant l'absence d'un joueur vu et ramassé à son retour, fusil et dynamite (objet tenu lâché, KO de 5 s,
+  membres dispersés puis rassemblés, ralenti local puis temps normal), touche « Lâcher », 5e emplacement, glissade vue par
+  l'hôte, robot de la zone 2, couleur de peau vue par l'hôte (aussi après reconnexion).
+- Non testé : voix d'invité à invité (le test ne lance qu'un hôte et un invité) ; débranchement physique d'un micro ;
+  vrai PC séparé (deux processus sur la même machine).
+

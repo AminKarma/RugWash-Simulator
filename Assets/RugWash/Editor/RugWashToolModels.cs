@@ -350,6 +350,7 @@ namespace RugWash.Editor
         public static Model Extractor(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
         {
             var root = Root(camera, "Extractor", new Vector3(0.26f, -0.3f, 0.44f), new Vector3(9f, -12f, 0f));
+            if (RugWashFbxModels.Has("Tools/Pistolet") && RugWashFbxModels.Has("Tools/AspirateurEau")) return ExtractorFbx(root, store, c);
             Part("Grip", root, store.Add("Tool_ExtGrip", () => RoundedBox(new Vector3(0.042f, 0.12f, 0.06f), 0.016f)), c["Rubber"],
                 new Vector3(0f, -0.06f, -0.05f), Quaternion.Euler(-14f, 0f, 0f));
             Part("Valve", root, store.Add("Tool_ExtValve", () => RoundedBox(new Vector3(0.06f, 0.06f, 0.1f), 0.02f)), c["BluePlastic"],
@@ -439,6 +440,7 @@ namespace RugWash.Editor
         public static Model DetailBrush(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
         {
             var root = Root(camera, "DetailBrush", new Vector3(0.22f, -0.22f, 0.36f), new Vector3(22f, -12f, 0f));
+            if (RugWashFbxModels.Has("Tools/BrosseRotative")) return DetailBrushFbx(root, store, c);
             // Poignée, tige télescopique, puis brosse dure.
             Part("Handle", root, store.Add("Tool_DetailHandle", () => RoundedBox(new Vector3(0.032f, 0.026f, 0.09f), 0.01f)), c["RedPlastic"],
                 new Vector3(0f, 0.004f, -0.16f), Quaternion.identity);
@@ -583,6 +585,55 @@ namespace RugWash.Editor
             return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right, LeftHand = left };
         }
 
+        /// <summary>
+        /// V0.3.0 : extracteur aux modèles Blender (MCP) : pistolet à vanne (poignée, gâchette, raccord laiton) dans la main, canne
+        /// en acier (manche télescopique), suceur de sol de l'aspirateur à eau comme tête (sa lèvre en caoutchouc sur le point de
+        /// contact) ; flexible gris vers le bas comme avant.
+        /// </summary>
+        static Model ExtractorFbx(Transform root, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var gripAt = new Vector3(0f, -0.06f, -0.05f);
+            var gun = Fbx("Tools/Pistolet", root, c, new Vector3(0f, -0.02f, -0.035f), gripAt, Quaternion.identity, 1f,
+                except: new[] { "Pistolet_HangRing", "Pistolet_Nozzle" });
+            var muzzle = Map(gun, new Vector3(0f, 0.068f, 0.165f), root);
+            var headAt = new Vector3(0f, -0.1f, 0.46f);
+            var shaft = Shaft(root, store, "Tool_ExtWandFbx", c["Steel"], muzzle, headAt + new Vector3(0f, 0.03f, -0.01f), 0.016f, out float length);
+            var head = HeadGroup(root);
+            var nozzle = Fbx("Tools/AspirateurEau", head, c, new Vector3(0f, 0.02f, 0.8f), headAt, Quaternion.Euler(12f, 0f, 0f), 1f,
+                only: new[] { "Aspi_FloorNozzle", "Aspi_NozzleLip" });
+            var tip = Tip(head, Map(nozzle, new Vector3(0f, 0f, 0.8f), root));
+            Part("Hose", root, store.Add("Tool_ExtHose", () => Tube(Smooth(new[]
+                {
+                    new Vector3(0f, 0.01f, -0.04f), new Vector3(0.02f, 0.0f, -0.14f), new Vector3(0.09f, -0.28f, -0.2f), new Vector3(0.16f, -0.8f, -0.05f),
+                }, 10), 0.022f, 12)), c["GreyHose"], Vector3.zero, Quaternion.identity);
+            var gripAxis = Quaternion.Euler(-14f, 0f, 0f) * Vector3.up;
+            var right = Glove(root, store, c, "Glove_R", gripAt, gripAxis, new Vector3(0.1f, -0.35f, -0.93f), left: false);
+            var axis = (shaft.localRotation * Vector3.forward).normalized;
+            return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right,
+                LeftHand = Support(root, muzzle + axis * 0.11f) };
+        }
+
+        /// <summary>
+        /// V0.3.0 : brosse de détail : brosse rotative modélisée dans Blender (MCP), à 55 % : poignée dans la main, col et tige
+        /// dans le manche télescopique, bloc moteur et brosse dans la tête (poils sur le point de contact).
+        /// </summary>
+        static Model DetailBrushFbx(Transform root, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            const float scale = 0.55f;
+            var gripAt = new Vector3(0f, 0.004f, -0.16f);
+            var brush = Fbx("Tools/BrosseRotative", root, c, new Vector3(-0.4f, 0.235f, 0f), gripAt, Quaternion.Euler(0f, -90f, 0f), scale);
+            var toHandle = Quaternion.Euler(0f, 0f, 70f) * Vector3.up;
+            var neck = new Vector3(-0.11f, 0.14f, 0f);
+            var head = HeadGroup(root);
+            var shaft = Shaft(root, store, null, null, Map(brush, neck + toHandle * 0.31f, root), Map(brush, neck, root), 0f, out float length);
+            var tip = Tip(head, Map(brush, new Vector3(0f, -0.0135f, 0f), root));
+            Move(brush, head, "BrosseRot_Motor", "BrosseRot_Plate", "BrosseRot_Bristles", "BrosseRot_BristleCore", "BrosseRot_Button0",
+                "BrosseRot_Button1", "BrosseRot_Button2");
+            MoveShaft(brush, shaft, length, 1f, "BrosseRot_Shaft", "BrosseRot_Neck", "BrosseRot_YellowRing");
+            var right = Glove(root, store, c, "Glove_R", gripAt, Vector3.forward, new Vector3(0.2f, -0.55f, -0.8f), left: false);
+            return new Model { Root = root, Tip = tip, Head = head, Shaft = shaft, ShaftLength = length, RightHand = right };
+        }
+
         static readonly string[] MonobrosseHandle = { "Mono_Handlebar", "Mono_Grip_L", "Mono_Grip_R", "Mono_ControlBox" };
 
         /// <summary>
@@ -672,6 +723,38 @@ namespace RugWash.Editor
             var right = Glove(root, store, c, "Glove_R", new Vector3(0f, -0.07f, -0.03f), new Vector3(0f, 0.95f, -0.3f), new Vector3(0.25f, -0.55f, -0.8f), left: false);
             var left = Support(root, new Vector3(0f, -0.04f, 0.3f));
             return new Model { Root = root, Tip = tip, RightHand = right, LeftHand = left };
+        }
+
+        /// <summary>
+        /// V0.4.2 : dynamite de farces (cartoon) : trois bâtons rouges liés par du ruban noir, mèche tressée ; « Tip » marque le
+        /// bout de la mèche (étincelles).
+        /// </summary>
+        public static Model Dynamite(Transform camera, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var root = Root(camera, "Dynamite", new Vector3(0.24f, -0.25f, 0.38f), new Vector3(-18f, -12f, 8f));
+            var bundle = DynamiteBundle(root, store, c);
+            bundle.localPosition = new Vector3(0f, 0.02f, 0.03f);
+            var tip = Tip(root, new Vector3(0f, 0.17f, 0.03f));
+            tip.name = "FuseTip";
+            var right = Glove(root, store, c, "Glove_R", new Vector3(0f, -0.02f, 0.03f), Vector3.up, new Vector3(0.25f, -0.55f, -0.8f), left: false);
+            var left = Support(root, new Vector3(0f, 0.06f, 0.03f));
+            return new Model { Root = root, Tip = tip, RightHand = right, LeftHand = left };
+        }
+
+        /// <summary>Le paquet de dynamite seul (bâtons lancés par les effets, sans gant).</summary>
+        public static Transform DynamiteBundle(Transform parent, MeshStore store, RugWashContentBuilder.Content c)
+        {
+            var bundle = new GameObject("DynamiteBundle").transform;
+            bundle.SetParent(parent, false);
+            var stick = store.Add("Prank_DynamiteStick", () => Cylinder(0.019f, 0.2f, 16));
+            foreach (var x in new[] { -0.02f, 0.02f, 0f })
+                Part("Stick", bundle, stick, c["RedPlastic"], new Vector3(x, 0f, x == 0f ? 0.032f : 0f), Quaternion.identity);
+            var band = store.Add("Prank_DynamiteBand", () => RoundedBox(new Vector3(0.082f, 0.026f, 0.072f), 0.01f));
+            Part("Band_Top", bundle, band, c["Rubber"], new Vector3(0f, 0.05f, 0.011f), Quaternion.identity);
+            Part("Band_Bottom", bundle, band, c["Rubber"], new Vector3(0f, -0.05f, 0.011f), Quaternion.identity);
+            Part("Fuse", bundle, store.Add("Prank_DynamiteFuse", () => Cylinder(0.0035f, 0.07f, 8)), c["SafetyYellow"],
+                new Vector3(0f, 0.13f, 0.011f), Quaternion.Euler(0f, 0f, 12f));
+            return bundle;
         }
 
         /// <summary>Matériaux des pièces d'outil qui passent à l'or au niveau maximal (gants, poils, tuyaux, liquides : non).</summary>

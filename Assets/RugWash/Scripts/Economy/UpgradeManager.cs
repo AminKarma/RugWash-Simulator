@@ -217,6 +217,12 @@ namespace RugWash.Economy
                     return $"Décor de l'atelier : palier {Mathf.RoundToInt(upgrade.value)} / {MaxWorkshopTier} (actuel : {stats.WorkshopTier}){Requirement(upgrade)}";
                 case UpgradeEffect.PrankGadget:
                     return $"Farce (touche G) · aucun dégât{Requirement(upgrade)}";
+                case UpgradeEffect.InventorySlot:
+                {
+                    int now = Player.PlayerInventory.CapacityFor(stats.ExtraInventorySlots);
+                    int next = Player.PlayerInventory.CapacityFor(stats.ExtraInventorySlots + Mathf.RoundToInt(upgrade.value));
+                    return $"Inventaire : {now} → {next} emplacements (touche {Player.RugWashInputActions.SlotKeyLabel(next)}){Requirement(upgrade)}";
+                }
                 default:
                     return string.Empty;
             }
@@ -237,6 +243,13 @@ namespace RugWash.Economy
 
         /// <summary>Vrai si le robot aspirateur a été acheté.</summary>
         public bool OwnsRobot => Stats != null && Stats.HasMachine(RobotMachineId);
+
+        /// <summary>V0.4.2 : nom de l'outil tel qu'affiché (carte d'améliorations de la boutique) ; null s'il est inconnu.</summary>
+        public string ToolDisplayName(string toolId)
+        {
+            var tool = FindTool(toolId);
+            return tool != null ? tool.Definition.displayName : null;
+        }
 
         string ToolName(string toolId)
         {

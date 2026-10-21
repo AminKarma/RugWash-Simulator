@@ -11,15 +11,17 @@ namespace RugWash.Player
         public int outfit;
         public int cap;
         public int gloves;
+        /// <summary>V0.4.2 : teinte de peau (0 = celle d'origine du modèle) ; absente d'une ancienne sauvegarde : 0.</summary>
+        public int skin;
 
-        public bool Equals(CharacterLook other) => outfit == other.outfit && cap == other.cap && gloves == other.gloves;
+        public bool Equals(CharacterLook other) => outfit == other.outfit && cap == other.cap && gloves == other.gloves && skin == other.skin;
         public override bool Equals(object obj) => obj is CharacterLook other && Equals(other);
-        public override int GetHashCode() => HashCode.Combine(outfit, cap, gloves);
+        public override int GetHashCode() => HashCode.Combine(outfit, cap, gloves, skin);
 
-        /// <summary>Format réseau compact (un entier).</summary>
-        public int Pack() => (outfit & 0xFF) | ((cap & 0xFF) << 8) | ((gloves & 0xFF) << 16);
+        /// <summary>Format réseau compact (un entier) ; V0.4.2 : la peau sur les bits 24 à 30.</summary>
+        public int Pack() => (outfit & 0xFF) | ((cap & 0xFF) << 8) | ((gloves & 0xFF) << 16) | ((skin & 0x7F) << 24);
         public static CharacterLook Unpack(int packed) =>
-            CharacterPalette.Clamp(new CharacterLook { outfit = packed & 0xFF, cap = (packed >> 8) & 0xFF, gloves = (packed >> 16) & 0xFF });
+            CharacterPalette.Clamp(new CharacterLook { outfit = packed & 0xFF, cap = (packed >> 8) & 0xFF, gloves = (packed >> 16) & 0xFF, skin = (packed >> 24) & 0x7F });
     }
 
     /// <summary>
@@ -54,12 +56,24 @@ namespace RugWash.Player
             ("Noirs", new Color(0.1f, 0.1f, 0.11f)),
         };
 
+        /// <summary>
+        /// V0.4.2 : teintes de peau naturelles ; la première garde la peau d'origine du modèle (aucune couleur imposée), les
+        /// autres remplacent seulement la couleur de base du matériau de peau.
+        /// </summary>
+        public static readonly (string name, Color color)[] Skins =
+        {
+            ("Naturelle (d'origine)", Color.clear), ("Très claire", new Color(0.97f, 0.83f, 0.73f)), ("Claire", new Color(0.92f, 0.74f, 0.6f)),
+            ("Mate", new Color(0.79f, 0.59f, 0.44f)), ("Hâlée", new Color(0.65f, 0.45f, 0.31f)), ("Brune", new Color(0.47f, 0.31f, 0.21f)),
+            ("Foncée", new Color(0.31f, 0.2f, 0.14f)),
+        };
+
         /// <summary>Apparence d'origine : l'ouvrier en salopette de la référence (casquette bleue, gants jaunes).</summary>
         public static CharacterLook Default => new CharacterLook { outfit = 0, cap = 1, gloves = 0 };
 
         public static CharacterLook Clamp(CharacterLook look) => new CharacterLook
         {
             outfit = Wrap(look.outfit, Outfits.Length), cap = Wrap(look.cap, Caps.Length), gloves = Wrap(look.gloves, Gloves.Length),
+            skin = Wrap(look.skin, Skins.Length),
         };
 
         public static int Wrap(int value, int count) => ((value % count) + count) % count;
@@ -82,6 +96,9 @@ namespace RugWash.Player
         [Tooltip("Pièces propres à chaque modèle d'ouvrier (indice de modèle correspondant dans styleIndices).")]
         [SerializeField] List<GameObject> styleObjects = new List<GameObject>();
         [SerializeField] List<int> styleIndices = new List<int>();
+        [Tooltip("V0.4.2 : rendus de la peau (visage, cou, bras, mains nues) et indice du matériau de peau (-1 : tout le rendu).")]
+        [SerializeField] List<Renderer> skinRenderers = new List<Renderer>();
+        [SerializeField] List<int> skinMaterialIndices = new List<int>();
 
         MaterialPropertyBlock block;
 
@@ -108,14 +125,41 @@ namespace RugWash.Player
             foreach (var renderer in capDetailRenderers)
                 if (renderer != null) renderer.enabled = cap;
             if (cap) Paint(capRenderers, CharacterPalette.Caps[look.cap].color);
+            PaintSkin(CharacterPalette.Skins[look.skin].color);
+        }
+
+        public int SkinRendererCount => skinRenderers.Count;
+
+        /// <summary>Peau seulement : le matériau de peau de chaque rendu (jamais les yeux, cheveux, barbe ni vêtements).</summary>
+        void PaintSkin(Color color)
+        {
+            for (int i = 0; i < skinRenderers.Count; i++)
+            {
+                var renderer = skinRenderers[i];
+                if (renderer == null) continue;
+                int index = i < skinMaterialIndices.Count ? skinMaterialIndices[i] : -1;
+                block.Clear();
+                if (color.a > 0f) block.SetColor(BaseColorId, color);
+                if (index < 0) renderer.SetPropertyBlock(block);
+                else renderer.SetPropertyBlock(block, index);
+            }
         }
 
         /// <summary>Couleur réellement appliquée au premier rendu d'une catégorie (tests).</summary>
         public Color AppliedColor(int slot)
         {
+            block ??= new MaterialPropertyBlock();
+            if (slot == 3)
+            {
+                // Peau : couleur imposée au matériau de peau (transparente : peau d'origine).
+                if (skinRenderers.Count == 0 || skinRenderers[0] == null) return Color.clear;
+                int index = skinMaterialIndices.Count > 0 ? skinMaterialIndices[0] : -1;
+                if (index < 0) skinRenderers[0].GetPropertyBlock(block);
+                else skinRenderers[0].GetPropertyBlock(block, index);
+                return block.isEmpty ? Color.clear : block.GetColor(BaseColorId);
+            }
             var list = slot == 0 ? outfitRenderers : slot == 1 ? capRenderers : gloveRenderers;
             if (list.Count == 0 || list[0] == null) return Color.clear;
-            block ??= new MaterialPropertyBlock();
             list[0].GetPropertyBlock(block);
             return block.GetColor(BaseColorId);
         }

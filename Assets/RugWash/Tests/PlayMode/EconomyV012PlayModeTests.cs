@@ -79,7 +79,8 @@ namespace RugWash.Tests
             var unlocked = new List<string>();
             foreach (var tool in game.ToolController.Tools)
                 if (tool.IsUnlocked) unlocked.Add(tool.Definition.id);
-            CollectionAssert.AreEquivalent(new[] { "brush", "soap", "bucket" }, unlocked, "Kit de départ : brosse, détergent, seau d'eau.");
+            // V0.4.2 : la brosse de détail remplace la brosse standard dans le kit de départ.
+            CollectionAssert.AreEquivalent(new[] { "detail_brush", "soap", "bucket" }, unlocked, "Kit de départ : brosse de détail, détergent, seau d'eau.");
             Assert.AreEqual(11, game.ToolController.Tools.Count, "Les autres outils existent toujours (à acheter).");
             Assert.AreEqual(0, game.Upgrades.OwnedIds.Count);
             Assert.AreEqual(SaveMigration.StarterDetergentStock, game.Detergent.Stock, 1e-4f);

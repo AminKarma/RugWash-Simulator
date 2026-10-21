@@ -27,6 +27,8 @@ namespace RugWash.Economy
         public float FootprintTransfer = 1f;
         /// <summary>Palier de décor de l'atelier (0 = cagibi de départ).</summary>
         public int WorkshopTier;
+        /// <summary>V0.4.2 : emplacements d'inventaire achetés en plus des 4 de base.</summary>
+        public int ExtraInventorySlots;
 
         /// <summary>Multiplicateur de l'outil sur les poils, cheveux et peluches (accessoire).</summary>
         public float FiberMultiplier(string toolId) => toolId != null && fiber.TryGetValue(toolId, out float v) ? v : 1f;
@@ -64,6 +66,7 @@ namespace RugWash.Economy
                         if (!string.IsNullOrEmpty(upgrade.targetToolId)) stats.machines.Add(upgrade.targetToolId);
                         break;
                     case UpgradeEffect.WorkshopTier: stats.WorkshopTier = Mathf.Max(stats.WorkshopTier, Mathf.RoundToInt(upgrade.value)); break;
+                    case UpgradeEffect.InventorySlot: stats.ExtraInventorySlots += Mathf.Max(0, Mathf.RoundToInt(upgrade.value)); break;
                 }
             }
             foreach (var pair in stats.levels) Multiply(stats.radius, pair.Key, LevelReach(pair.Value));

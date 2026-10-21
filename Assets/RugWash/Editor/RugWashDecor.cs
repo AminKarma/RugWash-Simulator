@@ -351,6 +351,13 @@ namespace RugWash.Editor
             var clothB = m.Add("HangingRug_B", () => HangingCloth(1.2f, 1.5f, 0.05f, 2, seed: 9));
             var rugA = Prop("Hanging_Classic", root, clothA, c["RugClassic"], new Vector3(-0.02f, 2.13f, -0.66f), new Vector3(0f, 90f, 0f));
             var rugB = Prop("Hanging_Shag", root, clothB, c["RugShag"], new Vector3(-0.02f, 2.13f, 0.66f), new Vector3(0f, 90f, 0f));
+            // V0.3.0 : le tapis qui sèche est rendu avec l'état « mouillé » (masques cuits dans Blender, shader des tapis du jeu).
+            var wet = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>($"{RugWashPaths.Materials}/M_RugState_Mouille.mat");
+            if (wet != null)
+            {
+                rugA.name = "Hanging_Wet";
+                rugA.GetComponent<MeshRenderer>().sharedMaterial = wet;
+            }
             rugA.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
             rugB.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
             RugWashSceneBuilder.CreateSign(parent, "Sign_Drying", "SÉCHAGE", new Vector3(HalfX - 0.04f, 2.6f, 0.8f), Quaternion.Euler(0f, 90f, 0f), m, c);
@@ -551,6 +558,10 @@ namespace RugWash.Editor
             }
 
             Clock:
+            // V0.3.0 : enseigne RugWash (Blender, MCP) au-dessus de la porte d'entrée, au-dessus du panneau « Sortie ».
+            var brand = RugWashFbxModels.PlaceDecor("Environment/Env_Signs", parent, c, new Vector3(-3.2f, 2.0f, -HalfZ + 0.024f), Vector3.zero, false,
+                name: "Sign_Brand", only: new[] { "Env_Sign_Brand", "Env_Sign_Brand_Text" });
+            if (brand != null) brand.transform.localScale = Vector3.one * 1.5f;
             // Horloge murale animée (heure réelle).
             var clock = Group("WallClock", parent, new Vector3(1.75f, 2.55f, HalfZ - 0.03f));
             Prop("Body", clock, Cyl(m, 0.21f, 0.05f), c["ClockFace"], Vector3.zero, new Vector3(90f, 0f, 0f));

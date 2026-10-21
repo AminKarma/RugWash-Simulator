@@ -20,8 +20,10 @@ namespace RugWash.Workshop
     }
 
     /// <summary>
-    /// Robot aspirateur de l'atelier. Il travaille uniquement sur la zone de nettoyage (aire de lavage, surface
-    /// <see cref="floor"/>) : il y aspire réellement la poussière, les débris et les traces sèches (pas l'eau ni les taches),
+    /// Robot aspirateur de l'atelier. V0.4.2 : réservé à la zone de lavage 2 (annexe, débloquée par l'agrandissement de
+    /// l'atelier) ; il travaille uniquement sur son aire (surface <see cref="floor"/>) et y traite toutes les salissures qui
+    /// s'y déposent, avec les règles des outils : taches frottées (brosse douce), poussière et débris aspirés, eau sale, boue,
+    /// mousse et savon ramassés (lame de sol dur). Avant la V0.4.2 : poussière, débris et traces sèches seulement.
     /// choisit les zones les plus sales, s'y rend par un chemin calculé sur une grille d'occupation qui couvre la zone et
     /// elle seule (bordures, objets et tapis posé évités ; la grille est recalculée quand un tapis arrive ou repart),
     /// s'arrête devant le joueur, rentre à sa base quand sa batterie faiblit ou quand on l'arrête, puis repart une fois
@@ -44,6 +46,8 @@ namespace RugWash.Workshop
         [SerializeField] Transform dock;
         [Tooltip("Racine des objets de l'atelier pris en compte comme obstacles au sol (même sans collider).")]
         [SerializeField] Transform obstacleRoot;
+        [Tooltip("V0.4.2 : zone de lavage 2 (agrandissement) : le robot n'y travaille qu'une fois l'agrandissement acheté.")]
+        [SerializeField] WorkshopExtension zone;
         [SerializeField] AudioManager audioManager;
         [SerializeField] AudioSource motorSource;
         [SerializeField] AudioClip startClip;
@@ -55,8 +59,9 @@ namespace RugWash.Workshop
         [SerializeField] Transform turret;
 
         [Header("Déplacement")]
-        [SerializeField] float speed = 0.32f;
-        [SerializeField] float turnSpeed = 170f;
+        [Tooltip("Vitesse (m/s) ; V0.4.2 : 0,55 (0,32 avant).")]
+        [SerializeField] float speed = 0.55f;
+        [SerializeField] float turnSpeed = 240f;
         [SerializeField] float radius = 0.17f;
         [SerializeField] float cellSize = 0.2f;
         [Tooltip("Couches des obstacles physiques (murs, meubles) et du joueur.")]
@@ -66,6 +71,12 @@ namespace RugWash.Workshop
         [Header("Nettoyage")]
         [SerializeField] float cleanRadius = 0.16f;
         [SerializeField] float cleanPower = 1.2f;
+        [Tooltip("V0.4.2 : frottage des taches fixées (fraction détachée par seconde à réponse nominale).")]
+        [SerializeField] float scrubPower = 0.8f;
+        [Tooltip("V0.4.2 : part de l'eau, de la boue, de la mousse et du savon ramassée par seconde sous le robot.")]
+        [SerializeField, Range(0.1f, 6f)] float mopRate = 2.5f;
+        [Tooltip("V0.4.2 : humidité apportée par seconde sur une case tachée (taches qui se brossent mal à sec).")]
+        [SerializeField, Range(0f, 3f)] float sprayRate = 1.2f;
         [SerializeField, Range(0.01f, 0.3f)] float dirtTarget = 0.04f;
         [SerializeField] float revisitDelay = 25f;
         [Tooltip("Longueur de trajet préférée entre deux cibles (m) : le robot avance par longues lignes, comme un vrai robot.")]
@@ -91,12 +102,37 @@ namespace RugWash.Workshop
         public RobotMode Mode => brain.Mode;
         public OccupancyGrid Occupancy => occupancy;
         public RugCleaningController Floor => floor;
+        public float Speed => speed;
+        /// <summary>V0.4.2 : la zone de lavage 2 est ouverte (agrandissement acheté) ; sans zone configurée, toujours vrai.</summary>
+        public bool ZoneReady => zone == null || zone.IsUnlocked;
+        /// <summary>Message quand le robot est acheté mais que la zone 2 n'est pas encore ouverte.</summary>
+        public const string ZoneLockedMessage = "Robot aspirateur : il travaille dans la zone 2 (agrandissement de l'atelier à acheter)";
         public bool IsAtDock => (FlatPosition - DockFlat).magnitude < 0.06f && nav != Nav.Undocking;
         public bool IsWaitingForObstacle => nav == Nav.Waiting;
         /// <summary>Prochain point du chemin suivi (diagnostic, tests), ou null.</summary>
         public Vector2? NextWaypoint => nav == Nav.Following && pathIndex < path.Count ? path[pathIndex] : (Vector2?)null;
         /// <summary>Saleté totale aspirée depuis le chargement de la scène.</summary>
         public float TotalCleaned { get; private set; }
+        /// <summary>V0.4.2 : eau et mousse ramassées par le robot (diagnostic, tests).</summary>
+        public float LiquidCollected { get; private set; }
+        /// <summary>V0.4.2 : eau seule ramassée par le robot (l'eau sèche aussi d'elle-même : les tests la mesurent ici).</summary>
+        public float WaterCollected { get; private set; }
+        /// <summary>V0.4.2 : eau apportée par le robot sur les taches (comptée à part de l'eau ramassée).</summary>
+        public float WaterSprayed { get; private set; }
+
+        /// <summary>V0.4.2 : humidification des seules cases tachées, plafonnée (jamais une flaque).</summary>
+        struct RobotSprayOperation : ICellOperation
+        {
+            public float PerSecond, DeltaTime, Added;
+
+            public void Apply(ref RugCell cell, float weight)
+            {
+                if (cell.Stain <= 0.01f || cell.Moisture >= 0.6f) return;
+                float add = Mathf.Min(0.6f - cell.Moisture, PerSecond * DeltaTime * weight);
+                cell.Moisture += add;
+                Added += add;
+            }
+        }
         public int BumpCount { get; private set; }
         public string LastMessage { get; private set; }
 
@@ -127,9 +163,27 @@ namespace RugWash.Workshop
 
         void ApplyVisibility()
         {
-            foreach (var renderer in GetComponentsInChildren<Renderer>(true)) renderer.enabled = owned;
-            foreach (var collider in GetComponentsInChildren<Collider>(true)) collider.enabled = owned;
-            if (!owned && motorSource != null && motorSource.isPlaying) motorSource.Stop();
+            bool shown = owned && ZoneReady;
+            foreach (var renderer in GetComponentsInChildren<Renderer>(true)) renderer.enabled = shown;
+            foreach (var collider in GetComponentsInChildren<Collider>(true)) collider.enabled = shown;
+            if (!shown && motorSource != null && motorSource.isPlaying) motorSource.Stop();
+        }
+
+        /// <summary>V0.4.2 : la zone 2 s'ouvre ou se ferme : grille recalculée (murs et objets de l'annexe), robot sur sa base si elle ferme.</summary>
+        void OnZoneChanged()
+        {
+            if (started)
+            {
+                BuildOccupancy();
+                path.Clear();
+                if (!ZoneReady)
+                {
+                    brain.Restore((int)RobotMode.Docked, brain.Battery01, false);
+                    SnapToDock();
+                }
+                else if (nav == Nav.Following) nav = Nav.Idle;
+            }
+            ApplyVisibility();
         }
 
         /// <summary>
@@ -170,6 +224,7 @@ namespace RugWash.Workshop
         {
             ledBlock = new MaterialPropertyBlock();
             brain.ModeChanged += OnModeChanged;
+            if (zone != null) zone.Changed += OnZoneChanged;
             if (orderRug != null)
             {
                 orderRug.RugLoaded += OnRugChanged;
@@ -204,6 +259,7 @@ namespace RugWash.Workshop
         void OnDestroy()
         {
             brain.ModeChanged -= OnModeChanged;
+            if (zone != null) zone.Changed -= OnZoneChanged;
             if (orderRug != null)
             {
                 orderRug.RugLoaded -= OnRugChanged;
@@ -281,7 +337,7 @@ namespace RugWash.Workshop
         void Update()
         {
             float dt = Time.deltaTime;
-            if (!started || dt <= 0f || !owned) return;
+            if (!started || dt <= 0f || !owned || !ZoneReady) return;
             if (IsReplica)
             {
                 if (hasRemotePose)
@@ -322,9 +378,22 @@ namespace RugWash.Workshop
             }
             else FollowPath(dt);
 
+            // V0.4.2 : toutes les salissures de l'aire, avec les règles des outils (rien n'est effacé directement) : les taches
+            // fixées sont frottées (détachées), la poussière et les débris secs aspirés, puis l'eau sale, la boue détachée, la
+            // mousse et le savon ramassés sous la lame et gardés dans la cuve du robot.
+            // Comme une autolaveuse : un peu d'eau sur les taches fixées (elles se brossent mal à sec), ramassée ensuite.
+            var spray = new RobotSprayOperation { PerSecond = sprayRate, DeltaTime = dt };
+            floor.ApplyOperation(transform.position, cleanRadius, 4f, ref spray);
+            WaterSprayed += spray.Added;
+            var scrub = new BrushOperation { Table = floor.DirtTable, Power = scrubPower, DeltaTime = dt };
+            floor.ApplyOperation(transform.position, cleanRadius, 4f, ref scrub);
             var vacuum = new VacuumOperation { Table = floor.DirtTable, Power = cleanPower, DeltaTime = dt };
             floor.ApplyOperation(transform.position, cleanRadius, 4f, ref vacuum);
-            TotalCleaned += vacuum.Removed;
+            var mop = new GatherOperation { Efficiency = mopRate * dt };
+            floor.ApplyOperation(transform.position, cleanRadius, 4f, ref mop);
+            TotalCleaned += vacuum.Removed + mop.Total;
+            LiquidCollected += mop.Water + mop.Foam;
+            WaterCollected += mop.Water;
             MarkVisited(FlatPosition);
         }
 
@@ -405,8 +474,15 @@ namespace RugWash.Workshop
         float VacuumableDirt(Vector2 xz)
         {
             if (!floor.TrySampleCell(new Vector3(xz.x, 0f, xz.y), out RugCell cell)) return 0f;
-            return cell.Dust + (cell.Moisture < 0.25f ? cell.Loosened : 0f);
+            return RobotDirt(cell);
         }
+
+        /// <summary>
+        /// V0.4.2 : ce que le robot sait traiter sur une case : poussière, débris, taches (frottées), boue détachée, mousse, savon
+        /// et eau stagnante (au-delà d'une légère humidité, qui sèche seule).
+        /// </summary>
+        public static float RobotDirt(in RugCell cell) =>
+            cell.Dust + cell.Loosened + cell.Stain + cell.Foam + cell.Residue + Mathf.Max(0f, cell.Moisture - 0.08f) * 0.5f;
 
         bool PlanTo(Vector2 target)
         {
@@ -624,6 +700,7 @@ namespace RugWash.Workshop
         // ------------------------------------------------------------------ Interaction
 
         public string GetPrompt(PlayerInteractor interactor) => !owned ? $"Base du robot aspirateur — {NotOwnedMessage.ToLowerInvariant()}"
+            : !ZoneReady ? ZoneLockedMessage
             : $"{(brain.Mode == RobotMode.Cleaning || brain.ResumeAfterCharge ? "Arrêter" : "Démarrer")} le robot aspirateur ({brain.Describe()})";
 
         public bool CanInteract(PlayerInteractor interactor) => started;
@@ -634,6 +711,7 @@ namespace RugWash.Workshop
         public string Toggle()
         {
             if (!owned) return NotOwnedMessage;
+            if (!ZoneReady) return ZoneLockedMessage;
             if (Remote != null)
             {
                 Remote.RequestRobotToggle();

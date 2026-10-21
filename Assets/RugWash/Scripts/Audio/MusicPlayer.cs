@@ -62,6 +62,23 @@ namespace RugWash.Audio
             }
         }
 
+        void OnEnable() => AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+        void OnDisable() => AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
+
+        /// <summary>
+        /// V0.4.2 : périphérique de sortie changé (casque débranché, autre sortie par défaut dans Windows) : Unity relance son
+        /// moteur audio sur la nouvelle sortie et arrête les sources ; la musique en cours reprend.
+        /// </summary>
+        void OnAudioConfigurationChanged(bool deviceWasChanged)
+        {
+            if (deviceWasChanged) ResumeAfterDeviceChange();
+        }
+
+        public void ResumeAfterDeviceChange()
+        {
+            if (current >= 0 && sources[current].clip != null && !sources[current].isPlaying) sources[current].Play();
+        }
+
         void OnDestroy()
         {
             if (instance == this) instance = null;

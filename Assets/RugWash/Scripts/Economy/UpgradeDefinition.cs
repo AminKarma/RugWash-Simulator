@@ -28,6 +28,8 @@ namespace RugWash.Economy
         WorkshopTier,
         /// <summary>Gadget de farce entre coéquipiers (v0.1.2), identifié par <see cref="UpgradeDefinition.targetToolId"/>.</summary>
         PrankGadget,
+        /// <summary>V0.4.2 : emplacements d'inventaire ajoutés (valeur = nombre d'emplacements, au plus 5 au total).</summary>
+        InventorySlot,
     }
 
     /// <summary>Amélioration achetable. Prix et valeurs modifiables dans l'Inspector.</summary>

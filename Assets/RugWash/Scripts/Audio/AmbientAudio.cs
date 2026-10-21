@@ -29,6 +29,15 @@ namespace RugWash.Audio
             if (loop != null) source.Play();
         }
 
+        void OnEnable() => AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+        void OnDisable() => AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
+
+        /// <summary>V0.4.2 : sortie audio changée dans Windows : l'ambiance reprend sur la nouvelle sortie.</summary>
+        void OnAudioConfigurationChanged(bool deviceWasChanged)
+        {
+            if (deviceWasChanged && loop != null && source != null && !source.isPlaying) source.Play();
+        }
+
         void Update()
         {
             if (audioManager != null) source.volume = volume * audioManager.EffectsVolume;

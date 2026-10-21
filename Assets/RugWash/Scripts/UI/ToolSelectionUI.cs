@@ -22,6 +22,8 @@ namespace RugWash.UI
         [SerializeField] Color normalColor = UITheme.SlotNormal;
         [SerializeField] Color activeColor = UITheme.SlotActive;
         [SerializeField] Color emptyColor = UITheme.SlotEmpty;
+        /// <summary>V0.4.2 : emplacement pas encore acheté (5e).</summary>
+        static readonly Color lockedColor = new Color(UITheme.SlotEmpty.r, UITheme.SlotEmpty.g, UITheme.SlotEmpty.b, UITheme.SlotEmpty.a * 0.5f);
 
         PlayerToolController tools;
         PlayerInventory inventory;
@@ -122,11 +124,21 @@ namespace RugWash.UI
         {
             for (int i = 0; i < slotBackgrounds.Count; i++)
             {
-                bool slotExists = i < PlayerInventory.Capacity;
+                bool slotExists = i < PlayerInventory.MaxCapacity;
                 slotBackgrounds[i].gameObject.SetActive(slotExists);
                 if (!slotExists) continue;
                 var item = inventory.ItemAt(i);
                 string key = RugWashInputActions.SlotKeyLabel(i + 1);
+                if (i >= inventory.SlotCount)
+                {
+                    // V0.4.2 : emplacement à acheter (boutique, onglet Outils).
+                    SetIcon(i, null);
+                    var slotUpgrade = inventory.SlotUpgrade;
+                    SetSlot(i, key, slotUpgrade != null ? $"verrouillé · {Economy.WalletManager.Format(slotUpgrade.price)}" : "verrouillé",
+                        new Color(1f, 1f, 1f, 0.35f));
+                    slotBackgrounds[i].color = lockedColor;
+                    continue;
+                }
                 SetIcon(i, item.IsValid ? item.Id : null);
                 if (!item.IsValid)
                 {

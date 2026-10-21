@@ -39,6 +39,16 @@ namespace RugWash.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        public static void SetStrings(Object target, string property, IList<string> values)
+        {
+            var serialized = new SerializedObject(target);
+            var list = Find(serialized, property, target);
+            list.arraySize = values.Count;
+            for (int i = 0; i < values.Count; i++)
+                list.GetArrayElementAtIndex(i).stringValue = values[i];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         public static void SetString(Object target, string property, string value)
         {
             var serialized = new SerializedObject(target);
@@ -341,7 +351,10 @@ namespace RugWash.Editor
         {
             barRoot = CreateRect(name, parent, anchor, anchor, pivot, position, size);
             AddImage(barRoot, rounded, background);
-            var fillRect = Stretch("Fill", barRoot, 3f);
+            // V0.4.2 : marge du remplissage adaptée à la hauteur (une marge fixe de 3 px annulait les barres fines du HUD :
+            // remplissage de 0 px de haut, quantités affichées en texte seulement).
+            float inset = Mathf.Clamp((size.y - 4f) * 0.5f, 0.5f, 3f);
+            var fillRect = Stretch("Fill", barRoot, inset);
             var image = AddImage(fillRect, white, fill, sliced: false);
             image.type = Image.Type.Filled;
             image.fillMethod = Image.FillMethod.Horizontal;

@@ -86,9 +86,11 @@ namespace RugWash.Editor
                 RugWashToolModels.Squeegee(view, meshes, c), RugWashToolModels.Rotary(view, meshes, c),
                 // Gadgets de farce (v0.1.2) : emplacements 12 (batte) et 13 (fusil-jouet) ; 14 (pipi) : main libre.
                 RugWashToolModels.Bat(view, meshes, c), RugWashToolModels.Blaster(view, meshes, c),
+                // V0.4.2 : emplacement 14 (dynamite) ; 15 (pipi) : main libre.
+                RugWashToolModels.Dynamite(view, meshes, c),
             };
-            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2, 1, 0, 2, 0, 0 };
-            var gadgetRanges = new[] { c.Pranks.bat.range, c.Pranks.blaster.range };
+            var effects = new[] { 2, 1, 2, 1, 2, 1, 2, 2, 1, 0, 2, 0, 0, 0 };
+            var gadgetRanges = new[] { c.Pranks.bat.range, c.Pranks.blaster.range, c.Pranks.dynamite.range };
             foreach (var model in models) DisableShadows(model.Root.gameObject);
             // Outils dorés (niveau maximal) : même finition que la vue à la première personne, état diffusé par l'hôte.
             for (int i = 0; i < definitions.Length; i++) RugWashToolModels.Gild(models[i], c);
@@ -98,6 +100,8 @@ namespace RugWash.Editor
             Wire(ragdoll, ("body", visuals));
             WireList(ragdoll, "limbs", new[] { legLeft, legRight, upperLeft, upperRight });
             WireList(ragdoll, "attached", new[] { foreLeft, foreRight });
+            // V0.4.2 : morceaux de membres lancés par la dynamite (même ordre que les membres : jambes puis bras), cachés au repos.
+            WireList(ragdoll, "scatterPieces", ScatterPieces(visuals, c, meshes));
 
             var labelGo = new GameObject("Name");
             labelGo.transform.SetParent(visuals, false);
@@ -312,6 +316,34 @@ namespace RugWash.Editor
                 skeleton.AddKnee(Bone(model, "LeftLowerLeg"), legLeft, visuals.right);
                 skeleton.AddKnee(Bone(model, "RightLowerLeg"), legRight, visuals.right);
                 skeleton.SetHeadBone(Bone(model, "Head"));
+                // V0.4.2 : membres cachés pendant leur dispersion (dynamite), remplacés par les morceaux lancés.
+                skeleton.SetLimbBones(new[]
+                {
+                    Bone(model, "LeftUpperArm"), Bone(model, "RightUpperArm"), Bone(model, "LeftLowerArm"), Bone(model, "RightLowerArm"),
+                    Bone(model, "LeftHand"), Bone(model, "RightHand"), Bone(model, "LeftUpperLeg"), Bone(model, "RightUpperLeg"),
+                });
+                // Doigts (deux phalanges et le pouce) : se replient vers la paume, tournée vers le corps au repos.
+                foreach (var (side, left) in new[] { ("Left", true), ("Right", false) })
+                {
+                    // Côté paume : celui de la base du pouce, hors de l'axe des doigts et de leur écartement (index → auriculaire).
+                    var middle = Bone(model, side + "MiddleProximal");
+                    Vector3 along = (Bone(model, side + "MiddleDistal").position - middle.position).normalized;
+                    Vector3 spread = (Bone(model, side + "LittleProximal").position - Bone(model, side + "IndexProximal").position).normalized;
+                    Vector3 palm = Vector3.ProjectOnPlane(Vector3.ProjectOnPlane(Bone(model, side + "ThumbProximal").position - middle.position, along), spread).normalized;
+                    foreach (string f in new[] { "Index", "Middle", "Ring", "Little" })
+                    {
+                        var proximal = Bone(model, side + f + "Proximal");
+                        var distal = Bone(model, side + f + "Distal");
+                        skeleton.AddFinger(proximal, distal, palm, left, 70f);
+                        var tipDir = distal.position + (distal.position - proximal.position);
+                        var tipMarker = new GameObject("FingerTip").transform;
+                        tipMarker.position = tipDir;
+                        skeleton.AddFinger(distal, tipMarker, palm, left, 75f);
+                        Object.DestroyImmediate(tipMarker.gameObject);
+                    }
+                    var thumb = Bone(model, side + "ThumbProximal");
+                    skeleton.AddFinger(thumb, Bone(model, side + "ThumbDistal"), palm, left, 35f);
+                }
                 foreach (var skinned in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 {
                     skinned.updateWhenOffscreen = false;
@@ -324,6 +356,29 @@ namespace RugWash.Editor
                 ShoulderRight = shoulderRight, UpperLeft = upperLeft, UpperRight = upperRight, ForeLeft = foreLeft, ForeRight = foreRight,
                 HandRight = hand, UpperArmLength = upperLength, ForeArmLength = foreLength,
             };
+        }
+
+        /// <summary>V0.4.2 : morceaux cartoon des membres (jambe avec botte, bras avec gant), dispersés par la dynamite puis rassemblés.</summary>
+        static Transform[] ScatterPieces(Transform visuals, RugWashContentBuilder.Content c, MeshStore meshes)
+        {
+            Transform Piece(string name, bool leg)
+            {
+                var piece = new GameObject(name).transform;
+                piece.SetParent(visuals, false);
+                if (leg)
+                {
+                    Part("Thigh", piece, meshes.Add("Scatter_Leg", () => RoundedBox(new Vector3(0.14f, 0.78f, 0.16f), 0.06f)), c["Workwear"], new Vector3(0f, -0.4f, 0f));
+                    Part("Boot", piece, meshes.Add("Scatter_Boot", () => RoundedBox(new Vector3(0.13f, 0.12f, 0.27f), 0.04f)), c["Boot"], new Vector3(0f, -0.83f, 0.05f));
+                }
+                else
+                {
+                    Part("Sleeve", piece, meshes.Add("Scatter_Arm", () => RoundedBox(new Vector3(0.1f, 0.1f, 0.5f), 0.045f)), c["Shirt"], new Vector3(0f, 0f, 0.24f));
+                    Part("Glove", piece, meshes.Add("Scatter_Glove", () => RoundedBox(new Vector3(0.1f, 0.08f, 0.12f), 0.035f)), c["Glove"], new Vector3(0f, 0f, 0.52f));
+                }
+                piece.gameObject.SetActive(false);
+                return piece;
+            }
+            return new[] { Piece("Scatter_Leg_L", true), Piece("Scatter_Leg_R", true), Piece("Scatter_Arm_L", false), Piece("Scatter_Arm_R", false) };
         }
 
         internal static AvatarVisuals BuildAvatarVisuals(Transform root, RugWashContentBuilder.Content c, MeshStore meshes)
@@ -452,11 +507,31 @@ namespace RugWash.Editor
             var outfit = new List<Renderer>();
             var cap = new List<Renderer>();
             var gloves = new List<Renderer>();
+            // V0.4.2 : peau (couleur de peau) : pièces en matériau de peau (silhouette procédurale), et dans chaque rendu
+            // « _Skin » des ouvriers à squelette, l'emplacement du matériau de peau seulement (yeux, cheveux, barbe à part).
+            var skin = new List<Renderer>();
+            var skinIndices = new List<int>();
             foreach (var renderer in target.GetComponentsInChildren<Renderer>(true))
             {
                 if (renderer.sharedMaterial == c["Workwear"]) outfit.Add(renderer);
                 else if (renderer.sharedMaterial == c["CapFabric"]) cap.Add(renderer);
                 else if (renderer.sharedMaterial == c["Glove"]) gloves.Add(renderer);
+                else if (renderer.sharedMaterial == c["Skin"] && renderer.sharedMaterials.Length == 1)
+                {
+                    skin.Add(renderer);
+                    skinIndices.Add(-1);
+                }
+            }
+            foreach (var skinned in target.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                if (!skinned.name.EndsWith("_Skin")) continue;
+                var materials = skinned.sharedMaterials;
+                for (int i = 0; i < materials.Length; i++)
+                    if (materials[i] != null && materials[i].name.StartsWith("OUV_Skin"))
+                    {
+                        skin.Add(skinned);
+                        skinIndices.Add(materials.Length == 1 ? -1 : i);
+                    }
             }
             // V0.3.0 : personnage à squelette — rendus repérés par leur nom (exportés depuis Blender par rôle), modèle par tenue.
             var capDetails = new List<Renderer>();
@@ -485,11 +560,15 @@ namespace RugWash.Editor
             WireList(appearance, "capRenderers", cap);
             WireList(appearance, "gloveRenderers", gloves);
             WireList(appearance, "capDetailRenderers", capDetails);
+            WireList(appearance, "skinRenderers", skin);
             WireList(appearance, "styleObjects", styleObjects);
             var serializedAppearance = new SerializedObject(appearance);
             var indices = serializedAppearance.FindProperty("styleIndices");
             indices.arraySize = styleIndices.Count;
             for (int i = 0; i < styleIndices.Count; i++) indices.GetArrayElementAtIndex(i).intValue = styleIndices[i];
+            var skinSlots = serializedAppearance.FindProperty("skinMaterialIndices");
+            skinSlots.arraySize = skinIndices.Count;
+            for (int i = 0; i < skinIndices.Count; i++) skinSlots.GetArrayElementAtIndex(i).intValue = skinIndices[i];
             serializedAppearance.ApplyModifiedPropertiesWithoutUndo();
             // Modèle par défaut affiché dans le préfabriqué (l'apparence réelle est appliquée au lancement).
             for (int i = 0; i < styleObjects.Count; i++) styleObjects[i].SetActive(styleIndices[i] == CharacterPalette.Overalls);

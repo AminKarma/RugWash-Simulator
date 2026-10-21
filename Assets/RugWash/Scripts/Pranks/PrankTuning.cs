@@ -14,6 +14,8 @@ namespace RugWash.Pranks
         Bat = 2,
         /// <summary>Fusil à pompe de farces et attrapes : éclaboussures de faux sang de théâtre sur un tapis (jamais sur un joueur).</summary>
         Blaster = 3,
+        /// <summary>V0.4.2 : dynamite de farces, lancée : explosion de zone (KO de 5 s, objet tenu lâché, poussière sur les tapis).</summary>
+        Dynamite = 4,
     }
 
     /// <summary>Cible d'une farce (valeurs figées : réseau).</summary>
@@ -21,6 +23,8 @@ namespace RugWash.Pranks
     {
         Rug = 0,
         Player = 1,
+        /// <summary>V0.4.2 : point de chute d'un objet lancé (dynamite) : tous les joueurs et tapis à portée de l'explosion.</summary>
+        Area = 2,
     }
 
     /// <summary>
@@ -75,6 +79,12 @@ namespace RugWash.Pranks
             costPerUse = 60, affectsPlayers = true, stainType = DirtType.FakeBlood, stainRadius = 0.07f, stainAmount = 0.6f, splats = 9,
             splatSpread = 0.35f, useSeconds = 0.5f,
         };
+        /// <summary>V0.4.2 : portée = distance de lancer ; « useSeconds » = délai entre le lancer et l'explosion (vol puis mèche).</summary>
+        public Gadget dynamite = new Gadget
+        {
+            kind = PrankGadget.Dynamite, displayName = "Dynamite de farces", upgradeId = "up_prank_dynamite", range = 9f, cooldownSeconds = 25f,
+            costPerUse = 80, affectsRug = false, affectsPlayers = true, stainType = DirtType.Dust, useSeconds = 1.3f,
+        };
 
         /// <summary>
         /// Version des valeurs par défaut (migration d'un asset existant vers les valeurs de la mission de corrections).
@@ -91,6 +101,19 @@ namespace RugWash.Pranks
         [Min(0f)] public float blasterImpulse = 9f;
         [Tooltip("Élan vertical ajouté (m/s) : le corps décolle un peu, effet exagéré.")]
         [Min(0f)] public float blasterLift = 3f;
+
+        [Header("Dynamite (V0.4.2) : explosion de zone")]
+        [Tooltip("Rayon de l'explosion (m) : joueurs mis KO et tapis empoussiérés dans ce rayon (atelier de 11 × 9 m).")]
+        [Range(1f, 6f)] public float dynamiteRadius = 3.2f;
+        [Tooltip("Durée du KO (s), comme le fusil.")]
+        [Range(1f, 6f)] public float dynamiteKnockSeconds = 5f;
+        [Tooltip("Élan horizontal au centre (m/s), décroît vers le bord ; borné comme les autres chutes.")]
+        [Min(0f)] public float dynamiteImpulse = 10f;
+        [Min(0f)] public float dynamiteLift = 5f;
+        [Tooltip("Durée du vol de la dynamite avant de toucher le sol (s) ; la mèche brûle ensuite jusqu'à l'explosion.")]
+        [Range(0.2f, 1.2f)] public float dynamiteFlightSeconds = 0.7f;
+        [Tooltip("Poussière déposée au centre de l'explosion (par case, décroît jusqu'au bord du rayon).")]
+        [Range(0f, 1f)] public float dynamiteDust = 0.22f;
 
         [Header("Pipi sur un coéquipier : gouttes à l'écran")]
         [Range(0.1f, 0.85f)] public float splashIntensity = 0.55f;
@@ -134,11 +157,14 @@ namespace RugWash.Pranks
                 case PrankGadget.Pee: return pee;
                 case PrankGadget.Bat: return bat;
                 case PrankGadget.Blaster: return blaster;
+                case PrankGadget.Dynamite: return dynamite;
                 default: return null;
             }
         }
 
-        public static readonly PrankGadget[] All = { PrankGadget.Pee, PrankGadget.Bat, PrankGadget.Blaster };
+        public static readonly PrankGadget[] All = { PrankGadget.Pee, PrankGadget.Bat, PrankGadget.Blaster, PrankGadget.Dynamite };
+        /// <summary>Taille des tableaux indexés par gadget (valeur de l'énumération).</summary>
+        public const int GadgetSlots = 5;
 
         /// <summary>
         /// Asset créé avant la mission de corrections : fusil sur les joueurs (KO de 5 s), chutes plus exagérées. Les valeurs
@@ -156,7 +182,7 @@ namespace RugWash.Pranks
 
         /// <summary>
         /// Emplacement transmis par la silhouette pour un gadget en main (après les onze outils) : 12 batte, 13 fusil,
-        /// 14 pipi (main libre, sans modèle). 0 : aucun gadget.
+        /// 14 dynamite (V0.4.2), 15 pipi (main libre, sans modèle). 0 : aucun gadget.
         /// </summary>
         public static byte AvatarSlot(PrankGadget gadget)
         {
@@ -164,7 +190,8 @@ namespace RugWash.Pranks
             {
                 case PrankGadget.Bat: return 12;
                 case PrankGadget.Blaster: return 13;
-                case PrankGadget.Pee: return 14;
+                case PrankGadget.Dynamite: return 14;
+                case PrankGadget.Pee: return 15;
                 default: return 0;
             }
         }

@@ -120,7 +120,60 @@ namespace RugWash.Editor
             light.color = new Color(1f, 0.95f, 0.88f);
             light.shadows = LightShadows.None;
             lampLight.AddComponent<UniversalAdditionalLightData>();
+            AnnexDecor(annex, c);
             return annex.gameObject;
+        }
+
+        /// <summary>
+        /// V0.3.0 : décor de l'annexe modélisé dans Blender (MCP), hors de l'aire de lavage 2 et du passage : sèche-linge à côté de
+        /// la machine à laver (décor, sans fonction), établi et panneau d'outils contre le mur d'entrée de l'annexe avec sa
+        /// suspension, accessoires (aspirateur à eau, bidons de 40 L, pompe, pulvérisateur, lance-brosse, pistolet, chiffons,
+        /// éponge). Collisions : boîtes englobantes des objets au sol. Visible avec l'annexe (après l'achat de l'agrandissement).
+        /// </summary>
+        static void AnnexDecor(Transform annex, RugWashContentBuilder.Content c)
+        {
+            var root = new GameObject("AnnexDecor").transform;
+            root.SetParent(annex, false);
+            GameObject Put(string path, Vector3 position, float yaw, bool collider, float surface = 0f, string name = null, Vector3 tilt = default) =>
+                RugWashFbxModels.PlaceDecor(path, root, c, position, new Vector3(tilt.x, yaw, tilt.z), collider, surface, name);
+            const float benchTop = 0.9f;
+            // Sèche-linge : même alignement que la machine à laver (façade vers -Z).
+            Put("Environment/Env_Dryer", new Vector3(WasherPosition.x - 1.05f, 0f, WasherPosition.z), 180f, true, name: "Dryer");
+            // Établi (dos au mur d'entrée de l'annexe), panneau d'outils au-dessus, suspension au plafond.
+            Put("Environment/Env_Workbench", new Vector3(AnnexMaxX - 0.3f, 0f, AnnexMinZ + 0.72f), 0f, true, name: "Workbench");
+            // Panneau d'outils : sans la plaque « trous » (pleine et noire à l'export), le panneau perforé en bois reste visible.
+            var toolWall = Put("Environment/Env_ToolWall", new Vector3(AnnexMaxX - 1.2f, 1.25f, AnnexMinZ + 0.045f), 0f, false, float.NaN, "ToolWall");
+            if (toolWall != null)
+            {
+                var holes = RugWashFbxModels.FindDeep(toolWall.transform, "Env_ToolWall_Holes");
+                if (holes != null) Object.DestroyImmediate(holes.gameObject);
+            }
+            // Suspension au-dessus de l'établi : lumière ponctuelle douce sans ombres (le coin était sombre).
+            var pendant = Put("Environment/Env_PendantLamp", new Vector3(AnnexMaxX - 1.2f, Height, AnnexMinZ + 0.45f), 0f, false, float.NaN, "PendantLamp");
+            if (pendant != null)
+            {
+                var bulb = new GameObject("Light");
+                bulb.transform.SetParent(pendant.transform, false);
+                bulb.transform.localPosition = new Vector3(0f, -0.95f, 0f);
+                var light = bulb.AddComponent<Light>();
+                light.type = LightType.Point;
+                light.range = 3.5f;
+                light.intensity = 1.6f;
+                light.color = new Color(1f, 0.9f, 0.75f);
+                light.shadows = LightShadows.None;
+                bulb.AddComponent<UniversalAdditionalLightData>();
+            }
+            // Sur l'établi.
+            Put("Tools/LanceBrosse", new Vector3(AnnexMaxX - 1.55f, 0f, AnnexMinZ + 0.13f), 90f, false, benchTop, "Bench_BrushLance");
+            Put("Tools/PulverisateurMousse", new Vector3(AnnexMaxX - 1.85f, 0f, AnnexMinZ + 0.55f), 25f, false, benchTop, "Bench_Sprayer");
+            Put("Tools/Pistolet", new Vector3(AnnexMaxX - 0.95f, 0f, AnnexMinZ + 0.58f), 60f, false, benchTop, "Bench_SprayGun", new Vector3(0f, 0f, 90f));
+            Put("Props/Eponge", new Vector3(AnnexMaxX - 1.2f, 0f, AnnexMinZ + 0.4f), -15f, false, benchTop, "Bench_Sponge");
+            Put("Props/Chiffons", new Vector3(AnnexMaxX - 0.65f, 0f, AnnexMinZ + 0.25f), 20f, false, benchTop, "Bench_Rags");
+            // Au sol, le long des murs.
+            Put("Tools/AspirateurEau", new Vector3(AnnexMinX + 1.2f, 0f, AnnexMaxZ - 0.6f), 180f, true, name: "WetVacuum");
+            Put("Props/Bidon40L", new Vector3(AnnexMinX + 0.8f, 0f, AnnexMinZ + 0.3f), 8f, true, name: "Jerrycan_A");
+            Put("Props/Bidon40L", new Vector3(AnnexMinX + 1.15f, 0f, AnnexMinZ + 0.3f), -6f, true, name: "Jerrycan_B");
+            Put("Props/Pompe", new Vector3(AnnexMinX + 1.5f, 0f, AnnexMinZ + 0.25f), 0f, true, name: "Pump");
         }
 
         public struct WasherParts

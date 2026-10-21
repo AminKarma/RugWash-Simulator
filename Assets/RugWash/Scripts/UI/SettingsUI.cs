@@ -43,6 +43,14 @@ namespace RugWash.UI
         [SerializeField] Text graphicsInfoLabel;
         [Tooltip("Chat vocal en ligne : micro et volume des voix (grande mise à jour).")]
         [SerializeField] StepperView voiceModeStepper;
+        [Tooltip("V0.4.2 : micro du chat vocal (par défaut de Windows ou un micro branché).")]
+        [SerializeField] StepperView voiceDeviceStepper;
+        [Tooltip("V0.4.2 : état du micro (utilisé, débranché) et sortie audio.")]
+        [SerializeField] Text voiceDeviceStatus;
+        /// <summary>Capture du chat vocal (état affiché) ; optionnelle (menu principal).</summary>
+        Network.VoiceChat voiceChat;
+
+        public void BindVoice(Network.VoiceChat voice) => voiceChat = voice;
         [SerializeField] Slider voiceVolumeSlider;
         [SerializeField] Text voiceVolumeValue;
         [SerializeField] Transform rebindRoot;
@@ -165,6 +173,12 @@ namespace RugWash.UI
                 settings.SetVoiceMode((settings.Current.voiceMode + direction + 3) % 3);
                 RefreshValues();
             };
+            if (voiceDeviceStepper != null)
+                voiceDeviceStepper.Stepped += direction =>
+                {
+                    settings.SetVoiceInputDevice(SettingsManager.StepInputDevice(settings.Current.voiceInputDevice, Microphone.devices, direction));
+                    RefreshValues();
+                };
             voiceVolumeSlider.minValue = 0f;
             voiceVolumeSlider.maxValue = 1f;
             voiceVolumeSlider.onValueChanged.AddListener(v => { settings.SetVoiceVolume(v); RefreshLabels(); });
@@ -291,9 +305,32 @@ namespace RugWash.UI
             postProcessStepper.SetValue(s.postProcessing ? "Activé" : "Désactivé");
             graphicsInfoLabel.text = SettingsRules.PresetDescriptions[preset] + "\n" + SettingsManager.RayTracingStatus;
             voiceModeStepper.SetValue(SettingsManager.VoiceModeLabel(s.voiceMode));
+            if (voiceDeviceStepper != null) voiceDeviceStepper.SetValue(SettingsManager.InputDeviceLabel(s.voiceInputDevice, Microphone.devices));
+            RefreshVoiceStatus();
             voiceVolumeSlider.SetValueWithoutNotify(s.voiceVolume);
             RefreshLabels();
             RefreshBindings();
+        }
+
+        /// <summary>État du micro (en ligne) et sortie audio : Unity joue toujours sur la sortie par défaut de Windows.</summary>
+        void RefreshVoiceStatus()
+        {
+            if (voiceDeviceStatus == null) return;
+            string micro = voiceChat != null && voiceChat.Online ? voiceChat.Status : "Micro utilisé en partie en ligne seulement";
+            voiceDeviceStatus.text = $"{micro}\nSortie audio : celle choisie par défaut dans Windows (suivie si elle change).";
+        }
+
+        float voiceStatusTimer;
+
+        void LateUpdate()
+        {
+            // L'état du micro change pendant que la fenêtre est ouverte (branchement, débranchement) : relu deux fois par seconde.
+            if (!IsOpen || voiceDeviceStatus == null) return;
+            voiceStatusTimer -= Time.unscaledDeltaTime;
+            if (voiceStatusTimer > 0f) return;
+            voiceStatusTimer = 0.5f;
+            RefreshVoiceStatus();
+            if (voiceDeviceStepper != null) voiceDeviceStepper.SetValue(SettingsManager.InputDeviceLabel(settings.Current.voiceInputDevice, Microphone.devices));
         }
 
         void RefreshLabels()

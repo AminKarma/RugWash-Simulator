@@ -52,7 +52,7 @@ namespace RugWash.UI
 
         public bool IsConfigured(out string missing)
         {
-            missing = panel == null ? nameof(panel) : carriedRows.Count != PlayerInventory.Capacity ? nameof(carriedRows)
+            missing = panel == null ? nameof(panel) : carriedRows.Count != PlayerInventory.MaxCapacity ? nameof(carriedRows)
                 : storedRoot == null ? nameof(storedRoot) : storedTemplate == null ? nameof(storedTemplate) : storedHeader == null ? nameof(storedHeader)
                 : noteLabel == null ? nameof(noteLabel) : messageLabel == null ? nameof(messageLabel) : closeButton == null ? nameof(closeButton) : null;
             return missing == null;
@@ -109,6 +109,16 @@ namespace RugWash.UI
             {
                 var item = inventory.ItemAt(i);
                 string key = RugWashInputActions.SlotKeyLabel(i + 1);
+                if (i >= inventory.SlotCount)
+                {
+                    // V0.4.2 : emplacement supplémentaire pas encore acheté.
+                    SetIcon(carriedRows[i], null);
+                    var slotUpgrade = inventory.SlotUpgrade;
+                    carriedRows[i].Set($"{key}  Emplacement verrouillé",
+                        slotUpgrade != null ? $"{slotUpgrade.displayName} : boutique de l'ordinateur, onglet Outils" : "Emplacement supplémentaire",
+                        slotUpgrade != null ? Economy.WalletManager.Format(slotUpgrade.price) : "Verrouillé", Muted, null, false, RowEmpty);
+                    continue;
+                }
                 SetIcon(carriedRows[i], item.IsValid ? item.Id : null);
                 if (!item.IsValid)
                 {
@@ -127,7 +137,7 @@ namespace RugWash.UI
                 row.ActionButton.onClick.AddListener(() => TakeAt(index));
                 storedRows.Add(row);
             }
-            bool full = inventory.Carried.Count >= PlayerInventory.Capacity;
+            bool full = inventory.Carried.Count >= inventory.SlotCount;
             for (int i = 0; i < storedRows.Count; i++)
             {
                 bool used = i < storedIds.Count;
@@ -140,8 +150,8 @@ namespace RugWash.UI
             }
             storedHeader.text = storedIds.Count == 0 ? "Casier vide" : $"Dans le casier ({storedIds.Count})";
             noteLabel.text = full
-                ? $"Inventaire plein ({inventory.Carried.Count} / {PlayerInventory.Capacity}) : rangez un objet pour en prendre un autre."
-                : $"{inventory.Carried.Count} / {PlayerInventory.Capacity} emplacements utilisés.";
+                ? $"Inventaire plein ({inventory.Carried.Count} / {inventory.SlotCount}) : rangez un objet pour en prendre un autre."
+                : $"{inventory.Carried.Count} / {inventory.SlotCount} emplacements utilisés.";
             noteLabel.color = full ? Warn : Muted;
         }
 

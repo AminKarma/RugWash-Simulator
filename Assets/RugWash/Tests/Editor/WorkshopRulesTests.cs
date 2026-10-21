@@ -352,7 +352,7 @@ namespace RugWash.Tests
             var cannon = AssetDatabase.LoadAssetAtPath<ToolDefinition>(RugWashContentBuilder.FoamCannonToolPath);
             var broom = AssetDatabase.LoadAssetAtPath<ToolDefinition>(RugWashContentBuilder.BroomToolPath);
             var rinse = AssetDatabase.LoadAssetAtPath<ToolDefinition>(RugWashContentBuilder.RinseToolPath);
-            Assert.IsTrue(detail.requiresUnlock);
+            Assert.IsFalse(detail.requiresUnlock, "V0.4.2 : brosse de détail du kit de départ.");
             Assert.IsTrue(cannon.requiresUnlock, "v0.1.2 : hors kit de départ (brosse, détergent, seau), à acheter.");
             Assert.AreEqual(ToolResource.Soap, cannon.resource);
             Assert.Greater(cannon.spreadAspect, 1f);
@@ -360,6 +360,7 @@ namespace RugWash.Tests
             Assert.IsTrue(broom.runoffIsDry);
             Assert.Greater(rinse.runoffDirt, 0f, "Le rinçage fait ruisseler l'eau sale.");
             Assert.AreEqual(new[] { 6, 7, 8 }, new[] { cannon.slot, broom.slot, detail.slot });
+            // V0.4.2 : l'ancien achat de la brosse de détail reste un asset (sauvegardes) mais n'est plus vendu.
             var unlock = AssetDatabase.LoadAssetAtPath<UpgradeDefinition>(RugWashPaths.UpgradeDefinitions + "/up_detail_brush.asset");
             Assert.AreEqual(UpgradeEffect.UnlockTool, unlock.effect);
             Assert.AreEqual(detail.id, unlock.targetToolId);

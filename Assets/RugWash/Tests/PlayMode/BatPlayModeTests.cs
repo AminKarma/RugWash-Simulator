@@ -57,6 +57,7 @@ namespace RugWash.Tests
             public int Knocks;
             public bool TryGetFeet(ulong clientId, out Vector3 feet) => Feet.TryGetValue(clientId, out feet);
             public bool IsDown(ulong clientId) => false;
+            public void CollectPlayers(List<ulong> into) => into.AddRange(Feet.Keys);
             public void Splash(ulong clientId, float intensity, float seconds, float fadeSeconds, string from) { }
             public void Knock(ulong clientId, Vector3 impulse, float seconds, string from, PrankGadget cause) => Knocks++;
         }

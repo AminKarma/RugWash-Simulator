@@ -85,7 +85,8 @@ namespace RugWash.Tests
         [UnityTest]
         public IEnumerator NewGame_CarriesTheKit_PurchasesFillTheFreeSlotThenGoToTheLocker()
         {
-            CollectionAssert.AreEqual(new[] { "soap", "brush", "bucket" }, game.Inventory.Carried, "Kit de départ porté.");
+            // V0.4.2 : brosse de détail au départ (à la place de la brosse standard).
+            CollectionAssert.AreEqual(new[] { "soap", "bucket", "detail_brush" }, game.Inventory.Carried, "Kit de départ porté.");
             Assert.AreEqual("4  —", game.Toolbar.SlotText(3), "Quatrième emplacement libre.");
 
             Buy("up_tool_vacuum");
@@ -101,7 +102,7 @@ namespace RugWash.Tests
             CollectionAssert.DoesNotContain(game.Inventory.Carried, "rinse", "Inventaire plein : au casier.");
             CollectionAssert.Contains(game.Inventory.Stored(), "rinse");
             StringAssert.Contains("casier", toast);
-            foreach (string id in new[] { "soap", "brush", "bucket", "vacuum", "rinse" })
+            foreach (string id in new[] { "soap", "detail_brush", "bucket", "vacuum", "rinse" })
                 Assert.AreEqual(1, CountEverywhere(id), $"{id} : soit porté, soit au casier — jamais les deux.");
 
             // Un outil au casier ne se sort pas d'une touche.
@@ -121,13 +122,13 @@ namespace RugWash.Tests
             Assert.IsFalse(game.Locker.StoredRows[0].ActionButton.interactable, "Inventaire plein : « Prendre » indisponible.");
             Assert.AreEqual(InventoryResult.Full, game.Inventory.Carry("rinse"));
 
-            // Ranger la brosse (bouton de sa ligne), puis prendre la lance.
-            int brush = Slot("brush");
+            // Ranger la brosse de détail (bouton de sa ligne), puis prendre la lance.
+            int brush = Slot("detail_brush");
             game.Locker.CarriedRows[brush].ActionButton.onClick.Invoke();
-            CollectionAssert.DoesNotContain(game.Inventory.Carried, "brush");
+            CollectionAssert.DoesNotContain(game.Inventory.Carried, "detail_brush");
             Assert.AreEqual(InventoryResult.Done, game.Inventory.Carry("rinse"));
             CollectionAssert.Contains(game.Inventory.Carried, "rinse");
-            CollectionAssert.Contains(game.Inventory.Stored(), "brush");
+            CollectionAssert.Contains(game.Inventory.Stored(), "detail_brush");
 
             // Jamais les mains vides : le dernier outil reste porté.
             foreach (string id in new List<string>(game.Inventory.Carried))
@@ -146,7 +147,7 @@ namespace RugWash.Tests
             game = Object.FindAnyObjectByType<GameBootstrap>();
             yield return null;
             CollectionAssert.AreEqual(carried, game.Inventory.Carried, "Inventaire et casier sauvegardés.");
-            CollectionAssert.Contains(game.Inventory.Stored(), "brush");
+            CollectionAssert.Contains(game.Inventory.Stored(), "detail_brush");
         }
 
         [UnityTest]

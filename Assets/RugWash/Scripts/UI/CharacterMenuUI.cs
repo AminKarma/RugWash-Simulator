@@ -19,6 +19,8 @@ namespace RugWash.UI
         [SerializeField] StepperView outfitStepper;
         [SerializeField] StepperView capStepper;
         [SerializeField] StepperView glovesStepper;
+        [Tooltip("V0.4.2 : couleur de peau.")]
+        [SerializeField] StepperView skinStepper;
         [SerializeField] Button rotateLeftButton;
         [SerializeField] Button rotateRightButton;
         [SerializeField] Button closeButton;
@@ -38,6 +40,7 @@ namespace RugWash.UI
         public StepperView OutfitStepper => outfitStepper;
         public StepperView CapStepper => capStepper;
         public StepperView GlovesStepper => glovesStepper;
+        public StepperView SkinStepper => skinStepper;
         public float Yaw => yaw;
 
         public bool IsConfigured(out string missing)
@@ -55,6 +58,7 @@ namespace RugWash.UI
             outfitStepper.Stepped += step => Step(0, step);
             capStepper.Stepped += step => Step(1, step);
             glovesStepper.Stepped += step => Step(2, step);
+            if (skinStepper != null) skinStepper.Stepped += step => Step(3, step);
             closeButton.onClick.AddListener(Close);
             if (rotateLeftButton != null) rotateLeftButton.onClick.AddListener(() => Rotate(-45f));
             if (rotateRightButton != null) rotateRightButton.onClick.AddListener(() => Rotate(45f));
@@ -110,12 +114,13 @@ namespace RugWash.UI
             ApplyYaw();
         }
 
-        /// <summary>Choix suivant / précédent : 0 tenue, 1 casquette, 2 gants.</summary>
+        /// <summary>Choix suivant / précédent : 0 tenue, 1 casquette, 2 gants, 3 couleur de peau (V0.4.2).</summary>
         public void Step(int slot, int step)
         {
             var look = Look;
             if (slot == 0) look.outfit += step;
             else if (slot == 1) look.cap += step;
+            else if (slot == 3) look.skin += step;
             else look.gloves += step;
             Look = CharacterPalette.Clamp(look);
             Refresh();
@@ -127,6 +132,7 @@ namespace RugWash.UI
             outfitStepper.SetValue(CharacterPalette.Outfits[Look.outfit].name);
             capStepper.SetValue(CharacterPalette.Caps[Look.cap].name);
             glovesStepper.SetValue(CharacterPalette.Gloves[Look.gloves].name);
+            if (skinStepper != null) skinStepper.SetValue(CharacterPalette.Skins[Look.skin].name);
         }
 
         void Update()

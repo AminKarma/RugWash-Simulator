@@ -49,8 +49,15 @@ namespace RugWash.UI
         public Tab CurrentTab { get; private set; }
 
         readonly List<ListRowView> rows = new List<ListRowView>();
-        /// <summary>Onglet « Matériel » : outils à acheter d'abord, puis les améliorations (ordre du catalogue).</summary>
+        /// <summary>
+        /// Article de chaque ligne : celui que le bouton achète (ou revend). Onglet « Améliorations » (V0.4.2) : une carte par
+        /// outil, dont l'article est la prochaine amélioration à acheter ; les autres onglets : un article par ligne.
+        /// </summary>
         readonly List<UpgradeDefinition> equipmentDisplay = new List<UpgradeDefinition>();
+        /// <summary>Articles regroupés sur chaque ligne (un seul hors de l'onglet « Améliorations »).</summary>
+        readonly List<List<UpgradeDefinition>> rowItems = new List<List<UpgradeDefinition>>();
+        /// <summary>Clé de regroupement de chaque ligne (outil de la carte).</summary>
+        readonly List<string> rowKeys = new List<string>();
         GameStateManager gameState;
         ShopManager shop;
 
@@ -73,11 +80,32 @@ namespace RugWash.UI
         public IReadOnlyList<ListRowView> Rows => rows;
         public string LastMessage => messageLabel.text;
 
-        /// <summary>Ligne de l'onglet « Matériel » qui affiche cette amélioration (null si elle n'est pas affichée).</summary>
+        /// <summary>Ligne de l'onglet affiché qui présente cette amélioration (sa carte d'outil) ; null si elle n'est pas affichée.</summary>
         public ListRowView RowOf(UpgradeDefinition upgrade)
         {
-            int index = ShowingProducts ? -1 : equipmentDisplay.IndexOf(upgrade);
-            return index >= 0 && index < rows.Count ? rows[index] : null;
+            if (ShowingProducts) return null;
+            for (int i = 0; i < rowItems.Count && i < rows.Count; i++)
+                if (rowItems[i].Contains(upgrade)) return rows[i];
+            return null;
+        }
+
+        /// <summary>Article qu'achète (ou revend) le bouton de cette ligne : la prochaine amélioration d'une carte d'outil.</summary>
+        public UpgradeDefinition ItemOf(ListRowView row)
+        {
+            int index = rows.IndexOf(row);
+            return !ShowingProducts && index >= 0 && index < equipmentDisplay.Count ? equipmentDisplay[index] : null;
+        }
+
+        /// <summary>Nombre d'articles présentés dans l'onglet affiché (toutes cartes confondues).</summary>
+        public int ShownItemCount
+        {
+            get
+            {
+                if (ShowingProducts) return 0;
+                int count = 0;
+                foreach (var items in rowItems) count += items.Count;
+                return count;
+            }
         }
 
         public bool IsConfigured(out string missing)
@@ -179,7 +207,9 @@ namespace RugWash.UI
         {
             bool workshop = workshopTabButton != null && upgrade.IsWorkshopItem;
             bool prank = pranksTabButton != null && upgrade.IsPrankItem;
-            bool tool = upgrade.effect == UpgradeEffect.UnlockTool;
+            // V0.4.2 : les bottes (équipement porté) sont présentées avec les outils.
+            bool tool = upgrade.effect == UpgradeEffect.UnlockTool || upgrade.effect == UpgradeEffect.FootprintTransfer
+                        || upgrade.effect == UpgradeEffect.InventorySlot;
             bool split = upgradesTabButton != null;
             switch (CurrentTab)
             {
@@ -222,14 +252,16 @@ namespace RugWash.UI
                 return;
             }
             var catalog = shop.Upgrades.Catalog;
-            equipmentDisplay.Clear();
+            var display = equipmentDisplay;
+            display.Clear();
             // Atelier : décor (paliers dans l'ordre), puis machines et robot. Matériel : outils, puis améliorations.
             foreach (var upgrade in catalog)
                 if (CurrentTab == Tab.Workshop ? upgrade.effect == UpgradeEffect.WorkshopTier
-                    : CurrentTab == Tab.Equipment && upgrade.effect == UpgradeEffect.UnlockTool && InCurrentTab(upgrade)) equipmentDisplay.Add(upgrade);
+                    : CurrentTab == Tab.Equipment && upgrade.effect == UpgradeEffect.UnlockTool && InCurrentTab(upgrade)) display.Add(upgrade);
             foreach (var upgrade in catalog)
-                if (!equipmentDisplay.Contains(upgrade) && InCurrentTab(upgrade))
-                    equipmentDisplay.Add(upgrade);
+                if (!display.Contains(upgrade) && InCurrentTab(upgrade))
+                    display.Add(upgrade);
+            GroupRows(display);
             EnsureRows(equipmentDisplay.Count);
 
             for (int i = 0; i < rows.Count; i++)
@@ -237,6 +269,11 @@ namespace RugWash.UI
                 bool used = i < equipmentDisplay.Count;
                 rows[i].gameObject.SetActive(used);
                 if (!used) continue;
+                if (rowItems[i].Count > 1)
+                {
+                    RefreshCard(rows[i], rowKeys[i], rowItems[i], equipmentDisplay[i]);
+                    continue;
+                }
                 var upgrade = equipmentDisplay[i];
                 var check = shop.Check(upgrade);
                 bool owned = check == PurchaseResult.AlreadyOwned;
@@ -259,6 +296,97 @@ namespace RugWash.UI
             }
         }
 
+        /// <summary>
+        /// V0.4.2 : regroupe les lignes. Onglet « Améliorations » : une carte par outil (puissance, largeur, consommation,
+        /// accessoires et réservoir qu'il utilise), dans l'ordre où l'outil apparaît au catalogue ; ailleurs, un article par ligne.
+        /// L'article de chaque carte est la prochaine amélioration à acheter (ou la dernière, tout étant acheté).
+        /// </summary>
+        void GroupRows(List<UpgradeDefinition> display)
+        {
+            var flat = new List<UpgradeDefinition>(display);
+            display.Clear();
+            rowItems.Clear();
+            rowKeys.Clear();
+            foreach (var upgrade in flat)
+            {
+                string key = CurrentTab == Tab.Upgrades ? CardOf(upgrade) : null;
+                int index = key != null ? rowKeys.IndexOf(key) : -1;
+                if (index >= 0)
+                {
+                    rowItems[index].Add(upgrade);
+                    continue;
+                }
+                rowKeys.Add(key);
+                rowItems.Add(new List<UpgradeDefinition> { upgrade });
+            }
+            foreach (var items in rowItems) display.Add(items.Count > 1 ? NextOf(items) : items[0]);
+        }
+
+        /// <summary>Carte d'une amélioration : l'outil ciblé, ou celui qui utilise le réservoir agrandi.</summary>
+        static string CardOf(UpgradeDefinition upgrade)
+        {
+            switch (upgrade.effect)
+            {
+                case UpgradeEffect.WaterCapacity: return "rinse";
+                case UpgradeEffect.SoapCapacity: return "soap";
+                case UpgradeEffect.RecoveryCapacity: return "extractor";
+            }
+            return string.IsNullOrEmpty(upgrade.targetToolId) ? "item:" + upgrade.id : upgrade.targetToolId;
+        }
+
+        /// <summary>Prochaine amélioration d'une carte : la première non achetée dont la condition est remplie, sinon la première non achetée.</summary>
+        UpgradeDefinition NextOf(List<UpgradeDefinition> items)
+        {
+            UpgradeDefinition blocked = null;
+            foreach (var upgrade in items)
+            {
+                if (shop.Upgrades.IsOwned(upgrade)) continue;
+                if (upgrade.prerequisite == null || shop.Upgrades.IsOwned(upgrade.prerequisite)) return upgrade;
+                if (blocked == null) blocked = upgrade;
+            }
+            return blocked ?? items[items.Count - 1];
+        }
+
+        /// <summary>Carte d'un outil : progression, prochaine amélioration (effet réel avant → après), déjà acquises.</summary>
+        void RefreshCard(ListRowView row, string key, List<UpgradeDefinition> items, UpgradeDefinition next)
+        {
+            int owned = 0;
+            var acquired = new List<string>();
+            var remaining = new List<string>();
+            foreach (var upgrade in items)
+            {
+                bool has = shop.Upgrades.IsOwned(upgrade);
+                if (has) owned++;
+                (has ? acquired : remaining).Add(upgrade.displayName);
+            }
+            bool done = owned == items.Count;
+            string name = shop.Upgrades.ToolDisplayName(key) ?? next.displayName;
+            // Niveau actuel de l'outil (chaîne de niveaux de puissance), puis la progression de la carte.
+            int maxLevel = shop.Upgrades.MaxToolLevel(key);
+            string level = maxLevel > 0 ? $" · niveau {shop.Upgrades.ToolLevelFor(shop.Upgrades.OwnedIds, key)}/{maxLevel}" : string.Empty;
+            string title = $"{name}{level} · {owned}/{items.Count} amélioration{(items.Count > 1 ? "s" : string.Empty)}";
+            var check = done ? PurchaseResult.AlreadyOwned : shop.Check(next);
+            bool hostOnly = check == PurchaseResult.HostOnly;
+            // État de la prochaine amélioration : disponible, verrouillée (condition à remplir) ou tout acheté.
+            string state = check == PurchaseResult.ReputationTooLow ? $"verrouillée : réputation {next.requiredReputation} requise"
+                : check == PurchaseResult.MissingPrerequisite && next.prerequisite != null ? $"verrouillée : {next.prerequisite.displayName} requis"
+                : hostOnly ? "achat par l'hôte" : "disponible";
+            string details = done
+                ? "Toutes les améliorations de cet outil sont achetées."
+                : $"Prochaine ({state}) : {next.displayName} — {next.description}\n{shop.Upgrades.DescribeEffect(next)}";
+            if (acquired.Count > 0) details += $"\nAchetées : {string.Join(", ", acquired)}";
+            // Les niveaux suivants se révèlent au fur et à mesure : seul leur nombre est annoncé.
+            if (!done && remaining.Count > 1) details += $"\nEncore {remaining.Count - 1} amélioration{(remaining.Count > 2 ? "s" : string.Empty)} à découvrir ensuite";
+            string status = done ? "Tout acheté"
+                : hostOnly ? $"{WalletManager.Format(next.price)} · hôte seulement"
+                : check == PurchaseResult.ReputationTooLow ? $"Verrouillée · réputation {next.requiredReputation}"
+                : check == PurchaseResult.MissingPrerequisite && next.prerequisite != null ? $"Verrouillée · {next.prerequisite.displayName}"
+                : $"Disponible · {WalletManager.Format(next.price)}";
+            Color statusColor = done ? Ok : check == PurchaseResult.Purchased ? Neutral : Warn;
+            row.Set(title, details, status, statusColor, done || hostOnly ? null : "Acheter", true, done ? RowOwned : RowColor);
+            SetIcon(row, key.StartsWith("item:") ? IconOf(next) : key);
+        }
+
         bool HasDetergentRow => shop.Detergent != null;
 
         Effects.ToolIconRenderer icons;
@@ -268,6 +396,7 @@ namespace RugWash.UI
 
         static string IconOf(UpgradeDefinition upgrade)
         {
+            if (upgrade != null && upgrade.effect == UpgradeEffect.FootprintTransfer) return Effects.ToolIconRenderer.BootsId;
             if (upgrade == null || string.IsNullOrEmpty(upgrade.targetToolId) || upgrade.IsWorkshopItem) return null;
             return upgrade.IsPrankItem ? $"prank:{upgrade.targetToolId}" : upgrade.targetToolId;
         }

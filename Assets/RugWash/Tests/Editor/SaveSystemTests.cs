@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using NUnit.Framework;
 using RugWash.Player;
@@ -144,6 +144,8 @@ namespace RugWash.Tests
             expected.AddRange(SaveMigration.LegacyToolUnlocks);
             expected.AddRange(SaveMigration.LegacyWorkshopUnlocks);
             expected.AddRange(SaveMigration.LegacyDecorUnlocks);
+            // V0.4.2 (v7) : la brosse standard, devenue un achat, reste acquise.
+            expected.AddRange(SaveMigration.LegacyStarterUnlocks);
             CollectionAssert.AreEqual(expected, result.Data.upgrades);
             Assert.AreEqual(SaveMigration.LegacyDetergentStock, result.Data.detergentStock);
             Assert.AreEqual(1, result.Data.ordersDelivered);

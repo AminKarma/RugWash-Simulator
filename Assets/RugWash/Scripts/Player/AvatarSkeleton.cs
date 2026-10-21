@@ -44,7 +44,20 @@ namespace RugWash.Player
             public Vector3 axis;
         }
 
+        [Serializable]
+        public struct Finger
+        {
+            public Transform bone;
+            public Quaternion rest;
+            [Tooltip("Axe de flexion (repère local de l'os) : la phalange se replie vers la paume.")]
+            public Vector3 axis;
+            public bool left;
+            [Tooltip("Flexion maximale (degrés) quand la main est refermée.")]
+            public float maxAngle;
+        }
+
         [SerializeField] List<Link> links = new List<Link>();
+        [SerializeField] List<Finger> fingers = new List<Finger>();
         [SerializeField] List<Knee> knees = new List<Knee>();
         [SerializeField] Transform headBone;
         [Tooltip("Flexion du genou par degré de balancement de la jambe vers l'arrière.")]
@@ -52,6 +65,16 @@ namespace RugWash.Player
         [SerializeField, Range(0f, 120f)] float maxKnee = 70f;
 
         public bool HeadHidden { get; set; }
+        [Tooltip("V0.4.2 : os des membres (bras, avant-bras, mains, cuisses) cachés pendant la dispersion cartoon de la dynamite.")]
+        [SerializeField] List<Transform> limbBones = new List<Transform>();
+        /// <summary>V0.4.2 : membres cachés (remplacés par des morceaux qui volent dans l'atelier), le temps du KO.</summary>
+        public bool LimbsHidden { get; set; }
+        bool limbsWereHidden;
+        /// <summary>Fermeture des mains (0 ouverte, 1 poing serré), lissée ; pilotée par la présentation de l'avatar.</summary>
+        public float LeftGrip { get; set; } = 0.25f;
+        public float RightGrip { get; set; } = 0.25f;
+        float leftShown = 0.25f, rightShown = 0.25f;
+        public int FingerCount => fingers.Count;
         public int LinkCount => links.Count;
         public Transform HeadBone => headBone;
 
@@ -94,6 +117,27 @@ namespace RugWash.Player
         }
 
         public void SetHeadBone(Transform bone) => headBone = bone;
+#if UNITY_EDITOR
+        /// <summary>Construction (éditeur) : os des membres cachés pendant la dispersion (dynamite).</summary>
+        public void SetLimbBones(IEnumerable<Transform> bones)
+        {
+            limbBones.Clear();
+            foreach (var bone in bones) if (bone != null) limbBones.Add(bone);
+        }
+#endif
+
+        /// <summary>
+        /// Construction (éditeur) : phalange qui se replie de <paramref name="maxAngle"/> degrés vers <paramref name="palmWorld"/>
+        /// (direction de la paume au repos), autour de l'axe perpendiculaire au doigt.
+        /// </summary>
+        public void AddFinger(Transform bone, Transform next, Vector3 palmWorld, bool left, float maxAngle)
+        {
+            if (bone == null || next == null) return;
+            Vector3 along = (next.position - bone.position).normalized;
+            Vector3 axisWorld = Vector3.Cross(along, palmWorld).normalized;
+            if (axisWorld.sqrMagnitude < 1e-6f) return;
+            fingers.Add(new Finger { bone = bone, rest = bone.localRotation, axis = bone.InverseTransformDirection(axisWorld).normalized, left = left, maxAngle = maxAngle });
+        }
 #endif
 
         void LateUpdate()
@@ -119,7 +163,22 @@ namespace RugWash.Player
                 float bend = Mathf.Clamp(swing * kneeFactor, 0f, maxKnee);
                 knee.bone.localRotation = knee.rest * Quaternion.AngleAxis(bend, knee.axis);
             }
+            float k = 1f - Mathf.Exp(-12f * Time.deltaTime);
+            leftShown = Mathf.Lerp(leftShown, LeftGrip, k);
+            rightShown = Mathf.Lerp(rightShown, RightGrip, k);
+            for (int i = 0; i < fingers.Count; i++)
+            {
+                var finger = fingers[i];
+                if (finger.bone == null) continue;
+                float grip = finger.left ? leftShown : rightShown;
+                finger.bone.localRotation = finger.rest * Quaternion.AngleAxis(finger.maxAngle * grip, finger.axis);
+            }
             if (headBone != null) headBone.localScale = HeadHidden ? Vector3.one * 0.001f : Vector3.one;
+            // Membres dispersés : écrasés à leur attache (rien ne s'étire) ; rendus à leur taille au relevé.
+            if (LimbsHidden || limbsWereHidden)
+                foreach (var bone in limbBones)
+                    if (bone != null) bone.localScale = LimbsHidden ? Vector3.one * 0.001f : Vector3.one;
+            limbsWereHidden = LimbsHidden;
         }
     }
 }

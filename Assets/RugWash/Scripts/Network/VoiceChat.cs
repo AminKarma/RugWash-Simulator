@@ -33,6 +33,8 @@ namespace RugWash.Network
         readonly VoiceActivity activity = new VoiceActivity();
         ushort sequence;
         float speakingUntil;
+        readonly float[] diagnosticFrame = new float[VoiceCodec.FrameSamples];
+        int diagnosticPhase;
 
         public VoiceMode Mode { get; set; } = VoiceMode.PushToTalk;
         /// <summary>Vrai pendant une partie en ligne (le micro ne s'ouvre jamais en solo).</summary>
@@ -41,6 +43,26 @@ namespace RugWash.Network
         public Func<bool> CanTalk { get; set; }
         /// <summary>Envoi d'une trame (en-tête + μ-law) : branché par l'atelier réseau.</summary>
         public Action<byte[], int> Send { get; set; }
+        /// <summary>
+        /// V0.4.2 : micro choisi dans les paramètres (nom Windows) ; vide = micro par défaut de Windows. Changer de micro
+        /// redémarre la capture ; un micro absent ou débranché laisse place au micro par défaut (message affiché).
+        /// </summary>
+        public string PreferredDevice
+        {
+            get => preferredDevice;
+            set
+            {
+                string next = value ?? string.Empty;
+                if (next == preferredDevice) return;
+                preferredDevice = next;
+                if (microphone != null) StopCapture();
+                retryAt = 0f;
+            }
+        }
+        /// <summary>Micro réellement utilisé (null : micro par défaut de Windows ; sans capture, null aussi).</summary>
+        public string ActiveDevice => microphone != null ? device : null;
+        string preferredDevice = string.Empty;
+        float retryAt, checkAt;
         public bool IsCapturing => microphone != null;
         public bool IsSpeaking => Time.unscaledTime < speakingUntil;
         public string Status { get; private set; } = "Chat vocal inactif (hors ligne)";
@@ -51,8 +73,20 @@ namespace RugWash.Network
         void Update()
         {
             bool wanted = Online && Mode != VoiceMode.Off && Send != null;
-            if (wanted && microphone == null) StartCapture();
+            // Sans micro (absent, débranché, occupé) : nouvel essai toutes les 2 s, sans relire la liste à chaque image.
+            if (wanted && microphone == null && Time.unscaledTime >= retryAt) StartCapture();
             else if (!wanted && microphone != null) StopCapture();
+            if (microphone != null && Time.unscaledTime >= checkAt)
+            {
+                checkAt = Time.unscaledTime + 1f;
+                if (!StillPlugged())
+                {
+                    StopCapture();
+                    retryAt = Time.unscaledTime + 2f;
+                    Status = "Micro débranché : chat vocal en écoute seulement (rebranchez-le ou choisissez-en un autre)";
+                    return;
+                }
+            }
             if (microphone == null)
             {
                 if (!wanted) Status = !Online ? "Chat vocal inactif (hors ligne)" : Mode == VoiceMode.Off ? "Micro coupé" : Status;
@@ -63,23 +97,36 @@ namespace RugWash.Network
 
         void StartCapture()
         {
+            retryAt = Time.unscaledTime + 2f;
             var devices = Microphone.devices;
             if (devices == null || devices.Length == 0)
             {
                 Status = "Aucun micro détecté : chat vocal en écoute seulement";
                 return;
             }
-            device = devices[0];
+            // V0.4.2 : micro choisi s'il est branché, sinon le micro par défaut de Windows (null pour l'API Microphone).
+            bool preferredPresent = !string.IsNullOrEmpty(preferredDevice) && Array.IndexOf(devices, preferredDevice) >= 0;
+            device = preferredPresent ? preferredDevice : null;
             microphone = Microphone.Start(device, true, 1, VoiceCodec.SampleRate);
             if (microphone == null)
             {
                 Status = "Micro indisponible (déjà utilisé ?) : chat vocal en écoute seulement";
                 return;
             }
+            checkAt = Time.unscaledTime + 1f;
             readPosition = 0;
             frameFill = 0;
             activity.Reset();
             Status = Mode == VoiceMode.PushToTalk ? "Micro prêt : maintenez V pour parler" : "Micro ouvert (détection de la voix)";
+            if (!string.IsNullOrEmpty(preferredDevice) && !preferredPresent) Status = $"Micro « {preferredDevice} » introuvable : micro par défaut utilisé. " + Status;
+        }
+
+        /// <summary>Le micro en cours de capture est-il toujours branché et enregistre-t-il encore ?</summary>
+        bool StillPlugged()
+        {
+            if (!Microphone.IsRecording(device)) return false;
+            if (device == null) return Microphone.devices.Length > 0;
+            return Array.IndexOf(Microphone.devices, device) >= 0;
         }
 
         void StopCapture()
@@ -137,11 +184,30 @@ namespace RugWash.Network
             float rms = VoiceCodec.Rms(frame, 0, frame.Length);
             bool open = Mode == VoiceMode.OpenMic ? activity.Update(rms) : TalkHeld();
             if (!open) return;
+            Transmit(frame);
+        }
+
+        /// <summary>
+        /// Tests multijoueur : envoie une trame de tonalité (440 Hz, 40 ms) par le même chemin qu'une vraie voix (encodage,
+        /// envoi, relais de l'hôte), sans micro. Faux hors ligne.
+        /// </summary>
+        public bool SendDiagnosticFrame()
+        {
+            if (!Online || Send == null) return false;
+            for (int i = 0; i < diagnosticFrame.Length; i++, diagnosticPhase++)
+                diagnosticFrame[i] = 0.3f * Mathf.Sin(2f * Mathf.PI * 440f * diagnosticPhase / VoiceCodec.SampleRate);
+            diagnosticPhase %= VoiceCodec.SampleRate;
+            Transmit(diagnosticFrame);
+            return true;
+        }
+
+        void Transmit(float[] samples)
+        {
             sequence++;
             packet[0] = (byte)(sequence & 0xFF);
             packet[1] = (byte)(sequence >> 8);
             packet[2] = 0;
-            VoiceCodec.EncodeFrame(frame, 0, frame.Length, packet, VoiceCodec.HeaderBytes);
+            VoiceCodec.EncodeFrame(samples, 0, samples.Length, packet, VoiceCodec.HeaderBytes);
             Send?.Invoke(packet, packet.Length);
             FramesSent++;
             speakingUntil = Time.unscaledTime + 0.3f;

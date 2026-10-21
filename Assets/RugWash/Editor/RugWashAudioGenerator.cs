@@ -56,6 +56,8 @@ namespace RugWash.Editor
         public const string BatSwing = Folder + "/tmp_bat_swing.wav";
         public const string BatBonk = Folder + "/tmp_bat_bonk.wav";
         public const string BlasterShot = Folder + "/tmp_blaster_shot.wav";
+        public const string DynamiteFuse = Folder + "/tmp_dynamite_fuse.wav";
+        public const string DynamiteBoom = Folder + "/tmp_dynamite_boom.wav";
         public const string PrankSplat = Folder + "/tmp_prank_splat.wav";
         public const string RobotBump = Folder + "/tmp_robot_bump.wav";
         public const string RobotStart = Folder + "/tmp_robot_start.wav";
@@ -110,6 +112,8 @@ namespace RugWash.Editor
             Write(BatSwing, force, false, 0.36f, Whoosh);
             Write(BatBonk, force, false, 0.42f, Bonk);
             Write(BlasterShot, force, false, 0.6f, ToyPop);
+            Write(DynamiteFuse, force, false, 1.2f, FuseHiss);
+            Write(DynamiteBoom, force, false, 2.2f, Boom);
             Write(PrankSplat, force, false, 0.32f, Splat);
             Write(RobotBump, force, false, 0.18f, RobotBumpThud);
             Write(RobotStart, force, false, 0.45f, (float t, float d, ref State s) => RobotBeeps(t, 660f, 880f));
@@ -545,6 +549,24 @@ namespace RugWash.Editor
             float spring = t > 0.04f ? Mathf.Sin(2f * Mathf.PI * (520f + 60f * Mathf.Sin(t * 90f)) * t) * Mathf.Exp(-(t - 0.04f) * 14f) * 0.18f : 0f;
             float pump = t > 0.38f ? LowPass(ref s.Lp2, s.Noise(), 3200f) * Mathf.Exp(-(t - 0.38f) * 60f) * 0.7f : 0f;
             return pop * 0.9f + spring + pump;
+        }
+
+        /// <summary>V0.4.2 : mèche qui crépite (petits craquements irréguliers sur un sifflement).</summary>
+        static float FuseHiss(float t, float d, ref State s)
+        {
+            float hiss = LowPass(ref s.Lp1, s.Noise(), 6000f) * 0.18f;
+            float crackle = s.Random.NextDouble() < 0.015 ? s.Noise() * 0.8f : 0f;
+            float fade = Mathf.Clamp01(t * 20f) * Mathf.Clamp01((d - t) * 6f);
+            return (hiss + crackle) * fade;
+        }
+
+        /// <summary>V0.4.2 : « BOUM » de dessin animé : claquement bref, grondement grave qui descend, souffle qui retombe.</summary>
+        static float Boom(float t, float d, ref State s)
+        {
+            float crack = LowPass(ref s.Lp1, s.Noise(), 5000f) * Mathf.Exp(-t * 35f) * 0.7f;
+            float thump = Sine(t, 48f + 70f * Mathf.Exp(-t * 5f)) * Mathf.Exp(-t * 2.6f) * 0.9f;
+            float rumble = LowPass(ref s.Lp2, s.Noise(), 420f) * Mathf.Exp(-t * 1.8f) * 1.6f;
+            return Mathf.Clamp(crack + thump + rumble, -1f, 1f) * Mathf.Clamp01((d - t) * 3f);
         }
 
         /// <summary>« Splat » mouillé : bruit sourd très bref et petite goutte.</summary>

@@ -48,16 +48,22 @@ namespace RugWash.Pranks
         [SerializeField] Transform blasterModel;
         [Tooltip("Bouche du fusil (bouffée, origine du tir).")]
         [SerializeField] Transform blasterTip;
+        [Tooltip("V0.4.2 : bâton de dynamite tenu en main (caché tant qu'il n'est pas sorti).")]
+        [SerializeField] Transform dynamiteModel;
+        public Transform DynamiteModel => dynamiteModel;
+        [Tooltip("V0.4.2 : secousse de la caméra à l'explosion (optionnelle).")]
+        [SerializeField] CameraMotion cameraMotion;
         [Tooltip("Inventaire (grande mise à jour) : batte et fusil doivent être portés ; le pipi, jamais limité. Optionnel.")]
         [SerializeField] PlayerInventory inventory;
 
-        readonly float[] readyAt = new float[4];
-        readonly PrankRequest[] pending = new PrankRequest[4];
+        readonly float[] readyAt = new float[PrankTuning.GadgetSlots];
+        readonly PrankRequest[] pending = new PrankRequest[PrankTuning.GadgetSlots];
         readonly List<PrankTargetInfo> targets = new List<PrankTargetInfo>();
         readonly List<Vector3> feet = new List<Vector3>();
         LocalActor actor;
         float animTimer, animDuration;
-        Quaternion batRest, blasterRest;
+        Quaternion batRest, blasterRest, dynamiteRest;
+        Vector3 dynamiteRestPosition;
         Vector3 blasterRestPosition;
 
         public PrankGadget Equipped { get; private set; }
@@ -116,6 +122,12 @@ namespace RugWash.Pranks
                 blasterRestPosition = blasterModel.localPosition;
                 blasterModel.gameObject.SetActive(false);
             }
+            if (dynamiteModel != null)
+            {
+                dynamiteRest = dynamiteModel.localRotation;
+                dynamiteRestPosition = dynamiteModel.localPosition;
+                dynamiteModel.gameObject.SetActive(false);
+            }
         }
 
         void OnEnable()
@@ -127,6 +139,7 @@ namespace RugWash.Pranks
             }
             if (upgrades != null) upgrades.Changed += OnUpgradesChanged;
             if (inventory != null) inventory.Changed += OnUpgradesChanged;
+            if (effects != null) effects.Exploded += OnExplosion;
         }
 
         void OnDisable()
@@ -138,6 +151,8 @@ namespace RugWash.Pranks
             }
             if (upgrades != null) upgrades.Changed -= OnUpgradesChanged;
             if (inventory != null) inventory.Changed -= OnUpgradesChanged;
+            if (effects != null) effects.Exploded -= OnExplosion;
+            if (slowMotionActive) EndSlowMotion();
         }
 
         void OnGadgetRequested(PrankGadget gadget)
@@ -211,7 +226,7 @@ namespace RugWash.Pranks
             }
             if (!IsAtHand(gadget) && !(inventory != null && inventory.CarryGadgetForAutomation(gadget)))
             {
-                Message?.Invoke($"{Name(gadget)} est au casier : prenez-le au casier (4 emplacements d'inventaire)");
+                Message?.Invoke($"{Name(gadget)} est au casier : prenez-le au casier");
                 return false;
             }
             Equipped = gadget;
@@ -245,12 +260,19 @@ namespace RugWash.Pranks
                 blasterModel.localRotation = blasterRest;
                 blasterModel.localPosition = blasterRestPosition;
             }
+            if (dynamiteModel != null)
+            {
+                dynamiteModel.gameObject.SetActive(Equipped == PrankGadget.Dynamite);
+                dynamiteModel.localRotation = dynamiteRest;
+                dynamiteModel.localPosition = dynamiteRestPosition;
+            }
         }
 
         // ------------------------------------------------------------------ Utilisation
 
         void Update()
         {
+            if (slowMotionActive && Time.unscaledTime >= slowMotionUntil) EndSlowMotion();
             Animate(Time.deltaTime);
             if (impactPending)
             {
@@ -273,7 +295,10 @@ namespace RugWash.Pranks
             float remaining = CooldownRemaining(gadget);
             if (remaining > 0f) return Refuse(gadget, PrankResult.Cooldown, remaining);
             if (settings.costPerUse > 0 && wallet.Balance < settings.costPerUse) return Refuse(gadget, PrankResult.InsufficientFunds, 0f);
-            if (!TryTarget(settings, out PrankRequest request, out PrankResult problem)) return Refuse(gadget, problem, 0f);
+            PrankRequest request;
+            PrankResult problem;
+            bool aimed = gadget == PrankGadget.Dynamite ? TryTargetThrow(settings, out request, out problem) : TryTarget(settings, out request, out problem);
+            if (!aimed) return Refuse(gadget, problem, 0f);
 
             StartAnimation(settings);
             LastRequest = request;
@@ -396,6 +421,64 @@ namespace RugWash.Pranks
             return true;
         }
 
+        /// <summary>
+        /// V0.4.2 : point de chute de la dynamite : ce que vise le joueur (sol, tapis, mur…) à portée de lancer, sinon le sol
+        /// sous le point le plus lointain atteignable. Aucun joueur n'est visé : l'explosion touche toute la zone.
+        /// </summary>
+        bool TryTargetThrow(PrankTuning.Gadget settings, out PrankRequest request, out PrankResult problem)
+        {
+            var ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            request = new PrankRequest { Gadget = settings.kind, Target = PrankTarget.Area, Origin = ray.origin, Direction = ray.direction };
+            problem = PrankResult.NoTarget;
+            Vector3 point = Physics.Raycast(ray, out RaycastHit hit, settings.range, aimMask, QueryTriggerInteraction.Ignore)
+                ? hit.point - ray.direction * 0.15f
+                : ray.GetPoint(settings.range);
+            if (!Physics.Raycast(point + Vector3.up * 0.2f, Vector3.down, out RaycastHit ground, 8f, aimMask, QueryTriggerInteraction.Ignore)) return false;
+            request.Point = ground.point + Vector3.up * 0.05f;
+            return true;
+        }
+
+        // ------------------------------------------------------------------ Explosion ressentie (V0.4.2)
+
+        /// <summary>
+        /// Ralenti bref permis sur ce poste (faux chez l'hôte d'une partie en ligne avec des invités : l'autorité ne ralentit
+        /// jamais la partie des autres). Vrai par défaut (solo).
+        /// </summary>
+        public Func<bool> AllowSlowMotion { get; set; }
+        bool slowMotionActive;
+        float slowMotionUntil;
+        /// <summary>Ralentis joués (tests).</summary>
+        public int SlowMotions { get; private set; }
+        public bool SlowMotionActive => slowMotionActive;
+
+        /// <summary>Explosion jouée près de ce joueur : secousse de la caméra dosée par la distance, ralenti bref si on est dans le souffle.</summary>
+        void OnExplosion(Vector3 point)
+        {
+            if (playerCamera == null || tuning == null) return;
+            float distance = Vector3.Distance(playerCamera.transform.position, point);
+            float radius = tuning.dynamiteRadius;
+            if (distance > radius * 3f) return;
+            float strength = 1f - Mathf.Clamp01(distance / (radius * 3f));
+            if (cameraMotion != null) cameraMotion.Shake(0.05f * strength + 0.015f, 0.35f + 0.35f * strength);
+            if (distance <= radius * 1.5f && (AllowSlowMotion == null || AllowSlowMotion())) BeginSlowMotion();
+        }
+
+        void BeginSlowMotion()
+        {
+            // Jamais en pause ni pendant un autre ralenti ; durée en temps réel, le temps normal revient toujours.
+            if (slowMotionActive || !Mathf.Approximately(Time.timeScale, 1f) || (gameState != null && gameState.IsPaused)) return;
+            slowMotionActive = true;
+            slowMotionUntil = Time.unscaledTime + 0.35f;
+            Time.timeScale = 0.35f;
+            SlowMotions++;
+        }
+
+        void EndSlowMotion()
+        {
+            slowMotionActive = false;
+            if (Mathf.Approximately(Time.timeScale, 0.35f)) Time.timeScale = 1f;
+        }
+
         bool Refuse(PrankGadget gadget, PrankResult result, float remaining)
         {
             LastResult = result;
@@ -444,6 +527,7 @@ namespace RugWash.Pranks
             {
                 case PrankGadget.Pee: return body.position + Vector3.up * 0.9f + body.forward * 0.25f;
                 case PrankGadget.Blaster when blasterTip != null: return blasterTip.position;
+                case PrankGadget.Dynamite when dynamiteModel != null: return dynamiteModel.position;
                 default: return playerCamera.transform.position + playerCamera.transform.right * 0.3f + playerCamera.transform.forward * 0.5f;
             }
         }
@@ -469,6 +553,15 @@ namespace RugWash.Pranks
                 bounce = Mathf.MoveTowards(bounce, 0f, dt * 6f);
                 swing -= bounce * 0.35f;
                 batModel.localRotation = batRest * Quaternion.Euler(swing * 70f, -swing * 95f, swing * 30f);
+            }
+            else if (Equipped == PrankGadget.Dynamite && dynamiteModel != null)
+            {
+                // Lancer : le bras part en arrière puis vers l'avant ; le bâton disparaît le temps qu'un autre sorte.
+                float wind = t < 0.25f ? Mathf.SmoothStep(0f, 1f, t / 0.25f) : Mathf.SmoothStep(1f, -0.6f, Mathf.Clamp01((t - 0.25f) / 0.15f));
+                dynamiteModel.localRotation = dynamiteRest * Quaternion.Euler(-70f * wind, 0f, 0f);
+                dynamiteModel.localPosition = dynamiteRestPosition + new Vector3(0f, 0.08f * wind, -0.1f * wind);
+                bool thrown = t > 0.4f && t < 0.95f;
+                foreach (var renderer in dynamiteModel.GetComponentsInChildren<Renderer>(true)) renderer.enabled = !thrown;
             }
             else if (Equipped == PrankGadget.Blaster && blasterModel != null)
             {
@@ -499,6 +592,8 @@ namespace RugWash.Pranks
             Unequip();
             if (cause == PrankGadget.Blaster)
                 knockdown.Knockdown(impulse, seconds, $"{from} vous a mis KO (fusil de farces) — debout dans {Mathf.CeilToInt(seconds)} s", KnockCause.Blaster);
+            else if (cause == PrankGadget.Dynamite)
+                knockdown.Knockdown(impulse, seconds, $"BOUM ! {from} vous a fait sauter (dynamite de farces) — debout dans {Mathf.CeilToInt(seconds)} s", KnockCause.Dynamite);
             else
                 knockdown.Knockdown(impulse, seconds, $"{from} vous a envoyé au tapis (farce) — {knockdown.QuickRecoverHint}", KnockCause.Bat);
         }
@@ -522,6 +617,7 @@ namespace RugWash.Pranks
                     case PrankGadget.Pee: return "faire pipi (tapis ou coéquipier)";
                     case PrankGadget.Bat: return "frapper (tapis ou coéquipier)";
                     case PrankGadget.Blaster: return "tirer (tapis, ou coéquipier : KO 5 s)";
+                    case PrankGadget.Dynamite: return "lancer (explosion : KO 5 s dans la zone)";
                     default: return "utiliser";
                 }
             }
@@ -536,7 +632,7 @@ namespace RugWash.Pranks
                 if (settings == null) return string.Empty;
                 float remaining = CooldownRemaining(Equipped);
                 string state = remaining > 0f ? $"Recharge : {Mathf.CeilToInt(remaining)} s" : "Prête";
-                if (settings.costPerUse > 0) state += $" · {settings.costPerUse} € par tir";
+                if (settings.costPerUse > 0) state += $" · {settings.costPerUse} € par {(Equipped == PrankGadget.Dynamite ? "bâton" : "tir")}";
                 return $"Farce · {state}";
             }
         }

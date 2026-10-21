@@ -49,6 +49,8 @@ namespace RugWash.Player
             Button(gameplay, "Product", "<Keyboard>/t", "<Gamepad>/buttonWest");
             // Gadgets de farce (v0.1.2) : sortir / changer de gadget.
             Button(gameplay, "Gadget", "<Keyboard>/g", "<Gamepad>/dpad/up");
+            // V0.4.2 : lâcher au sol l'objet acheté tenu en main.
+            Button(gameplay, "Drop", "<Keyboard>/q", "<Gamepad>/dpad/down");
             Button(gameplay, "ToolScroll", "<Mouse>/scroll/y", null, InputActionType.Value, "Axis");
             for (int i = 1; i <= ToolSlotCount; i++)
             {
@@ -96,7 +98,7 @@ namespace RugWash.Player
 
         InputActionAsset asset;
         InputActionMap gameplay;
-        InputAction move, look, sprint, use, interact, scan, product, gadget, toolScroll, pause, inspect, debugOverlay;
+        InputAction move, look, sprint, use, interact, scan, product, gadget, drop, toolScroll, pause, inspect, debugOverlay;
         InputAction moveStick, lookStick, toolNext, toolPrevious, back;
         readonly InputAction[] toolSlots = new InputAction[RugWashInputActions.ToolSlotCount];
         bool sprintLatched;
@@ -124,6 +126,7 @@ namespace RugWash.Player
             scan = gameplay.FindAction("Scan", true);
             product = gameplay.FindAction("Product", true);
             gadget = gameplay.FindAction("Gadget", true);
+            drop = gameplay.FindAction("Drop", true);
             toolScroll = gameplay.FindAction("ToolScroll", true);
             moveStick = gameplay.FindAction("MoveStick", true);
             lookStick = gameplay.FindAction("LookStick", true);
@@ -185,6 +188,8 @@ namespace RugWash.Player
         public bool ProductPressed => GameplayEnabled && product.WasPressedThisFrame();
         /// <summary>Gadget de farce suivant (ou retour aux outils après le dernier).</summary>
         public bool GadgetPressed => GameplayEnabled && gadget.WasPressedThisFrame();
+        /// <summary>V0.4.2 : lâcher l'objet tenu en main.</summary>
+        public bool DropPressed => GameplayEnabled && drop.WasPressedThisFrame();
         /// <summary>« Utiliser » vient d'être pressé (gadgets : une action par appui).</summary>
         public bool UsePressed => GameplayEnabled && use.WasPressedThisFrame();
         public bool PausePressed => pause != null && pause.WasPressedThisFrame();

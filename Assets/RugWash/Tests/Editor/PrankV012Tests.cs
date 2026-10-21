@@ -123,7 +123,9 @@ namespace RugWash.Tests
                 Assert.AreEqual(gadget, settings.kind);
                 Assert.IsNotEmpty(settings.upgradeId);
                 Assert.GreaterOrEqual(settings.cooldownSeconds, 10f, $"{gadget} : pas de rafale.");
-                Assert.IsTrue(DirtTypes.IsPrank(settings.stainType));
+                // V0.4.2 : la dynamite ne tache pas ; elle soulève de la vraie poussière sur les tapis proches.
+                if (gadget == PrankGadget.Dynamite) Assert.IsFalse(settings.affectsRug);
+                else Assert.IsTrue(DirtTypes.IsPrank(settings.stainType));
             }
             Assert.IsTrue(tuning.blaster.affectsPlayers, "Mission de corrections : le fusil met un joueur KO.");
             Assert.AreEqual(5f, tuning.blasterKnockSeconds, 1e-4f, "KO de 5 s, puis relevé automatique.");

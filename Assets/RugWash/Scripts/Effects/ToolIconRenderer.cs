@@ -24,6 +24,13 @@ namespace RugWash.Effects
         [SerializeField] List<Material> hiddenMaterials = new List<Material>();
         [Tooltip("Matériaux ignorés pour le cadrage (tuyaux qui pendent) : l'outil remplit l'icône, le tuyau peut en sortir.")]
         [SerializeField] List<Material> ignoredForFraming = new List<Material>();
+        [Tooltip("V0.4.2 : modèles d'équipements non tenus en main (bottes…), cachés dans le studio, photographiés comme les outils.")]
+        [SerializeField] List<Transform> extraModels = new List<Transform>();
+        [Tooltip("Identifiants des modèles ci-dessus (même ordre).")]
+        [SerializeField] List<string> extraIds = new List<string>();
+
+        /// <summary>Identifiant de l'icône des bottes de lavage (équipement porté, sans modèle tenu en main).</summary>
+        public const string BootsId = "boots";
 
         const int Columns = 8, Rows = 2;
         readonly Dictionary<string, int> cells = new Dictionary<string, int>();
@@ -46,6 +53,7 @@ namespace RugWash.Effects
         {
             if (iconCamera != null) iconCamera.enabled = false;
             if (iconLight != null) iconLight.enabled = false;
+            for (int i = 0; i < extraModels.Count && i < extraIds.Count; i++) Register(extraIds[i], extraModels[i]);
         }
 
         void OnDestroy()

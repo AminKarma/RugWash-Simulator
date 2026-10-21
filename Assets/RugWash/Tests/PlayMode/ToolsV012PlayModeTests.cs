@@ -259,12 +259,12 @@ namespace RugWash.Tests
         {
             yield return LoadWorkshop(legacyTools: false);
             var robot = game.Robot;
-            var dock = Object.FindAnyObjectByType<RobotDock>();
             var interactor = Object.FindAnyObjectByType<PlayerInteractor>();
             Assert.IsFalse(robot.IsOwned, "Nouvelle partie : pas de robot.");
             foreach (var renderer in robot.GetComponentsInChildren<Renderer>(true)) Assert.IsFalse(renderer.enabled, "Robot caché tant qu'il n'est pas acheté.");
-            StringAssert.Contains("acheter sur l'ordinateur", dock.GetPrompt(interactor));
-            Assert.AreEqual(RobotVacuum.NotOwnedMessage, dock.Interact(interactor));
+            // V0.4.2 : sa base est dans la zone 2 (annexe, cachée tant que l'agrandissement n'est pas acheté).
+            StringAssert.Contains("acheter sur l'ordinateur", robot.GetPrompt(interactor));
+            Assert.AreEqual(RobotVacuum.NotOwnedMessage, robot.Toggle());
             Assert.AreEqual(RobotMode.Docked, robot.Mode);
 
             UpgradeDefinition robotUpgrade = null;
@@ -277,7 +277,15 @@ namespace RugWash.Tests
             Assert.AreEqual(PurchaseResult.Purchased, game.Shop.TryPurchase(robotUpgrade));
             yield return null;
             Assert.IsTrue(robot.IsOwned);
+            // V0.4.2 : réservé à la zone 2 : sans l'agrandissement, il attend (message clair), caché.
+            Assert.AreEqual(RobotVacuum.ZoneLockedMessage, robot.Toggle());
+            Assert.AreEqual(RobotMode.Docked, robot.Mode);
+            Assert.IsFalse(robot.GetComponentInChildren<Renderer>().enabled, "Zone 2 fermée : robot caché.");
+            game.Upgrades.Grant("up_extension");
+            yield return null;
             Assert.IsTrue(robot.GetComponentInChildren<Renderer>().enabled);
+            var dock = Object.FindAnyObjectByType<RobotDock>();
+            Assert.IsNotNull(dock, "Zone 2 ouverte : base du robot accessible.");
             dock.Interact(interactor);
             yield return null;
             Assert.AreNotEqual(RobotMode.Docked, robot.Mode, "Acheté, le robot démarre.");

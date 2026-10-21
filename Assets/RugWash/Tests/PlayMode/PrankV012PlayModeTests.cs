@@ -131,6 +131,9 @@ namespace RugWash.Tests
             public PrankGadget LastCause;
             public bool TryGetFeet(ulong clientId, out Vector3 feet) => Feet.TryGetValue(clientId, out feet);
             public bool IsDown(ulong clientId) => Down.Contains(clientId);
+            public void CollectPlayers(List<ulong> into) => into.AddRange(Feet.Keys);
+            /// <summary>Joueurs mis KO (identifiants, dans l'ordre).</summary>
+            public readonly List<ulong> Knocked = new List<ulong>();
 
             public void Splash(ulong clientId, float intensity, float seconds, float fadeSeconds, string from)
             {
@@ -141,6 +144,7 @@ namespace RugWash.Tests
             public void Knock(ulong clientId, Vector3 impulse, float seconds, string from, PrankGadget cause)
             {
                 Knocks++;
+                Knocked.Add(clientId);
                 LastImpulse = impulse;
                 LastSeconds = seconds;
                 LastCause = cause;
@@ -167,7 +171,7 @@ namespace RugWash.Tests
             yield return null;
             int rows = 0;
             foreach (var row in game.ShopUI.Rows) if (row.gameObject.activeSelf) rows++;
-            Assert.AreEqual(3, rows, "Onglet Farces : pipi, batte, fusil-jouet.");
+            Assert.AreEqual(4, rows, "Onglet Farces : pipi, batte, fusil-jouet, dynamite (V0.4.2).");
             StringAssert.Contains("Réputation", game.ShopUI.RowOf(Upgrade("up_prank_blaster")).StatusText);
             game.ShopUI.Close();
 

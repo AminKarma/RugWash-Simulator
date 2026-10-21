@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using RugWash.Cleaning;
 using RugWash.Economy;
 using RugWash.Orders;
@@ -126,7 +126,13 @@ namespace RugWash.Editor
             EnsureToolRumble(content.Rotary, 0.35f, 0.25f);
             EnsureToolBehaviour(content.FoamCannon, aspect: 2.6f);
             EnsureToolBehaviour(content.Broom, aspect: 2.2f, runoffDirt: 0.9f, dry: true);
-            EnsureToolBehaviour(content.DetailBrush, requiresUnlock: true);
+            // V0.4.2 : la brosse de détail remplace la brosse standard dans le kit de départ ; la brosse standard s'achète.
+            EnsureToolBehaviour(content.Brush, requiresUnlock: true);
+            if (content.DetailBrush.requiresUnlock)
+            {
+                content.DetailBrush.requiresUnlock = false;
+                EditorUtility.SetDirty(content.DetailBrush);
+            }
             EnsureToolBehaviour(content.Rinse, runoffDirt: 0.6f, runoffFoam: 0.7f, runoffWater: 0.35f);
             EnsureToolBehaviour(content.Bucket, runoffDirt: 0.7f, runoffFoam: 0.8f, runoffWater: 0.5f);
             // v0.1.2 : kit de départ = brosse, détergent, seau d'eau. Les autres outils s'achètent (boutique de l'ordinateur).
@@ -346,13 +352,17 @@ namespace RugWash.Editor
             // v0.1.2 jalon 4 : raclette et monobrosse.
             var squeegeeTool = EnsureUpgrade("up_tool_squeegee", "Raclette", "Pousse l'eau et la boue de l'aire de lavage jusqu'au caniveau.",
                 90, UpgradeEffect.UnlockTool, 1f, "squeegee", null);
+            // V0.4.2 : la brosse standard s'achète (la brosse de détail la remplace dans le kit de départ).
+            var brushTool = EnsureUpgrade("up_tool_brush", "Brosse standard",
+                "Grande brosse à poils souples : détache vite sur une large zone (moins précise que la brosse de détail).",
+                80, UpgradeEffect.UnlockTool, 1f, "brush", null);
             var rotaryTool = EnsureUpgrade("up_tool_rotary", "Monobrosse professionnelle",
                 "Disque rotatif : détache vite sur fibres humides ou savonneuses et fait monter la mousse (à rincer ensuite).",
                 650, UpgradeEffect.UnlockTool, 1f, "rotary", null);
             toolUnlocks = new System.Collections.Generic.Dictionary<string, UpgradeDefinition>
             {
                 ["vacuum"] = vacuumTool, ["broom"] = broomTool, ["rinse"] = rinseTool, ["extractor"] = extractorTool, ["foam_cannon"] = foamTool,
-                ["squeegee"] = squeegeeTool, ["rotary"] = rotaryTool,
+                ["squeegee"] = squeegeeTool, ["rotary"] = rotaryTool, ["brush"] = brushTool,
             };
 
             var water1 = EnsureUpgrade("up_water_1", "Réservoir d'eau 60 L", "Rincez plus longtemps entre deux remplissages.",
@@ -374,8 +384,10 @@ namespace RugWash.Editor
                 240, UpgradeEffect.ToolPower, 1.3f, "rinse", null));
             c.Upgrades.Add(EnsureUpgrade("up_extractor", "Extracteur haute dépression", "Sèche les fibres 40 % plus vite.",
                 260, UpgradeEffect.ToolPower, 1.4f, "extractor", null));
-            c.Upgrades.Add(EnsureUpgrade("up_detail_brush", "Brosse de détail", "Petite brosse dure pour les taches tenaces (graisse, taches incrustées).",
-                140, UpgradeEffect.UnlockTool, 1f, "detail_brush", null));
+            // V0.4.2 : brosse de détail du kit de départ ; son ancien achat (up_detail_brush) n'est plus vendu. Une sauvegarde qui le
+            // possède garde la brosse (offerte à tous) : l'identifiant, inconnu du catalogue, est simplement ignoré.
+            EnsureUpgrade("up_detail_brush", "Brosse de détail", "Petite brosse dure pour les taches tenaces (graisse, taches incrustées).",
+                140, UpgradeEffect.UnlockTool, 1f, "detail_brush", null);
             c.Upgrades.Add(EnsureUpgrade("up_broom_wide", "Balai large", "Balaie une bande 35 % plus large.",
                 90, UpgradeEffect.ToolRadius, 1.35f, "broom", null));
             c.Upgrades.Add(EnsureUpgrade("up_foam_wide", "Buse à mousse large", "Le canon à mousse couvre une zone 30 % plus large.",
@@ -385,6 +397,8 @@ namespace RugWash.Editor
             c.Upgrades.AddRange(new[] { vacuumTool, broomTool, rinseTool, extractorTool, foamTool });
             // v0.1.2 jalon 4 (ajoutés en fin de catalogue, mêmes raisons).
             c.Upgrades.AddRange(new[] { squeegeeTool, rotaryTool });
+            // V0.4.2 (ajoutée en fin de catalogue, mêmes raisons).
+            c.Upgrades.Add(brushTool);
             c.Upgrades.Add(EnsureUpgrade("up_vacuum_fiber", "Brosse turbo anti-poils",
                 "Accessoire d'aspirateur : une brosse rotative décolle les poils, cheveux et peluches accrochés aux fibres.",
                 130, UpgradeEffect.FiberPickup, 2f, "vacuum", null));
@@ -442,6 +456,46 @@ namespace RugWash.Editor
             c.Upgrades.Add(Reputation(EnsureUpgrade("up_prank_blaster", "Fusil à pompe de farces et attrapes",
                 BlasterDescription,
                 6500, UpgradeEffect.PrankGadget, 1f, "blaster", null), 20));
+            // V0.4.2 : dynamite de farces (lancée) : explosion de zone, KO de 5 s, poussière sur les tapis proches.
+            c.Upgrades.Add(Reputation(EnsureUpgrade("up_prank_dynamite", "Dynamite de farces",
+                "Lancez-la : BOUM ! Les coéquipiers dans le souffle sont mis KO 5 s et lâchent ce qu'ils tiennent ; les tapis proches " +
+                "prennent un peu de poussière. 80 € par bâton.",
+                5200, UpgradeEffect.PrankGadget, 1f, "dynamite", null), 18));
+            EnsureToolExtras(c);
+        }
+
+        /// <summary>
+        /// V0.4.2 : améliorations ajoutées aux outils qui en avaient peu ou pas (raclette, seau, brosse de détail) et largeurs
+        /// de travail pour les autres. Effets réels (multiplicateurs de largeur ou de puissance appliqués à l'outil), ajoutés en
+        /// fin de catalogue (ordre et indices existants inchangés) ; les outils à acheter restent exigés d'abord.
+        /// </summary>
+        static void EnsureToolExtras(Content c)
+        {
+            var extras = new[]
+            {
+                EnsureUpgrade("up_squeegee_wide", "Raclette large", "Lame de 75 cm : pousse l'eau et la boue sur une bande 30 % plus large.",
+                    110, UpgradeEffect.ToolRadius, 1.3f, "squeegee", null),
+                EnsureUpgrade("up_bucket_spout", "Seau à bec verseur", "Le bec répartit l'eau : rince 30 % plus vite à chaque versement.",
+                    80, UpgradeEffect.ToolPower, 1.3f, "bucket", null),
+                EnsureUpgrade("up_detail_brass", "Poils en laiton", "Poils métalliques fins : la brosse de détail attaque les taches 35 % plus vite.",
+                    170, UpgradeEffect.ToolPower, 1.35f, "detail_brush", null),
+                EnsureUpgrade("up_brush_wide", "Brosse large", "Semelle plus large : brosse une bande 25 % plus large.",
+                    160, UpgradeEffect.ToolRadius, 1.25f, "brush", null),
+                EnsureUpgrade("up_vacuum_wide", "Suceur large", "Suceur de 40 cm : aspire une bande 25 % plus large.",
+                    180, UpgradeEffect.ToolRadius, 1.25f, "vacuum", null),
+                EnsureUpgrade("up_rinse_fan", "Buse éventail", "Jet en éventail : rince une bande 25 % plus large.",
+                    200, UpgradeEffect.ToolRadius, 1.25f, "rinse", null),
+                EnsureUpgrade("up_extractor_wide", "Suceur d'extraction large", "Tête plus large : extrait l'eau sur une bande 25 % plus large.",
+                    220, UpgradeEffect.ToolRadius, 1.25f, "extractor", null),
+                EnsureUpgrade("up_rotary_wide", "Plateau de 43 cm", "Grand plateau : la monobrosse traite une zone 20 % plus large.",
+                    450, UpgradeEffect.ToolRadius, 1.2f, "rotary", null),
+            };
+            foreach (var extra in extras) if (!c.Upgrades.Contains(extra)) c.Upgrades.Add(extra);
+            // V0.4.2 : 5e emplacement d'inventaire (touche 5), propre à chaque joueur.
+            var slot = Reputation(EnsureUpgrade("up_inventory_slot", "Ceinture porte-outils",
+                "Une ceinture et un étui de plus : portez cinq objets au lieu de quatre (touche 5).",
+                1200, UpgradeEffect.InventorySlot, 1f, null, null), 6);
+            if (!c.Upgrades.Contains(slot)) c.Upgrades.Add(slot);
         }
 
         static System.Collections.Generic.Dictionary<string, UpgradeDefinition> toolUnlocks;

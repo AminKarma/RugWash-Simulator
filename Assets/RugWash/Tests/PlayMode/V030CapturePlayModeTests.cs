@@ -243,7 +243,7 @@ namespace RugWash.Tests
             var owned = new List<string>(game.Upgrades.OwnedIds)
             {
                 "up_tool_vacuum", "up_tool_rinse", "up_tool_extractor", "up_tool_foam", "up_tool_broom", "up_tool_squeegee",
-                "up_tool_rotary",
+                "up_tool_rotary", "up_detail_brush",
             };
             game.Upgrades.Restore(owned);
             game.Rug.LoadRug(game.AvailableRugs[0]);
@@ -323,6 +323,7 @@ namespace RugWash.Tests
                 Look(2.2f, 210f, 1.1f);
                 yield return new WaitForSeconds(0.5f);
                 Assert.Less(Vector3.Distance(avatar.RightWrist, avatar.ActiveTool.rightHand.TransformPoint(new Vector3(0f, 0f, -0.06f))), 0.03f, "Main sur la poignée.");
+                Assert.Greater(skeletons[style].FingerCount, 0, "Doigts articulés.");
                 WorkshopPlayModeTests.Save(camera, Path.Combine(folder, $"v30_avatar_{style}_tool.png"));
                 avatar.SetPreviewState(0, false, 0f);
             }
@@ -341,6 +342,93 @@ namespace RugWash.Tests
             yield return null;
             Assert.IsFalse(avatar.HeadPopped);
             Object.Destroy(avatarObject);
+        }
+
+        /// <summary>
+        /// Lisibilité des tapis sous différents éclairages et angles : vue plongeante, angle rasant (velours et relief), contre-jour
+        /// depuis l'autre côté de l'aire, et tapis de la zone 2 sous l'éclairage de l'annexe. Captures v30_light_* à relire.
+        /// </summary>
+        [UnityTest, Category("Capture")]
+        public IEnumerator Capture_V030_RugLighting()
+        {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) Assert.Ignore("Pas de GPU (mode -nographics) : captures ignorées.");
+            string folder = Folder();
+            var camera = game.ToolController.GetComponentInChildren<Camera>();
+            game.Rug.LoadRug(game.AvailableRugs[0]);
+            yield return null;
+            Vector3 center = game.Rug.UVToWorld(new Vector2(0.5f, 0.5f));
+            var views = new (string name, Vector3 offset, float yaw, float pitch)[]
+            {
+                ("v30_light_top", new Vector3(0f, 0f, -1.3f), 0f, 48f),
+                ("v30_light_grazing", new Vector3(-2.6f, 0f, -0.4f), 80f, 14f),
+                ("v30_light_backlit", new Vector3(0f, 0f, 2.6f), 180f, 24f),
+            };
+            foreach (var view in views)
+            {
+                game.PlayerController.Teleport(new Vector3(center.x, 0.06f, center.z) + view.offset, view.yaw, view.pitch);
+                yield return new WaitForSeconds(0.35f);
+                WorkshopPlayModeTests.Save(camera, Path.Combine(folder, view.name + ".png"));
+            }
+            // Zone 2 (annexe) : même tapis sous l'éclairage de l'annexe.
+            Object.FindAnyObjectByType<Workshop.WorkshopExtension>().Apply(true, false, false);
+            yield return null;
+            // Tapis de la zone 2 (et non une surface nettoyable de l'aire de lavage, aussi pilotée par un RugCleaningController).
+            var rug2 = game.Orders.BayCount > 1 ? game.Orders.RugOf(1) : null;
+            Assert.IsNotNull(rug2, "Tapis de la zone 2.");
+            if (rug2 != null)
+            {
+                for (int i = 0; i < Mathf.Min(2, game.AvailableRugs.Count); i++)
+                {
+                    rug2.LoadRug(game.AvailableRugs[i]);
+                    yield return null;
+                    Vector3 c2 = rug2.UVToWorld(new Vector2(0.5f, 0.5f));
+                    game.PlayerController.Teleport(new Vector3(c2.x, 0.06f, c2.z - 1.5f), 0f, 40f);
+                    yield return new WaitForSeconds(0.35f);
+                    WorkshopPlayModeTests.Save(camera, Path.Combine(folder, $"v30_light_zone2_rug{i}.png"));
+                }
+                // Même second tapis dans la zone 1 (comparaison : tapis ou éclairage ?).
+                game.Rug.LoadRug(game.AvailableRugs[1 % game.AvailableRugs.Count]);
+                yield return null;
+                game.PlayerController.Teleport(new Vector3(center.x, 0.06f, center.z - 1.5f), 0f, 40f);
+                yield return new WaitForSeconds(0.35f);
+                WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_light_zone1_rug1.png"));
+                Debug.Log($"[V030] Tapis : {string.Join(", ", System.Linq.Enumerable.Select(game.AvailableRugs, r => r.displayName))}");
+            }
+        }
+
+        /// <summary>
+        /// Décor de l'annexe (modèles Blender) : aucun objet ne déborde sur l'aire de lavage 2, ni devant l'ouverture vers
+        /// l'atelier, ni devant la machine à laver ; tous restent dans l'annexe.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator AnnexDecor_KeepsTheWashBayPassageAndWasherFree()
+        {
+            Object.FindAnyObjectByType<Workshop.WorkshopExtension>().Apply(true, true, false);
+            yield return null;
+            var decor = GameObject.Find("AnnexDecor");
+            Assert.IsNotNull(decor, "Décor de l'annexe présent.");
+            var bayRenderer = GameObject.Find("WashBay_2").GetComponentInChildren<Renderer>();
+            Bounds bay = bayRenderer.bounds;
+            foreach (var r in GameObject.Find("WashBay_2").GetComponentsInChildren<Renderer>()) if (r.bounds.size.y < 0.3f) bay.Encapsulate(r.bounds);
+            var washer = GameObject.Find("Machine_Washer").transform.position;
+            foreach (Transform item in decor.transform)
+            {
+                var renderers = item.GetComponentsInChildren<Renderer>();
+                if (renderers.Length == 0) continue;
+                var b = renderers[0].bounds;
+                foreach (var r in renderers) b.Encapsulate(r.bounds);
+                // Au sol : pas sur l'aire de lavage 2 (marge de 5 cm).
+                if (b.min.y < 0.5f)
+                {
+                    bool overBay = b.max.x > bay.min.x + 0.05f && b.min.x < bay.max.x - 0.05f && b.max.z > bay.min.z + 0.05f && b.min.z < bay.max.z - 0.05f;
+                    Assert.IsFalse(overBay, $"{item.name} empiète sur l'aire de lavage 2 ({b} / {bay}).");
+                }
+                // Pas devant l'ouverture de l'atelier (x < 7,2, z entre -2,15 et -0,75), ni devant la machine (1 m devant sa façade).
+                Assert.IsFalse(b.min.x < 7.2f && b.max.z > -2.15f && b.min.z < -0.75f, $"{item.name} gêne le passage depuis l'atelier.");
+                Assert.IsFalse(Mathf.Abs(b.center.x - washer.x) < 0.45f && b.min.z < washer.z - 0.45f && b.max.z > washer.z - 1.45f,
+                    $"{item.name} gêne l'accès à la machine à laver.");
+                Assert.That(b.min.x >= 6.2f && b.max.x <= 12.42f && b.min.z >= -4.42f && b.max.z <= 2.02f, $"{item.name} sort de l'annexe ({b}).");
+            }
         }
 
         /// <summary>Modèles Blender (MCP) intégrés à l'atelier : casier (fermé, ouvert), caisse à outils, machine à laver de l'annexe.</summary>
@@ -373,6 +461,27 @@ namespace RugWash.Tests
             game.PlayerController.Teleport(new Vector3(10.9f, 0.06f, -0.3f), 0f, 18f);
             yield return new WaitForSeconds(0.6f);
             WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_washer.png"));
+            // Décor Blender de l'annexe : sèche-linge, aspirateur à eau, établi garni, panneau d'outils, bidons et pompe.
+            Assert.IsNotNull(GameObject.Find("AnnexDecor/Dryer"), "Sèche-linge.");
+            Assert.IsNotNull(GameObject.Find("AnnexDecor/Workbench"), "Établi.");
+            game.PlayerController.Teleport(new Vector3(8.6f, 0.06f, -0.6f), 25f, 12f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_annex_back.png"));
+            game.PlayerController.Teleport(new Vector3(10.4f, 0.06f, -1.6f), 160f, 22f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_workbench.png"));
+            game.PlayerController.Teleport(new Vector3(8.2f, 0.06f, -1.8f), 205f, 14f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_jerrycans.png"));
+            // Enseigne au-dessus de l'entrée, tapis mouillé au séchage.
+            Assert.IsNotNull(GameObject.Find("Sign_Brand"), "Enseigne RugWash.");
+            game.PlayerController.Teleport(new Vector3(-3.2f, 0.06f, -1.6f), 180f, -12f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_brand_sign.png"));
+            Assert.IsNotNull(GameObject.Find("Hanging_Wet"), "Tapis mouillé au séchage (état « mouillé »).");
+            game.PlayerController.Teleport(new Vector3(2.6f, 0.06f, 0.2f), 90f, 2f);
+            yield return new WaitForSeconds(0.4f);
+            WorkshopPlayModeTests.Save(camera, Path.Combine(folder, "v30_fbx_ingame_drying_wet.png"));
         }
     }
 }
